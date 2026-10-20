@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-20",
+  "tests": {
+    "programs_passed": 28,
+    "actual_client_offline_runs": 6,
+    "live_login_and_nine_mapsquare_rebuild": true,
+    "default_port_network_test": "offline skip; separate live run on 43595 passed"
+  },
+  "files": {
+    "bin/rs2client.exe": {
+      "bytes": 279552,
+      "sha256": "D66AAC9B608F01184AC303C9160C5F2759663220793433988DF0CF2D0E97E3AA"
+    },
+    "bin/SDL2.dll": {
+      "bytes": 2231296,
+      "sha256": "74889602F25135DB1489529DC0A5170F65FC756886B744AA6A414529B8ABD3D9"
+    },
+    "bin/model_viewer.exe": {
+      "bytes": 253440,
+      "sha256": "A5DD4E21118A87F2710B735E786FF4EC5AA609087A899104AC7C42CE7863D705"
+    }
+  }
+}
