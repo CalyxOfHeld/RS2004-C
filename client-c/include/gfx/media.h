@@ -31,6 +31,7 @@ typedef struct {
     Pix32 *compass;
     Pix32 *crosses[8];
     Pix32 *mapdots[4];
+    Pix32 *mapflag;
     Pix8 *mapscene[50];
     Pix32 *mapfunction[50];
     Pix32 *headicons[20];

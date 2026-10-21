@@ -23,3 +23,7 @@ Matched revision225 division-before-subtraction for NPC/ground-item minimap dot 
 ## Small task: ordinary player minimap dots
 
 Draw active received players using original mapdots index2, gated on non-null/visible. Friend colouring still awaits synchronized social state. Build exit0/zero warnings; no tests or live two-client visual check run. Latest native SHA-256: `61DEF5023541E50CF56E22CAF6D8D30FD04EFBA34E664E37A8FAECA4B2B864FF`. See runs/2026-10-21-player-dots/README.md and source-review.diff. Latest cumulative update: player-dots-client-update.zip. Usage78%; full handoff at95% as requested.
+
+## Small task: scene-walk destination flag
+
+Loaded original mapflag; set from successfully sent scene-click route; clear on arrival/packet19; retain world destination on rebase; original distance/mask rules and final centre marker. Scope excludes approach-route flag replacement and minimap clicking. Build exit0/zero warnings; no tests/live scenario checks run. See runs/2026-10-21-destination-flag/README.md and source-review.diff. Latest native SHA-256: `5799B7166660D13580BDEB7BE0537F68F33D2CC518DEB9D60376E71B82F9F868`. Latest cumulative package: destination-flag-client-update.zip. Full handoff remains due at95% usage.

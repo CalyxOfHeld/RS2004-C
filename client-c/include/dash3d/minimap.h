@@ -14,6 +14,7 @@
 typedef struct {
     const World3D *scene;
     int level;
+    int flag_scene_tile_x, flag_scene_tile_z; // x == 0: no destination (revision225)
     Pix32 *image_minimap; // 512x512 tile pixel buffer
     int32_t compass_mask_offsets[33];
     int32_t compass_mask_lengths[33];
@@ -48,5 +49,7 @@ void minimap_draw_npc_dot(int player_x, int player_z, const NpcEntity *npc,
     int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite);
 void minimap_draw_player_dot(int player_x, int player_z, const PlayerEntity *other,
     int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite);
+void minimap_draw_destination(Minimap *m, Media *media, int player_x, int player_z,
+    int camera_yaw, int mapback_x, int mapback_y);
 
 #endif // RS2_MINIMAP_H

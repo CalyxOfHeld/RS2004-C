@@ -244,6 +244,36 @@ void minimap_draw_player_dot(int player_x, int player_z, const PlayerEntity *oth
         camera_yaw, mapback_x, mapback_y, dot_sprite);
 }
 
+void minimap_draw_destination(Minimap *m, Media *media, int player_x, int player_z,
+    int camera_yaw, int mapback_x, int mapback_y) {
+    if (!m || !media || !media->mapflag || m->flag_scene_tile_x == 0) return;
+    Pix32 *sprite = media->mapflag;
+    int dx = m->flag_scene_tile_x * 4 + 2 - player_x / 32;
+    int dz = m->flag_scene_tile_z * 4 + 2 - player_z / 32;
+    int distance = dx * dx + dz * dz;
+    if (distance > 6400) return;
+    int angle = camera_yaw & 2047;
+    int rx = (dz * pix3d_sin_table[angle] + dx * pix3d_cos_table[angle]) >> 16;
+    int rz = (dz * pix3d_cos_table[angle] - dx * pix3d_sin_table[angle]) >> 16;
+    int left = 94 + rx - sprite->crop_w / 2;
+    int top = 83 - rz - sprite->crop_h / 2;
+    if (distance <= 2500) {
+        pix32_draw(sprite, mapback_x + left, mapback_y + top);
+        return;
+    }
+    // Original drawOnMinimap masks distant markers against imageMapback.
+    if (!media->mapback) return;
+    for (int y = 0; y < sprite->height; y++) for (int x = 0; x < sprite->width; x++) {
+        int mx = left + sprite->crop_x + x, my = top + sprite->crop_y + y;
+        int sx = mapback_x + mx, sy = mapback_y + my;
+        uint32_t rgb = sprite->pixels[y * sprite->width + x];
+        if (!rgb || mx < 0 || my < 0 || mx >= media->mapback->width || my >= media->mapback->height) continue;
+        if (media->mapback->pixels[my * media->mapback->width + mx]) continue;
+        if (sx >= pix2d_clip_left && sx < pix2d_clip_right && sy >= pix2d_clip_top && sy < pix2d_clip_bottom)
+            pix2d_pixels[sy * pix2d_width + sx] = rgb;
+    }
+}
+
 void minimap_free(Minimap *m) {
     if (m && m->image_minimap) {
         pix32_free(m->image_minimap);

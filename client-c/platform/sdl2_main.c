@@ -1293,6 +1293,9 @@ int main(int argc, char *argv[]) {
                             if(trace) printf("[STATE] plane=%d minimap rebuilt\n",sync_ctx.current_plane);
                         }
                         if(player.name[0]) snprintf(chatbox.username,sizeof(chatbox.username),"%.31s",player.name);
+                    } else if (opcode == 19) { // UNSET_MAP_FLAG: zero payload bytes
+                        if (has_minimap) minimap.flag_scene_tile_x = 0;
+                        if (trace) printf("[STATE] destination cleared by server\n");
                     } else if (opcode == 1) { // NPC_INFO
                         Packet ninfo = packet_wrap(payload, pkt_len);
                         if(!entity_sync_npc_info(&sync_ctx,&ninfo,pkt_len)) {
@@ -1303,6 +1306,10 @@ int main(int argc, char *argv[]) {
                         Packet rebuild_pkt = packet_wrap(payload, pkt_len);
                         if (map_streamer_parse_rebuild_packet(&streamer, &rebuild_pkt)) {
                             entity_sync_rebase(&sync_ctx,streamer.base_tile_x-old_base_x,streamer.base_tile_z-old_base_z);
+                            if (has_minimap && minimap.flag_scene_tile_x != 0) {
+                                minimap.flag_scene_tile_x -= streamer.base_tile_x-old_base_x;
+                                minimap.flag_scene_tile_z -= streamer.base_tile_z-old_base_z;
+                            }
                             arena_reset(&arena_npc_models);memset(npc_models,0,npc_cfg.count*sizeof(Model *));
                             const char *m_dir = "../engine/data/pack/client/maps";
                             FILE *tf = fopen("../engine/data/pack/client/maps/m50_50", "rb");
@@ -1373,6 +1380,9 @@ int main(int argc, char *argv[]) {
 
             // C. Entity Logic Updates (authentic 50 Hz stride & frame progression)
             pathing_entity_update_movement(&player.base);
+            if (has_minimap && player.base.x / 128 == minimap.flag_scene_tile_x &&
+                player.base.z / 128 == minimap.flag_scene_tile_z)
+                minimap.flag_scene_tile_x = 0;
             pathing_entity_update_facing(&player.base);
             pathing_entity_update_sequences(&player.base, &seq_cfg);
 
@@ -1470,6 +1480,10 @@ int main(int argc, char *argv[]) {
                             bool sent=protocol_send_route(&session,streamer.base_tile_x,streamer.base_tile_z,player.base.path_tile_x[0],player.base.path_tile_z[0],
                                 res.steps_x,res.steps_z,res.step_count,false);
                             if(!sent) fprintf(stderr,"[ACTION] Route send failed\n");
+                            if (sent && has_minimap && res.step_count > 0) {
+                                minimap.flag_scene_tile_x = res.steps_x[res.step_count-1];
+                                minimap.flag_scene_tile_z = res.steps_z[res.step_count-1];
+                            }
                             if(trace && res.step_count>0) printf("[ACTION] route %s destination=(%d,%d)\n",sent?"sent":"failed",
                                 streamer.base_tile_x+res.steps_x[res.step_count-1],streamer.base_tile_z+res.steps_z[res.step_count-1]);
                         }
@@ -1750,6 +1764,9 @@ int main(int argc, char *argv[]) {
                     PlayerEntity *other=sync_ctx.players[sync_ctx.player_indices[i]];
                     minimap_draw_player_dot(player.base.x,player.base.z,other,camera_yaw,561,5,media.mapdots[2]);
                 }
+                minimap_draw_destination(&minimap,&media,player.base.x,player.base.z,camera_yaw,561,5);
+                // Original minimap draws the local centre marker last.
+                pix2d_fill_rect(561+93,5+82,3,3,0xFFFFFF);
             }
             media_draw_tabs_flashing(&media, selected_tab, dev_tabs_unlocked ? NULL : tab_interface_id, flashing_tab, game_ticks);
 
