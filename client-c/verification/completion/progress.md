@@ -35,3 +35,7 @@ The user clarified that Cursor/Grok partially performed the external audit befor
 ## Small task: operation-approach destination flag
 
 Shared approach helper now updates optional pointers to the same destination after a successful nonempty send. Failed/empty routes preserve prior state. NPC/loc/player/ground-item callers share this behavior. Build exit0/zero warnings; no tests/live checks run. Latest native SHA-256: `EC1BC954A68815B6DA156E60F98594418A528E13243AC515DAAD829D4AD3E2C1`. Latest cumulative package: approach-flag-client-update.zip. See runs/2026-10-21-approach-flag/README.md and source-review.diff. Cursor/Grok recovery deferred; its brief now reviews this completed integration. Full handoff at95% as requested.
+
+## Small task: MIDI_SONG delimiter and layout
+
+Fixed byte10 name termination, exact metadata length, native name bounds and unsigned metadata assembly. Build exit0/zero warnings; no tests/live audio checks run. Latest native SHA-256: `2BB6B9E47EBA7C008A89B759429AB17ADE7979586296D9351812A9D881DAF104`. Latest cumulative update: song-packet-client-update.zip. See runs/2026-10-21-song-packet. Follow-up: network-driven music still uses a decompressor without output-capacity bounds/error recovery. Full handoff at95% as requested.

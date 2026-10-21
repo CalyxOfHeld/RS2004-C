@@ -1253,21 +1253,23 @@ int main(int argc, char *argv[]) {
                             }
                         }
                     } else if (opcode == 54) { // MIDI_SONG
-                        if (pkt_len > 8) {
-                            char song_name[64];
-                            size_t name_len = 0;
-                            while (name_len < pkt_len - 8 && payload[name_len] != 0 && name_len < 63) {
-                                song_name[name_len] = payload[name_len];
-                                name_len++;
-                            }
-                            song_name[name_len] = '\0';
-                            size_t pos = name_len + 1;
-                            if (pos + 8 <= pkt_len) {
-                                int crc = ((int)payload[pos] << 24) | ((int)payload[pos+1] << 16) | ((int)payload[pos+2] << 8) | (int)payload[pos+3];
-                                int size = ((int)payload[pos+4] << 24) | ((int)payload[pos+5] << 16) | ((int)payload[pos+6] << 8) | (int)payload[pos+7];
-                                midi_play(song_name, crc, size);
-                            }
+                        char song_name[64];
+                        size_t name_len = 0;
+                        // Revision225 gjstr/pjstr uses byte10, followed by two g4s.
+                        while (name_len < pkt_len && payload[name_len] != 10) name_len++;
+                        if (name_len >= sizeof(song_name) || name_len + 9 != pkt_len ||
+                            memchr(payload, 0, name_len) != NULL) {
+                            fprintf(stderr,"[Protocol] Malformed MIDI_SONG\n");
+                            protocol_close_session(&session);live_server=false;break;
                         }
+                        memcpy(song_name,payload,name_len);
+                        song_name[name_len]='\0';
+                        size_t pos=name_len+1;
+                        uint32_t crc=((uint32_t)payload[pos]<<24) | ((uint32_t)payload[pos+1]<<16) |
+                            ((uint32_t)payload[pos+2]<<8) | payload[pos+3];
+                        uint32_t size=((uint32_t)payload[pos+4]<<24) | ((uint32_t)payload[pos+5]<<16) |
+                            ((uint32_t)payload[pos+6]<<8) | payload[pos+7];
+                        midi_play(song_name,(int32_t)crc,(int32_t)size);
                     } else if (opcode == 212) { // MIDI_JINGLE
                         if (pkt_len >= 6) {
                             int uncomp_len = ((int)payload[2] << 24) | ((int)payload[3] << 16) | ((int)payload[4] << 8) | (int)payload[5];

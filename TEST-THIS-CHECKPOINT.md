@@ -1,5 +1,7 @@
 # Windows client checkpoint — October 21, 2026
 
+**Latest update:** server song packets now use the original byte10 delimiter with checked metadata framing. Latest cumulative package: song-packet-client-update.zip. Build passed with zero warnings; tests/live audio checks were not run.
+
 **Latest update:** operation approaches now update the shared minimap destination flag after a successful route send. Latest cumulative package: approach-flag-client-update.zip. Build passed with zero warnings; tests/live checks were not run.
 
 **Latest update:** scene-click walking now sets the minimap destination flag; arrival/server clear removes it, and region rebases retain its world destination. Latest cumulative package: destination-flag-client-update.zip. Build passed with zero warnings; tests/live checks were not run for this change. Approach-route flags and minimap clicking remain open.
