@@ -6,6 +6,8 @@ typedef struct {
     int base_x,base_z;
     bool has_base,dirty,trace;
     unsigned unsupported;
+    ObjConfig *objects;
+    int local_pid;
     ZoneLocationBaseline *changes;
     size_t change_count,change_capacity;
 } ZoneSync;

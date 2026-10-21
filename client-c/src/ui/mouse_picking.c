@@ -159,8 +159,12 @@ static void build_menu(MousePicker *picker,
                         snprintf(ex_str, sizeof(ex_str), "Examine @lre@%s", ot.name);
                         context_menu_add_action(menu,ex_str,(MenuAction){.type=MENU_OBJ_EXAMINE,.target=id});
 
-                        snprintf(ex_str, sizeof(ex_str), "Take @lre@%s", ot.name);
-                        context_menu_add_action(menu,ex_str,(MenuAction){.type=MENU_OBJ_OP,.operation=3,.target=id,.x=(int)(bitset&127),.z=(int)((bitset>>7)&127)});
+                        for(int op=4;op>=0;op--) {
+                            const char *label=ot.op_valid[op]?ot.op[op]:op==2?"Take":NULL;
+                            if(!label || !label[0]) continue;
+                            snprintf(ex_str,sizeof(ex_str),"%s @lre@%s",label,ot.name);
+                            context_menu_add_action(menu,ex_str,(MenuAction){.type=MENU_OBJ_OP,.operation=op+1,.target=id,.x=(int)(bitset&127),.z=(int)((bitset>>7)&127)});
+                        }
                     }
                     obj_free_entry(&ot);
                 }

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "gfx/model.h"
+#include "config/obj.h"
 
 #define WORLD3D_MAX_LEVEL 4
 #define WORLD3D_MAX_X 104
@@ -56,11 +57,19 @@ typedef struct {
     int max_tile_z;
 } WorldLocation;
 
+typedef struct GroundItem {
+    int id,count;
+    int32_t value;
+    Model *model;
+    struct GroundItem *next;
+} GroundItem;
+
 typedef struct {
     int level;
     int x;
     int z;
     int draw_level;
+    GroundItem *items;
     TileUnderlay underlay;
     bool has_underlay;
     TileOverlay overlay;
@@ -95,6 +104,11 @@ typedef struct {
 
 void world3d_init(World3D *w, int max_x, int max_z, int max_level);
 void world3d_reset(World3D *w);
+void ground_items_clear(GroundTile *tile);
+bool ground_items_event(GroundTile *tile,ObjConfig *objects,int opcode,int id,int count,int new_count);
+int ground_items_models(GroundTile *tile,GroundItem *out[3]);
+GroundItem **ground_items_detach(World3D *scene);
+void ground_items_restore(World3D *scene,GroundItem **items,int dx,int dz);
 void world3d_dispose(World3D *w);
 bool world3d_add_map_location(World3D *w,WorldMapLocation loc);
 void world3d_click(World3D *w, int mouse_x, int mouse_y);

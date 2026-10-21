@@ -29,9 +29,9 @@ Credentials apply to the client launched from that PowerShell window. Do not put
 - Left-click an accessible ground tile to walk. Arrow keys rotate the camera. WASD moves only in the explicit offline preview.
 - Select sidebar tabs with the mouse (F2 also selects Stats). Right-click an inventory item that has a Wield operation; choose it, then check the equipment tab. Select a combat style for an equipped weapon and check the resulting selection. These depend on the actual account having suitable items.
 - Right-click an available ordinary door, choose Open/Close, and watch its state change. Talk to an available NPC and use Continue/choices if its real script presents them. NPC availability and dialogue depend on actual server state.
-- Escape closes an active interface/menu first, then exits when none is open. Closing the window also exits.
+- Escape closes an active interface/menu first; otherwise it selects the inventory tab. Close the window to exit.
 
-Ground-item synchronization/Take, live public chat, and full gameplay coverage remain unfinished. Do not treat failure of those as a login problem. Previous Cook dialogue verification used an explicitly prepared developer fixture; this guide does not promise a naturally available Cook scenario or completed quests/tutorial. Never use `--offline` to validate live gameplay.
+See TEST-THIS-CHECKPOINT.md for bank X/drag, shop buy/sell, ground quantity/reveal and stair checks. These have bounded recorded live scenarios. Live public chat and full gameplay coverage remain unfinished. Do not treat failure of those as a login problem. Previous Cook dialogue verification used an explicitly prepared developer fixture; this guide does not promise a naturally available Cook scenario or completed quests/tutorial. Never use `--offline` to validate live gameplay.
 
 ## Connection failures
 

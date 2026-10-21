@@ -130,6 +130,34 @@ static int current_entity_frame(PathingEntity *entity,SeqConfig *sequences) {
     return frame>=0 && frame<seq->frame_count ? seq->frames[frame] : -1;
 }
 
+static bool project_from_point(int vx, int vy, int vz,
+                               int eye_x, int eye_y, int eye_z,
+                               int pitch, int yaw,
+                               int *out_sx, int *out_sy) {
+    int dx = vx - eye_x;
+    int dy = vy - eye_y;
+    int dz = vz - eye_z;
+
+    int sin_p = pix3d_sin_table[pitch & 2047];
+    int cos_p = pix3d_cos_table[pitch & 2047];
+    int sin_y = pix3d_sin_table[yaw & 2047];
+    int cos_y = pix3d_cos_table[yaw & 2047];
+
+    int x1 = (dx * cos_y + dz * sin_y) >> 16;
+    int z1 = (dz * cos_y - dx * sin_y) >> 16;
+
+    int y2 = (dy * cos_p - z1 * sin_p) >> 16;
+    int z2 = (dy * sin_p + z1 * cos_p) >> 16;
+
+    if (z2 < 50) {
+        return false;
+    }
+
+    *out_sx = pix3d_center_x + (x1 << 9) / z2;
+    *out_sy = pix3d_center_y + (y2 << 9) / z2;
+    return true;
+}
+
 #include "verification_input.h"
 
 int main(int argc, char *argv[]) {
@@ -147,6 +175,7 @@ int main(int argc, char *argv[]) {
         if (strcmp(argv[i], "--offline") == 0) offline = true;
         else if (strcmp(argv[i], "--trace") == 0) trace=true;
         else if (strcmp(argv[i], "--input-script") == 0 && i+1<argc) input_path=argv[++i];
+        else if (strcmp(argv[i], "--input-follow") == 0) verification_follow_input=true;
         else if (strcmp(argv[i], "--rebuild") == 0) capture_rebuild = true;
         else if (strcmp(argv[i], "--capture") == 0 && i + 1 < argc) capture_path = argv[++i];
         else if (strcmp(argv[i], "--capture-frame") == 0 && i + 1 < argc) capture_frame = atoi(argv[++i]);
@@ -402,6 +431,16 @@ int main(int argc, char *argv[]) {
     int flashing_tab = -1;
     bool dev_tabs_unlocked = false;
 
+    // Hint Arrow state (Packet 25)
+    int hint_type = 0;       // 0 = none, 1 = npc, 2 = tile/coord, 10 = player
+    int hint_npc = -1;
+    int hint_tile_x = 0;
+    int hint_tile_z = 0;
+    int hint_offset_x = 0;
+    int hint_offset_z = 0;
+    int hint_height = 0;
+    int hint_player = -1;
+
     // 3. Build Lumbridge 3D Scene
     // content/maps/labels.txt locates Lumbridge at (3239, 3233), in mapsquare 50_50.
     printf("[INFO] Building Lumbridge 3D scene (m50_50 / l50_50)...\n");
@@ -456,7 +495,7 @@ int main(int argc, char *argv[]) {
     }
 
     // 4. Spawn Player Character (Lumbridge Courtyard at Tile 32, 32)
-    ZoneSync zones={0};zones.trace=trace;
+    ZoneSync zones={0};zones.trace=trace;zones.objects=&obj_cfg;zones.local_pid=-1;
     EntitySyncContext sync_ctx;
     entity_sync_init(&sync_ctx, &npc_cfg);
     PlayerEntity *player_ptr = &sync_ctx.local_player;
@@ -514,8 +553,8 @@ int main(int argc, char *argv[]) {
     cam.orbit_yaw = capture_yaw;
     cam.orbit_pitch = capture_pitch;
     int selected_tab = 3;   // inventory tab by default
-    int viewport_interface_id = -1;
-    int chat_interface_id = -1;
+    InterfaceState interfaces; interface_state_init(&interfaces);
+
     int public_chat_setting = 0;  // 0: On, 1: Friends, 2: Off, 3: Hide
     int private_chat_setting = 0; // 0: On, 1: Friends, 2: Off
     int trade_chat_setting = 0;   // 0: On, 1: Friends, 2: Off
@@ -650,8 +689,8 @@ int main(int argc, char *argv[]) {
     MenuSelection selection={0};comp_cfg.selection=&selection;
     ClientDesign design={0};
     ClientActions actions={.session=&session,.components=&comp_cfg,.varps=&varp_ctx,.objects=&obj_cfg,
-        .selection=&selection,.chatbox=&chatbox,.viewport_interface=&viewport_interface_id,
-        .chat_interface=&chat_interface_id,.live=live_server,.trace=trace,.idkits=&idk_cfg,.design=&design,
+        .selection=&selection,.chatbox=&chatbox,.viewport_interface=&interfaces.viewport,
+        .chat_interface=&interfaces.chat,.sidebar_interface=&interfaces.sidebar,.live=live_server,.trace=trace,.idkits=&idk_cfg,.design=&design,
         .entities=&sync_ctx,.scene=world3d,.locations=&loc_cfg,.pathfinder=&pathfinder,.collision=collision_maps,.map=&streamer};
     SDL_StartTextInput();
 
@@ -663,6 +702,7 @@ int main(int argc, char *argv[]) {
     int var4 = 256;
     int var5 = 1;
     int var6 = 0;
+    int game_ticks = 0;
     const int deltime = 20; // 50 Hz client tick
     const int mindel = 1;
 
@@ -693,7 +733,7 @@ int main(int argc, char *argv[]) {
         }
         if (var5 < mindel) var5 = mindel;
         SDL_Delay(var5);
-        audio_tick();
+
         midi_is_playing();
         verification_push_input(rendered_frames);
         while (SDL_PollEvent(&event)) {
@@ -707,11 +747,11 @@ int main(int argc, char *argv[]) {
                 if (event.key.keysym.sym == SDLK_ESCAPE) {
                     if (chatbox.count_dialog_open) {
                         chatbox_close_count_dialog(&chatbox);
-                    } else if (viewport_interface_id != -1) {
+                    } else if (interfaces.viewport != -1 || interfaces.sidebar != -1) {
                         if (live_server) protocol_send_close_modal(&session);
-                        viewport_interface_id = -1;
-                    } else if (chat_interface_id != -1) {
-                        chat_interface_id = -1;
+                        interface_state_init(&interfaces);
+                    } else if (interfaces.chat != -1) {
+                        interfaces.chat = -1;
                     } else if (menu.visible) {
                         menu.visible = false;
                     } else {
@@ -733,9 +773,10 @@ int main(int argc, char *argv[]) {
                     chatbox_backspace(&chatbox);
                 } else if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_KP_ENTER) {
                     if (chatbox.count_dialog_open) {
-                        int count = atoi(chatbox.count_dialog_input);
+                        int count = chatbox_count_value(&chatbox);
                         if (live_server) {
-                            protocol_send_resume_p_countdialog(&session, count);
+                                bool sent=protocol_send_resume_p_countdialog(&session, count);
+                                if(trace) printf("[ACTION] quantity %s count=%d\n",sent?"sent":"failed",count);
                         }
                         chatbox_close_count_dialog(&chatbox);
                         continue;
@@ -793,16 +834,16 @@ int main(int argc, char *argv[]) {
                             midi_stop();
                             chatbox_add_message(&chatbox, 0, NULL, "@yel@Music stopped.");
                         } else if (strncmp(cmd, "::bank", 6) == 0) {
-                            viewport_interface_id = 5292;
+                            interfaces.viewport = 5292;
                             chatbox_add_message(&chatbox, 0, NULL, "@yel@Opened Bank interface (5292).");
                         } else if (strncmp(cmd, "::shop", 6) == 0) {
-                            viewport_interface_id = 300;
+                            interfaces.viewport = 300;
                             chatbox_add_message(&chatbox, 0, NULL, "@yel@Opened Shop interface (300).");
                         } else if (strncmp(cmd, "::talk", 6) == 0) {
-                            chat_interface_id = 4882;
+                            interfaces.chat = 4882;
                         } else if (strncmp(cmd, "::close", 7) == 0) {
-                            viewport_interface_id = -1;
-                            chat_interface_id = -1;
+                            interfaces.viewport = -1;
+                            interfaces.chat = -1;
                         } else if (strncmp(cmd, "::clear", 7) == 0) {
                             chatbox_free(&chatbox);
                             chatbox_init(&chatbox, "Player");
@@ -810,8 +851,8 @@ int main(int argc, char *argv[]) {
                     }
                 }
             } else if (event.type == SDL_MOUSEWHEEL) {
-                if (viewport_interface_id != -1) {
-                    Component *modal_com = component_get(&comp_cfg, viewport_interface_id);
+                if (interfaces.viewport != -1 && mouse_x < 530 && mouse_y < 357) {
+                    Component *modal_com = component_get(&comp_cfg, interfaces.viewport);
                     if (modal_com) {
                         int mw = modal_com->width > 0 ? modal_com->width : VIEWPORT_W;
                         int mh = modal_com->height > 0 ? modal_com->height : VIEWPORT_H;
@@ -820,8 +861,8 @@ int main(int argc, char *argv[]) {
                         component_handle_mousewheel(&comp_cfg, modal_com, mouse_x, mouse_y, mx_pos, my_pos, 0, event.wheel.y);
                     }
                 } else if (selected_tab >= 0 && selected_tab < 14) {
-                    int tab_if = tab_interface_id[selected_tab];
-                    if (tab_if <= 0 || tab_if == 65535) tab_if = DEFAULT_TAB_INTERFACE_ID[selected_tab];
+                    int tab_if = interfaces.sidebar != -1 ? interfaces.sidebar : tab_interface_id[selected_tab];
+                    if (offline && (tab_if <= 0 || tab_if == 65535)) tab_if = DEFAULT_TAB_INTERFACE_ID[selected_tab];
                     if (tab_if > 0 && tab_if != 65535) {
                         Component *tab_com = component_get(&comp_cfg, tab_if);
                         if (tab_com) {
@@ -874,15 +915,15 @@ int main(int argc, char *argv[]) {
                         chosen = context_menu_pick_action(&menu, mx, my, &action);
                         if (chosen) {
                             ActionResult result = client_action_dispatch(&actions, action);
-                            if (result == ACTION_WALK && viewport_interface_id == -1) {
+                            if (result == ACTION_WALK && interfaces.viewport == -1) {
                                 pending_click = true; pending_click_x = mx; pending_click_y = my; pending_click_mode = 1;
                             } else if (result == ACTION_UNAVAILABLE) {
                                 fprintf(stderr, "[ACTION] Unsupported action type %d; no packet sent\n", action.type);
                             }
                         }
                     } else {
-                        if (viewport_interface_id != -1) {
-                            Component *modal_com = component_get(&comp_cfg, viewport_interface_id);
+                        if (interfaces.viewport != -1 && mouse_x < 530 && mouse_y < 357) {
+                            Component *modal_com = component_get(&comp_cfg, interfaces.viewport);
                             if (modal_com) {
                                 int mw = modal_com->width > 0 ? modal_com->width : VIEWPORT_W;
                                 int mh = modal_com->height > 0 ? modal_com->height : VIEWPORT_H;
@@ -894,8 +935,8 @@ int main(int argc, char *argv[]) {
                             }
                         }
                         if (selected_tab >= 0 && selected_tab < 14) {
-                            int tab_if = tab_interface_id[selected_tab];
-                            if (tab_if <= 0 || tab_if == 65535) tab_if = DEFAULT_TAB_INTERFACE_ID[selected_tab];
+                            int tab_if = interfaces.sidebar != -1 ? interfaces.sidebar : tab_interface_id[selected_tab];
+                            if (offline && (tab_if <= 0 || tab_if == 65535)) tab_if = DEFAULT_TAB_INTERFACE_ID[selected_tab];
                             if (tab_if > 0 && tab_if != 65535) {
                                 Component *tab_com = component_get(&comp_cfg, tab_if);
                                 if (tab_com) {
@@ -911,7 +952,7 @@ int main(int argc, char *argv[]) {
                         for (int i = 0; i < 14; i++) {
                             bool row = i < 7 ? my >= 194 && my < 231 : my >= 492 && my < 529;
                             if (row && mx >= left[i] && mx <= right[i]) {
-                                if (dev_tabs_unlocked || tab_interface_id[i] != -1 || flashing_tab == i || DEFAULT_TAB_INTERFACE_ID[i] != -1) {
+                                if (interfaces.sidebar == -1 && (dev_tabs_unlocked || tab_interface_id[i] != -1)) {
                                     tab = i;
                                     break;
                                 }
@@ -931,8 +972,8 @@ int main(int argc, char *argv[]) {
                         } else {
                             int clicked_slot = -1;
                             Component *inv_com = NULL;
-                            if (viewport_interface_id != -1) {
-                                Component *modal_com = component_get(&comp_cfg, viewport_interface_id);
+                            if (interfaces.viewport != -1 && mouse_x < 530 && mouse_y < 357) {
+                                Component *modal_com = component_get(&comp_cfg, interfaces.viewport);
                                 if (modal_com) {
                                     int mw = modal_com->width > 0 ? modal_com->width : VIEWPORT_W;
                                     int mh = modal_com->height > 0 ? modal_com->height : VIEWPORT_H;
@@ -942,8 +983,8 @@ int main(int argc, char *argv[]) {
                                 }
                             }
                             if (!inv_com && selected_tab >= 0 && selected_tab < 14) {
-                                int tab_if = tab_interface_id[selected_tab];
-                                if (tab_if <= 0 || tab_if == 65535) tab_if = DEFAULT_TAB_INTERFACE_ID[selected_tab];
+                                int tab_if = interfaces.sidebar != -1 ? interfaces.sidebar : tab_interface_id[selected_tab];
+                                if (offline && (tab_if <= 0 || tab_if == 65535)) tab_if = DEFAULT_TAB_INTERFACE_ID[selected_tab];
                                 if (tab_if > 0 && tab_if != 65535) {
                                     Component *tab_com = component_get(&comp_cfg, tab_if);
                                     if (tab_com) {
@@ -951,8 +992,8 @@ int main(int argc, char *argv[]) {
                                     }
                                 }
                             }
-                            if (!inv_com && chat_interface_id != -1 && mx >= 22 && mx < 501 && my >= 375 && my < 471) {
-                                Component *chat_com = component_get(&comp_cfg, chat_interface_id);
+                            if (!inv_com && interfaces.chat != -1 && mx >= 22 && mx < 501 && my >= 375 && my < 471) {
+                                Component *chat_com = component_get(&comp_cfg, interfaces.chat);
                                 if (chat_com) {
                                     inv_com = component_find_inv_slot(&comp_cfg, chat_com, mx, my, 22, 375, 0, &clicked_slot);
                                 }
@@ -972,7 +1013,7 @@ int main(int argc, char *argv[]) {
                                 if (menu.size > 0) { action = menu.actions[menu.size - 1]; chosen = true; }
                                 if (chosen) {
                                     ActionResult result = client_action_dispatch(&actions, action);
-                                    if (result == ACTION_WALK && viewport_interface_id == -1) {
+                                    if (result == ACTION_WALK && interfaces.viewport == -1) {
                                         pending_click = true; pending_click_x = mx; pending_click_y = my; pending_click_mode = 1;
                                     } else if (result == ACTION_UNAVAILABLE) {
                                         fprintf(stderr, "[ACTION] Unsupported action type %d; no packet sent\n", action.type);
@@ -994,8 +1035,8 @@ int main(int argc, char *argv[]) {
                     if (comp_cfg.drag.threshold && comp_cfg.drag.cycles >= 5) {
                         int dest_slot = -1;
                         Component *dest_com = NULL;
-                        if (viewport_interface_id != -1) {
-                            Component *modal_com = component_get(&comp_cfg, viewport_interface_id);
+                        if (interfaces.viewport != -1 && mouse_x < 530 && mouse_y < 357) {
+                            Component *modal_com = component_get(&comp_cfg, interfaces.viewport);
                             if (modal_com) {
                                 int mw = modal_com->width > 0 ? modal_com->width : VIEWPORT_W;
                                 int mh = modal_com->height > 0 ? modal_com->height : VIEWPORT_H;
@@ -1005,8 +1046,8 @@ int main(int argc, char *argv[]) {
                             }
                         }
                         if (!dest_com && selected_tab >= 0 && selected_tab < 14) {
-                            int tab_if = tab_interface_id[selected_tab];
-                            if (tab_if <= 0 || tab_if == 65535) tab_if = DEFAULT_TAB_INTERFACE_ID[selected_tab];
+                            int tab_if = interfaces.sidebar != -1 ? interfaces.sidebar : tab_interface_id[selected_tab];
+                            if (offline && (tab_if <= 0 || tab_if == 65535)) tab_if = DEFAULT_TAB_INTERFACE_ID[selected_tab];
                             if (tab_if > 0 && tab_if != 65535) {
                                 Component *tab_com = component_get(&comp_cfg, tab_if);
                                 if (tab_com) {
@@ -1014,32 +1055,25 @@ int main(int argc, char *argv[]) {
                                 }
                             }
                         }
-                        if (!dest_com && chat_interface_id != -1 && up_x >= 22 && up_x < 501 && up_y >= 375 && up_y < 471) {
-                            Component *chat_com = component_get(&comp_cfg, chat_interface_id);
+                        if (!dest_com && interfaces.chat != -1 && up_x >= 22 && up_x < 501 && up_y >= 375 && up_y < 471) {
+                            Component *chat_com = component_get(&comp_cfg, interfaces.chat);
                             if (chat_com) {
                                 dest_com = component_find_inv_slot(&comp_cfg, chat_com, up_x, up_y, 22, 375, 0, &dest_slot);
                             }
                         }
 
-                        if (dest_com && dest_com->id == comp_cfg.drag.component_id && dest_slot >= 0 && dest_slot != comp_cfg.drag.slot) {
-                            int from = comp_cfg.drag.slot;
-                            int to = dest_slot;
-                            int temp_id = dest_com->inv_slot_obj_id[to];
-                            dest_com->inv_slot_obj_id[to] = dest_com->inv_slot_obj_id[from];
-                            dest_com->inv_slot_obj_id[from] = temp_id;
-                            int temp_cnt = dest_com->inv_slot_obj_count[to];
-                            dest_com->inv_slot_obj_count[to] = dest_com->inv_slot_obj_count[from];
-                            dest_com->inv_slot_obj_count[from] = temp_cnt;
-
+                        int from=comp_cfg.drag.slot;
+                        if (component_drag_release(&comp_cfg,dest_com,dest_slot)) {
                             if (live_server) {
-                                protocol_send_inv_buttond(&session, dest_com->id, from, to);
+                                bool sent=protocol_send_inv_buttond(&session,dest_com->id,from,dest_slot);
+                                if(trace) printf("[ACTION] drag %s component=%d from=%d to=%d\n",sent?"sent":"failed",dest_com->id,from,dest_slot);
                             }
                         }
                     } else {
                         if (menu.size > 0) {
                             MenuAction action = menu.actions[menu.size - 1];
                             ActionResult result = client_action_dispatch(&actions, action);
-                            if (result == ACTION_WALK && viewport_interface_id == -1) {
+                            if (result == ACTION_WALK && interfaces.viewport == -1) {
                                 pending_click = true; pending_click_x = up_x; pending_click_y = up_y; pending_click_mode = 1;
                             }
                         }
@@ -1051,6 +1085,8 @@ int main(int argc, char *argv[]) {
 
         // 50 Hz Client Logic Tick Accumulator (matching GameShell.java:200-206)
         while (var6 < 256) {
+            game_ticks++;
+            audio_tick();
             if (comp_cfg.drag.active) comp_cfg.drag.cycles++;
             if (comp_cfg.scroll_drag.active && comp_cfg.scroll_drag.target && comp_cfg.scroll_drag.arrow_dir != 0) {
                 comp_cfg.scroll_drag.arrow_hold_ticks++;
@@ -1078,6 +1114,17 @@ int main(int argc, char *argv[]) {
                     if(zone_result>0) {
                         if(zones.dirty && has_minimap) minimap_build(&minimap,world,world3d,&media,sync_ctx.current_plane);
                         zones.dirty=false;continue;
+                    }
+                    int panel_update=interface_state_apply(&interfaces,opcode,payload,pkt_len);
+                    if(panel_update<0) {
+                        fprintf(stderr,"Malformed interface packet %d\n",opcode);
+                        protocol_close_session(&session);live_server=false;break;
+                    }
+                    if(panel_update>0) {
+                        chatbox_close_count_dialog(&chatbox);
+                        comp_cfg.drag.active=false;menu.visible=false;
+                        if(trace) printf("[STATE] panels main=%d side=%d chat=%d\n",interfaces.viewport,interfaces.sidebar,interfaces.chat);
+                        continue;
                     }
                     int update=component_apply_packet(&comp_cfg,&varp_ctx,&arena_perm,opcode,payload,pkt_len);
                     if(update<0) {
@@ -1111,28 +1158,11 @@ int main(int argc, char *argv[]) {
                             int delay = (payload[3] << 8) | payload[4];
                             audio_queue_sound(sound_id, loops > 0 ? loops : 1, delay);
                         }
-                    } else if (opcode == 14) { // IF_OPENCHAT
-                        if (pkt_len >= 2) {
-                            chat_interface_id = (payload[0] << 8) | payload[1];
-                            if(trace) printf("[STATE] chat_interface=%d\n",chat_interface_id);
-                        }
-                    } else if (opcode == 28) { // IF_OPENMAIN_SIDE
-                        if (pkt_len >= 4) {
-                            viewport_interface_id = (payload[0] << 8) | payload[1];
-                            if(trace) printf("[STATE] main_interface=%d\n",viewport_interface_id);
-                            int side_com = (payload[2] << 8) | payload[3];
-                            if (selected_tab >= 0 && selected_tab < 14) {
-                                tab_interface_id[selected_tab] = side_com;
-                            }
-                        }
                     } else if (opcode == 84) { // IF_SETTAB_ACTIVE
                         if (pkt_len >= 1) {
                             int tab = payload[0];
                             if (tab >= 0 && tab < 14) selected_tab = tab;
                         }
-                    } else if (opcode == 129) { // IF_CLOSE
-                        viewport_interface_id = -1;
-                        chat_interface_id = -1;
                     } else if (opcode == 142) { // LOGOUT
                         live_server = false;
                         protocol_close_session(&session);
@@ -1156,25 +1186,47 @@ int main(int argc, char *argv[]) {
                                 selected_tab = (flashing_tab == 3) ? 1 : 3;
                             }
                         }
+                    } else if (opcode == 25) { // HINT_ARROW
+                        if (pkt_len >= 6) {
+                            int t = (int8_t)payload[0];
+                            if (t == 1) {
+                                hint_type = 1;
+                                hint_npc = (payload[1] << 8) | payload[2];
+                            } else if (t >= 2 && t <= 6) {
+                                if (t == 2) {
+                                    hint_offset_x = 64;
+                                    hint_offset_z = 64;
+                                } else if (t == 3) {
+                                    hint_offset_x = 0;
+                                    hint_offset_z = 64;
+                                } else if (t == 4) {
+                                    hint_offset_x = 128;
+                                    hint_offset_z = 64;
+                                } else if (t == 5) {
+                                    hint_offset_x = 64;
+                                    hint_offset_z = 0;
+                                } else if (t == 6) {
+                                    hint_offset_x = 64;
+                                    hint_offset_z = 128;
+                                }
+                                hint_type = 2;
+                                hint_tile_x = (payload[1] << 8) | payload[2];
+                                hint_tile_z = (payload[3] << 8) | payload[4];
+                                hint_height = payload[5];
+                            } else if (t == 10) {
+                                hint_type = 10;
+                                hint_player = (payload[1] << 8) | payload[2];
+                            } else {
+                                hint_type = 0;
+                            }
+                            if (trace) printf("[HINT] type=%d npc=%d tile=(%d,%d) h=%d pl=%d\n", hint_type, hint_npc, hint_tile_x, hint_tile_z, hint_height, hint_player);
+                        }
                     } else if (opcode == 167) { // IF_SETTAB
                         if (pkt_len >= 3) {
                             int com_id = (payload[0] << 8) | payload[1];
                             int tab = payload[2];
                             if (com_id == 65535) com_id = -1;
-                            if (tab == 13 && com_id == -1) com_id = 962; // Always keep music tab accessible
                             if (tab >= 0 && tab < 14) tab_interface_id[tab] = com_id;
-                        }
-                    } else if (opcode == 168) { // IF_OPENMAIN
-                        if (pkt_len >= 2) {
-                            viewport_interface_id = (payload[0] << 8) | payload[1];
-                            if(trace) printf("[STATE] main_interface=%d\n",viewport_interface_id);
-                        }
-                    } else if (opcode == 195) { // IF_OPENSIDE
-                        if (pkt_len >= 2) {
-                            int com_id = (payload[0] << 8) | payload[1];
-                            if (selected_tab >= 0 && selected_tab < 14) {
-                                tab_interface_id[selected_tab] = com_id;
-                            }
                         }
                     } else if (opcode == 204) { // IF_SETNPCHEAD
                         if (pkt_len >= 4) {
@@ -1228,10 +1280,17 @@ int main(int argc, char *argv[]) {
                             private_chat_setting = payload[1];
                             trade_chat_setting = payload[2];
                         }
+                    } else if (opcode == 139 && pkt_len==2) { // UPDATE_PID: original localPid, separate from local render slot 2047.
+                        zones.local_pid=(payload[0]<<8)|payload[1];
                     } else if (opcode == 184) { // PLAYER_INFO
+                        int previous_plane=sync_ctx.current_plane;
                         Packet pinfo = packet_wrap(payload, pkt_len);
                         if(!entity_sync_player_info(&sync_ctx,&pinfo,pkt_len)) {
                             fprintf(stderr,"[Protocol] Invalid PLAYER_INFO\n");protocol_close_session(&session);live_server=false;break;
+                        }
+                        if(previous_plane!=sync_ctx.current_plane && has_minimap) {
+                            minimap_build(&minimap,world,world3d,&media,sync_ctx.current_plane);
+                            if(trace) printf("[STATE] plane=%d minimap rebuilt\n",sync_ctx.current_plane);
                         }
                         if(player.name[0]) snprintf(chatbox.username,sizeof(chatbox.username),"%.31s",player.name);
                     } else if (opcode == 1) { // NPC_INFO
@@ -1240,24 +1299,26 @@ int main(int argc, char *argv[]) {
                             fprintf(stderr,"[Protocol] Invalid NPC_INFO\n");protocol_close_session(&session);live_server=false;break;
                         }
                     } else if (opcode == 237) { // REBUILD_NORMAL
+                        int old_base_x=streamer.base_tile_x,old_base_z=streamer.base_tile_z;
                         Packet rebuild_pkt = packet_wrap(payload, pkt_len);
                         if (map_streamer_parse_rebuild_packet(&streamer, &rebuild_pkt)) {
+                            entity_sync_rebase(&sync_ctx,streamer.base_tile_x-old_base_x,streamer.base_tile_z-old_base_z);
                             arena_reset(&arena_npc_models);memset(npc_models,0,npc_cfg.count*sizeof(Model *));
                             const char *m_dir = "../engine/data/pack/client/maps";
                             FILE *tf = fopen("../engine/data/pack/client/maps/m50_50", "rb");
                             if (tf) { fclose(tf); } else { m_dir = "engine/data/pack/client/maps"; }
                             zone_sync_reset(&zones);
-                            if (!map_streamer_rebuild(&streamer, world, world3d, collision_maps, &flo_cfg, &loc_cfg, m_dir)) {
+                            GroundItem **saved_items=ground_items_detach(world3d);
+                            if(!saved_items) {fprintf(stderr,"Cannot retain ground items during rebuild\n");running=false;break;}
+                            bool rebuilt=map_streamer_rebuild(&streamer, world, world3d, collision_maps, &flo_cfg, &loc_cfg, m_dir);
+                            ground_items_restore(world3d,saved_items,streamer.base_tile_x-old_base_x,streamer.base_tile_z-old_base_z);
+                            if (!rebuilt) {
                                 fprintf(stderr, "Live map rebuild failed\n");
                                 continue;
                             }
                             if (has_minimap) minimap_build(&minimap, world, world3d, &media, sync_ctx.current_plane);
                             printf("[VERIFY] Live REBUILD_NORMAL: %d mapsquares, base=(%d,%d)\n",
                                 streamer.region_count, streamer.base_tile_x, streamer.base_tile_z);
-                            player.base.x = (streamer.center_zone_x * 8 - streamer.base_tile_x) * 128 + 64;
-                            player.base.z = (streamer.center_zone_z * 8 - streamer.base_tile_z) * 128 + 64;
-                            player.base.path_tile_x[0] = player.base.x / 128;
-                            player.base.path_tile_z[0] = player.base.z / 128;
                             cam.orbit_x = player.base.x;
                             cam.orbit_z = player.base.z;
                             chatbox_add_message(&chatbox, 0, NULL, "Loaded new map region.");
@@ -1466,11 +1527,34 @@ int main(int argc, char *argv[]) {
                 }
                 size_t mark=arena_frame.offset;Model *model=model_copy(npc_models[type],&arena_frame);
                 if(model) {
+                    if (npc->base.height == 0) {
+                        int min_y = 0;
+                        for (int p = 0; p < model->num_points; p++) {
+                            if (model->point_y[p] < min_y) min_y = model->point_y[p];
+                        }
+                        if (min_y < 0) npc->base.height = -min_y;
+                    }
                     model_create_label_references(model,&arena_frame);
                     int frame=current_entity_frame(&npc->base,&seq_cfg);
                     if(frame>=0) model_apply_transform(model,frame);
                     model_calculate_normals(model,64,850,-30,-50,-30);
                     int y=camera_get_height(sync_ctx.current_plane,npc->base.x,npc->base.z,world3d->heightmap,world->tile_flags);
+                    if(verification_npc_type==type) {
+                        int sx,sy;
+                        if(project_from_point(npc->base.x,y-npc->base.height/2,npc->base.z,eye_x,eye_y,eye_z,camera_pitch,camera_yaw,&sx,&sy)) {
+                            for(int dy=-20;dy<=20 && verification_npc_type>=0;dy+=5)
+                                for(int dx=-15;dx<=15 && verification_npc_type>=0;dx+=5) {
+                                    int px=sx+dx,py=sy+dy;
+                                    if(px<VIEWPORT_X || px>=VIEWPORT_X+VIEWPORT_W || py<VIEWPORT_Y || py>=VIEWPORT_Y+VIEWPORT_H) continue;
+                                    if(model_draw_pickable(model,npc->base.yaw,camera_pitch,camera_yaw,npc->base.x-eye_x,y-eye_y,npc->base.z-eye_z,px,py)) {
+                                        SDL_Event pointer;memset(&pointer,0,sizeof(pointer));pointer.type=SDL_MOUSEMOTION;
+                                        pointer.motion.x=px;pointer.motion.y=py;SDL_PushEvent(&pointer);
+                                        verification_cursor_x=px;verification_cursor_y=py;verification_npc_type=-1;
+                                        printf("[INPUT] rendered NPC type=%d slot=%d pointer=(%d,%d)\n",type,slot,px,py);
+                                    }
+                                }
+                        }
+                    }
                     if(model_draw_pickable(model,npc->base.yaw,camera_pitch,camera_yaw,npc->base.x-eye_x,y-eye_y,npc->base.z-eye_z,mouse_x,mouse_y))
                         mouse_picker_add_picked(&picker,mouse_picker_make_bitset(1,slot,npc->base.x/128,npc->base.z/128));
                 }
@@ -1527,12 +1611,65 @@ int main(int argc, char *argv[]) {
             }
         }
 
+        // Authentic Rev 225 Hint Arrow Rendering (Packet 25)
+        if (media.headicons[2] && (game_ticks % 20 < 10)) {
+            if (hint_type == 1 && live_server) {
+                if (hint_npc >= 0 && hint_npc < MAX_NPCS && sync_ctx.npcs[hint_npc]) {
+                    NpcEntity *target_npc = sync_ctx.npcs[hint_npc];
+                    int wx = target_npc->base.x;
+                    int wz = target_npc->base.z;
+                    int gy = camera_get_height(sync_ctx.current_plane, wx, wz, world3d->heightmap, world->tile_flags);
+                    int h = target_npc->base.height > 0 ? target_npc->base.height : 200;
+                    int wy = gy - h - 15;
+                    int sx, sy;
+                    if (project_from_point(wx, wy, wz, eye_x, eye_y, eye_z, camera_pitch, camera_yaw, &sx, &sy)) {
+                        if (sx >= VIEWPORT_X && sx < VIEWPORT_X + VIEWPORT_W &&
+                            sy >= VIEWPORT_Y && sy < VIEWPORT_Y + VIEWPORT_H) {
+                            pix32_draw(media.headicons[2], sx - 12, sy - 28);
+                        }
+                    }
+                }
+            } else if (hint_type == 2) {
+                int tile_x_local = hint_tile_x - streamer.base_tile_x;
+                int tile_z_local = hint_tile_z - streamer.base_tile_z;
+                if (tile_x_local >= 0 && tile_x_local < 104 && tile_z_local >= 0 && tile_z_local < 104) {
+                    int wx = tile_x_local * 128 + hint_offset_x;
+                    int wz = tile_z_local * 128 + hint_offset_z;
+                    int gy = camera_get_height(sync_ctx.current_plane, wx, wz, world3d->heightmap, world->tile_flags);
+                    int wy = gy - (hint_height * 2);
+                    int sx, sy;
+                    if (project_from_point(wx, wy, wz, eye_x, eye_y, eye_z, camera_pitch, camera_yaw, &sx, &sy)) {
+                        if (sx >= VIEWPORT_X && sx < VIEWPORT_X + VIEWPORT_W &&
+                            sy >= VIEWPORT_Y && sy < VIEWPORT_Y + VIEWPORT_H) {
+                            pix32_draw(media.headicons[2], sx - 12, sy - 28);
+                        }
+                    }
+                }
+            } else if (hint_type == 10 && live_server) {
+                if (hint_player >= 0 && hint_player < MAX_PLAYERS && sync_ctx.players[hint_player]) {
+                    PlayerEntity *target_pl = sync_ctx.players[hint_player];
+                    int wx = target_pl->base.x;
+                    int wz = target_pl->base.z;
+                    int gy = camera_get_height(sync_ctx.current_plane, wx, wz, world3d->heightmap, world->tile_flags);
+                    int h = target_pl->base.height > 0 ? target_pl->base.height : 200;
+                    int wy = gy - h - 15;
+                    int sx, sy;
+                    if (project_from_point(wx, wy, wz, eye_x, eye_y, eye_z, camera_pitch, camera_yaw, &sx, &sy)) {
+                        if (sx >= VIEWPORT_X && sx < VIEWPORT_X + VIEWPORT_W &&
+                            sy >= VIEWPORT_Y && sy < VIEWPORT_Y + VIEWPORT_H) {
+                            pix32_draw(media.headicons[2], sx - 12, sy - 28);
+                        }
+                    }
+                }
+            }
+        }
+
         // Dynamically build context menu & resolve primary hover action
         if (!menu.visible && !(comp_cfg.drag.active && comp_cfg.drag.threshold && comp_cfg.drag.cycles >= 5)) {
             context_menu_clear(&menu);
 
-        if (viewport_interface_id != -1) {
-            Component *modal_com = component_get(&comp_cfg, viewport_interface_id);
+        if (interfaces.viewport != -1 && mouse_x < 530 && mouse_y < 357) {
+            Component *modal_com = component_get(&comp_cfg, interfaces.viewport);
             if (modal_com) {
                 int mw = modal_com->width > 0 ? modal_com->width : VIEWPORT_W;
                 int mh = modal_com->height > 0 ? modal_com->height : VIEWPORT_H;
@@ -1546,8 +1683,8 @@ int main(int argc, char *argv[]) {
             else context_menu_add_action(&menu,"Walk here",(MenuAction){.type=MENU_CANCEL});
         } else if (mouse_x >= 562 && mouse_x < 752 && mouse_y >= 231 && mouse_y < 492) {
             if (has_components && selected_tab >= 0 && selected_tab < 14) {
-                int tab_if = tab_interface_id[selected_tab];
-                if (tab_if <= 0 || tab_if == 65535) tab_if = DEFAULT_TAB_INTERFACE_ID[selected_tab];
+                int tab_if = interfaces.sidebar != -1 ? interfaces.sidebar : tab_interface_id[selected_tab];
+                if (offline && (tab_if <= 0 || tab_if == 65535)) tab_if = DEFAULT_TAB_INTERFACE_ID[selected_tab];
                 if (tab_if > 0 && tab_if != 65535) {
                     Component *tab_com = component_get(&comp_cfg, tab_if);
                     if (tab_com) {
@@ -1556,7 +1693,7 @@ int main(int argc, char *argv[]) {
                 }
             }
         } else if (mouse_x >= 22 && mouse_x < 501 && mouse_y >= 375 && mouse_y < 471) {
-            int active_chat_if = chat_interface_id != -1 ? chat_interface_id : sticky_chat_interface_id;
+            int active_chat_if = interfaces.chat != -1 ? interfaces.chat : sticky_chat_interface_id;
             if (active_chat_if != -1) {
                 Component *chat_com = component_get(&comp_cfg, active_chat_if);
                 if (chat_com) {
@@ -1568,6 +1705,16 @@ int main(int argc, char *argv[]) {
         }
 
         context_menu_prioritize(&menu);
+        if(verification_option[0] && menu.visible) {
+            for(int index=menu.size-1;index>=0;index--) {
+                if(strncmp(menu.options[index],verification_option,strlen(verification_option))) continue;
+                SDL_Event click;memset(&click,0,sizeof(click));click.type=SDL_MOUSEBUTTONDOWN;click.button.button=SDL_BUTTON_LEFT;
+                click.button.x=menu.x+menu.width/2;click.button.y=menu.y+18+(menu.size-1-index)*15+7;
+                SDL_PushEvent(&click);
+                printf("[INPUT] rendered menu option=%s pointer=(%d,%d)\n",menu.options[index],click.button.x,click.button.y);
+                verification_option[0]=0;break;
+            }
+        }
         static char tooltip_buf[128];
         const char *primary_action = "";
         if (menu.size > 0) {
@@ -1591,17 +1738,22 @@ int main(int argc, char *argv[]) {
             media_draw_shell(&media);
             if (has_minimap) {
                 minimap_draw(&minimap, &media, player.base.x, player.base.z, camera_yaw, 561, 5);
+                for(int x=0;x<world3d->max_tile_x;x++) for(int z=0;z<world3d->max_tile_z;z++)
+                    if(world3d->tiles[sync_ctx.current_plane][x][z].items)
+                        minimap_draw_dot(player.base.x,player.base.z,x*128+64,z*128+64,camera_yaw,561,5,media.mapdots[0]);
                 if(live_server) for(int i=0;i<sync_ctx.npc_count;i++) {
                     NpcEntity *npc=sync_ctx.npcs[sync_ctx.npc_indices[i]];
                     minimap_draw_npc_dot(player.base.x,player.base.z,npc,camera_yaw,561,5,media.mapdots[1]);
                 }
                 if(offline) minimap_draw_npc_dot(player.base.x,player.base.z,&hans,camera_yaw,561,5,media.mapdots[1]);
             }
-            media_draw_tabs_flashing(&media, selected_tab, dev_tabs_unlocked ? NULL : tab_interface_id, flashing_tab, rendered_frames);
+            media_draw_tabs_flashing(&media, selected_tab, dev_tabs_unlocked ? NULL : tab_interface_id, flashing_tab, game_ticks);
 
             // Draw interactive Chatbox or Dialogue Interface
-            if (chat_interface_id != -1 && has_components) {
-                Component *chat_com = component_get(&comp_cfg, chat_interface_id);
+            if (chatbox.count_dialog_open && has_fonts) {
+                chatbox_draw(&chatbox,NULL,22,375,&font_p12);
+            } else if (interfaces.chat != -1 && has_components) {
+                Component *chat_com = component_get(&comp_cfg, interfaces.chat);
                 if (chat_com) {
                     component_draw_with_varps(&comp_cfg, chat_com, 22, 375, 0, &varp_ctx);
                 }
@@ -1616,8 +1768,8 @@ int main(int argc, char *argv[]) {
 
             // Draw active Sidebar Tab Interface
             if (has_components && selected_tab >= 0 && selected_tab < 14) {
-                int tab_if = tab_interface_id[selected_tab];
-                if (tab_if <= 0 || tab_if == 65535) tab_if = DEFAULT_TAB_INTERFACE_ID[selected_tab];
+                int tab_if = interfaces.sidebar != -1 ? interfaces.sidebar : tab_interface_id[selected_tab];
+                if (offline && (tab_if <= 0 || tab_if == 65535)) tab_if = DEFAULT_TAB_INTERFACE_ID[selected_tab];
                 if (tab_if > 0 && tab_if != 65535) {
                     Component *tab_com = component_get(&comp_cfg, tab_if);
                     if (tab_com) {
@@ -1627,8 +1779,8 @@ int main(int argc, char *argv[]) {
             }
 
             // Draw Main Screen Modal Interface (Bank 5292, Shop 300, etc.) if active
-            if (viewport_interface_id != -1 && has_components) {
-                Component *modal_com = component_get(&comp_cfg, viewport_interface_id);
+            if (interfaces.viewport != -1 && has_components) {
+                Component *modal_com = component_get(&comp_cfg, interfaces.viewport);
                 if (modal_com) {
                     int mw = modal_com->width > 0 ? modal_com->width : VIEWPORT_W;
                     int mh = modal_com->height > 0 ? modal_com->height : VIEWPORT_H;

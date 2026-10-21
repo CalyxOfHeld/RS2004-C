@@ -23,6 +23,7 @@ void envelope_read(Envelope *env, Packet *pkt) {
     env->start = (int)g4(pkt);
     env->end = (int)g4(pkt);
     env->length = g1(pkt);
+    if(pkt->error || env->length==0) {pkt->error=true;return;}
     env->shape_delta = (int *)malloc(env->length * sizeof(int));
     env->shape_peak = (int *)malloc(env->length * sizeof(int));
     for (int i = 0; i < env->length; i++) {
@@ -248,9 +249,12 @@ void tone_read(Tone *tone, Packet *pkt) {
         envelope_read(tone->attack, pkt);
     }
 
-    for (int i = 0; i < 5; i++) {
+    // Original reads a zero terminator even after all five harmonic slots.
+    // Omitting that read shifts the remaining tone and every following track.
+    for (int i = 0; i < 10; i++) {
         int vol = gsmarts(pkt);
         if (vol == 0) break;
+        if(i>=5 || pkt->error) {pkt->error=true;return;}
         tone->harmonic_volume[i] = vol;
         tone->harmonic_semitone[i] = gsmart(pkt);
         tone->harmonic_delay[i] = gsmarts(pkt);
@@ -277,6 +281,7 @@ void tone_free(Tone *tone) {
 
 // Wave implementation
 void wave_system_init(void) {
+    wave_free_all();
     tone_init();
     memset(s_tracks, 0, sizeof(s_tracks));
     memset(s_delays, 0, sizeof(s_delays));
@@ -319,6 +324,9 @@ bool wave_unpack(Jagfile *sounds_jag) {
     while (pkt.pos < pkt.length) {
         int track_id = g2(&pkt);
         if (track_id == 65535) break;
+        if(pkt.error || track_id<0 || track_id>=1000 || s_tracks[track_id]) {
+            free(data);wave_free_all();return false;
+        }
 
         Wave *w = (Wave *)calloc(1, sizeof(Wave));
         for (int i = 0; i < 10; i++) {
@@ -328,9 +336,15 @@ bool wave_unpack(Jagfile *sounds_jag) {
                 w->tones[i] = (Tone *)calloc(1, sizeof(Tone));
                 tone_read(w->tones[i], &pkt);
             }
+            if(pkt.error) break;
         }
         w->loop_begin = g2(&pkt);
         w->loop_end = g2(&pkt);
+
+        if(pkt.error) {
+            for(int i=0;i<10;i++) tone_free(w->tones[i]);
+            free(w);free(data);wave_free_all();return false;
+        }
 
         s_tracks[track_id] = w;
         s_delays[track_id] = wave_trim(w);
@@ -373,13 +387,11 @@ uint8_t *wave_generate(int track_id, int loop_count, size_t *out_pcm_len, size_t
         loop_count = 0;
     }
 
-    int pcm_samples = total_samples;
-    if (loop_count > 1) {
-        pcm_samples += (loop_end - loop_start) * (loop_count - 1);
-    }
-    if (pcm_samples + 44 > (int)sizeof(s_wave_bytes)) {
-        pcm_samples = (int)sizeof(s_wave_bytes) - 44;
-    }
+    // Preserve original Wave.generate arithmetic even when invalid loop points
+    // set loop_count to zero. Several actual cache tracks have reversed points.
+    int64_t requested=(int64_t)total_samples+(int64_t)(loop_end-loop_start)*(loop_count-1);
+    if(requested<0 || requested>(int64_t)sizeof(s_wave_bytes)-44 || total_samples>220500) return NULL;
+    int pcm_samples=(int)requested;
 
     // Center baseline for 8-bit unsigned PCM is 128 (0x80)
     for (int i = 44; i < pcm_samples + 44; i++) {

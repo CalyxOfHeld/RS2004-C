@@ -1,5 +1,22 @@
 # Current capability evidence — October 20, 2026
 
+## Current checkpoint: ground items and preservation correction (October 20, 2026)
+
+This section supersedes conflicting status/launcher instructions below. The later sections are historical evidence, not authorization to reset saves. Current native SHA-256: `B77A420F8925F890F208E494D1E1DD39A4D0F49C458CD15D17500287071E9502`. No new ZIP was assembled in this run. Use the current in-place executable and sources; older ZIPs are stale and the hint-arrow-fresh-start ZIP contains the withdrawn save-purge launcher.
+
+Removed the launcher's automatic recursive save purge before testing. Never restore that behavior from the older hint-arrow-fresh-start package. Both Windows launchers still automatically supply the default test account; explicit credentials select another account without changing any save. All six pre-existing saves remain byte-identical in this run. New disposable ground201/groundtut201 saves are retained. Existing production server PID3128 on43595/8889/8899 was reused and left running; no other server/client was stopped.
+
+Implemented production ground-item ADD223/DEL49/COUNT151/REVEAL50, owner suppression using UPDATE_PID139, full-zone clearing, duplicate-preserving value-ranked piles, quantity cache models, three distinct displayed items, owned-model cleanup, region rebase retention, model picking, original minimap dots and typed Take with approach/OPOBJ. Cache/fixture/loopback regression covers state, malformed enclosed rejection, rendering/picking and encrypted approach93/Take200/world coordinates.
+
+Actual SDL `verified-loop` passed on the unchanged production server: Drop bronze dagger1205 from slot0/component3214, receive ADD at world3232,3232 and empty inventory; select rendered Take; receive DEL and restored dagger in slot0. Captures at frames80/160/240/320/400 show the lifecycle. Fixture setup used existing developer commands on a new disposable account; this is not natural acquisition/travel/tutorial completion. Other early probes include missed clicks and pending logout5 and are not acceptance evidence.
+
+Inherited audio/dialogue/tutorial/hint claims were audited against source/tests. Audio's old bit-for-bit PASS had no Java sample comparison and is corrected. Bank drag tests manually duplicate the swap and do not verify live banking. Player-head tests establish cache composites, not a scripted live dialogue. Live default-tab fallbacks were overriding server tutorial restrictions; removed those fallbacks. Audio queue and hint/tab blink timing moved into logical game ticks. A new-account SDL capture verifies initial sticky tutorial text, locked tabs and NPC arrow only. See `recent-claims-audit.md` for exact limits.
+
+Evidence and runnable input: `client-c/verification/completion/runs/2026-10-20-ground-items/README.md`. All 36 test programs completed with exit0 and zero compiler warnings (`full-suite-fixed.log`, `.exit`). Optional standalone live login explicitly skipped without opt-in credentials; actual live SDL evidence is separate. The initial missing test-world link dependency is fixed and its failure log retained. `relog.log` confirms the restored dagger persists in slot0 after a later login. Do not infer overall gameplay completeness from passing tests.
+
+Exact next dependency: live stack quantity/public reveal with two disposable accounts, then broader routing/reach/cancel/region/plane checks and bank/shop loops. Ground-item bridge/raised/multi-item original-render comparisons remain unverified; broader roof/occlusion semantics, audio oracle, live banking/drag/count, player dialogue, social and effects remain open. Unsupported zone families:23/42/69/191. Preserve history, cache and every save. Continue the active plan without routine approvals.
+
+
 `capabilities.md` is the initial source audit, deliberately preserved. This table supersedes status for the listed paths only. Other entries retain their unverified/partial status.
 
 | System | Current evidence | Scope and remaining gaps |
@@ -66,3 +83,15 @@ Shared minimap_draw_npc_dot now requires an NPC with a decoded type and type.min
 Warning-free client/minimap-test rebuild. Expanded existing minimap suite renders the original cache mapdot for all1017 NPC definitions:933 permit a dot,84 suppress it; null and untyped NPCs also leave the framebuffer unchanged. Existing floor/mask/radar tests pass. Actual live SDL check on the existing disposable codexdesign account received six NPCs including hidden fishing spots/butterflies and visible guides; captured80 frames and exited0. Default account returned5 because it was in use; existing user clients were left open and the failed attempt is preserved as default-account-busy.log. No teleport, item fixture, account reset or server restart.
 
 Evidence: client-c/verification/completion/runs/2026-10-20-npc-minimap/ (build, cache regression, live log/PNG, results and source diff). Targeted minimap suite was rerun; earlier full33-program suite remains historical. Remaining minimap coverage and broader gameplay roadmap are unchanged. Automatic default login remains enabled.
+
+## October21 live-loop extension (supersedes earlier pending bank/item/audio rows)
+
+| System | Evidence | Remaining scope |
+| --- | --- | --- |
+| Ground quantities/public reveal | Real two-account ADD/COUNT/REVEAL,150 to200 coins; private pile hidden until public reveal | Raised/bridge/multi-item original-render comparisons and broader session coverage |
+| Modal/sidebar and bank | Real Deposit/Withdraw X, quantity10/5, drag0 to2 accepted by server, close/reopen/tab restoration; natural banker dialogue/choice/player portrait opens bank | Notes, full-bank/limits, nested scrolling and broader trade/container interfaces |
+| Natural shop | Real Lumbridge shopkeeper Trade, Buy1 pot, Sell1 pot with authoritative stock/coin/inventory replies | Larger amounts, specialized shops, affordability/space boundaries |
+| Region/plane state | Reversible decoded entity path/world rebase; live region teleports and ordinary Lumbridge stairs0 to1 to0; minimap rebuilds on plane changes | Natural boundary walks/reconnects, roofs/bridges and full visual parity |
+| Audio synthesis | Original Java oracle,870 WAV records across435 cache sounds,20,359,589 equal bytes with shared noise input; malformed cache rejection | Original random table generator differs; audible timing/settings/MIDI and arbitrary loop counts unverified |
+
+Detailed source/evidence scopes and failed probes: `runs/2026-10-21-world-loops/README.md`. Full functionality remains incomplete.

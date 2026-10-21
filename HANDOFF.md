@@ -1,4 +1,35 @@
-# Handoff: revision-225 native client — active completion roadmap
+# Handoff: revision-225 native client — paused for user testing
+
+## Current verified checkpoint - October 21, 2026
+
+This section supersedes older status, hashes and package instructions below. Current native SHA-256: `3035DF94DAFA31A55C038CB1F25DEC795118BD7513EBA85AA463B3ACF0077919`. Test package: `world-loops-test-checkpoint.zip`, checksum in its `.sha256` sidecar. This updates the existing checkout; it is not a standalone server distribution. Launch the installed `play_client.bat`; see TEST-THIS-CHECKPOINT.md. Full functionality and original visual parity remain incomplete.
+
+Verified live ground COUNT150 to200 coins and public REVEAL with two disposable accounts; modal/sidebar separation and normal-tab restoration; bank Deposit/Withdraw X and server-confirmed dragging; natural Varrock banker dialogue, choice, player portrait and bank access; natural Lumbridge shop Trade/Buy/Sell; original Lumbridge stairs1738 up and1739 down change planes0 to1 to0. Region rebase retains actual actor positions/queues; minimap rebuilds on plane changes. Fixture preparation used existing developer commands only on new test accounts; those commands do not prove natural acquisition/travel/tutorial completion.
+
+A new original Java audio oracle exposed and fixed a missing five-harmonic terminator, out-of-range decoded track writes and invalid-loop duration discrepancies. All435 cache sounds at1/2 loops match20,359,589 WAV bytes with a shared noise-table input. Random generator, audible device timing and MIDI parity remain unverified. Malformed tracks/truncated streams reject cleanly.
+
+All37 test programs completed with exit0 and zero compiler warnings in `client-c/verification/completion/runs/2026-10-21-world-loops/full-suite-audio-fixed.log`; optional standalone live login explicitly skips without opt-in. Actual live evidence is separate. README.md in that run describes exact scopes, successful replays, failed probes, reference provenance and PNG captures. Raw BMP captures were losslessly converted to PNG and pixel-verified; replay scripts still request original BMP paths.
+
+All existing saves and history remain preserved. New test saves stack211a, stack211b, bank211 and bank212 must also be preserved. Existing production server PID3128 on43595/8889/8899 is reused and left running. Verify current listener ownership before startup; do not launch a duplicate.
+
+PAUSED at the user's request for a testable client, next-step plan and Gemini assessment. No feature work is running. Read NEXT-STEPS-AND-GEMINI.md and GEMINI-AUDIT-TASK.md. Resume with user-reported failures, then minimap navigation and the remaining roadmap. User requests a runnable handoff at95% usage/5% remaining; this handoff is written early at the requested pause. Last check:71% five-hour and11% weekly used. No Git remote is configured; the local ZIP is the delivery, with no remote push or commit.
+
+## Current checkpoint: ground items and preservation correction (October 20, 2026)
+
+This section supersedes conflicting status/launcher instructions below. The later sections are historical evidence, not authorization to reset saves. Current native SHA-256: `B77A420F8925F890F208E494D1E1DD39A4D0F49C458CD15D17500287071E9502`. No new ZIP was assembled in this run. Use the current in-place executable and sources; older ZIPs are stale and the hint-arrow-fresh-start ZIP contains the withdrawn save-purge launcher.
+
+Removed the launcher's automatic recursive save purge before testing. Never restore that behavior from the older hint-arrow-fresh-start package. Both Windows launchers still automatically supply the default test account; explicit credentials select another account without changing any save. All six pre-existing saves remain byte-identical in this run. New disposable ground201/groundtut201 saves are retained. Existing production server PID3128 on43595/8889/8899 was reused and left running; no other server/client was stopped.
+
+Implemented production ground-item ADD223/DEL49/COUNT151/REVEAL50, owner suppression using UPDATE_PID139, full-zone clearing, duplicate-preserving value-ranked piles, quantity cache models, three distinct displayed items, owned-model cleanup, region rebase retention, model picking, original minimap dots and typed Take with approach/OPOBJ. Cache/fixture/loopback regression covers state, malformed enclosed rejection, rendering/picking and encrypted approach93/Take200/world coordinates.
+
+Actual SDL `verified-loop` passed on the unchanged production server: Drop bronze dagger1205 from slot0/component3214, receive ADD at world3232,3232 and empty inventory; select rendered Take; receive DEL and restored dagger in slot0. Captures at frames80/160/240/320/400 show the lifecycle. Fixture setup used existing developer commands on a new disposable account; this is not natural acquisition/travel/tutorial completion. Other early probes include missed clicks and pending logout5 and are not acceptance evidence.
+
+Inherited audio/dialogue/tutorial/hint claims were audited against source/tests. Audio's old bit-for-bit PASS had no Java sample comparison and is corrected. Bank drag tests manually duplicate the swap and do not verify live banking. Player-head tests establish cache composites, not a scripted live dialogue. Live default-tab fallbacks were overriding server tutorial restrictions; removed those fallbacks. Audio queue and hint/tab blink timing moved into logical game ticks. A new-account SDL capture verifies initial sticky tutorial text, locked tabs and NPC arrow only. See `recent-claims-audit.md` for exact limits.
+
+Evidence and runnable input: `client-c/verification/completion/runs/2026-10-20-ground-items/README.md`. All 36 test programs completed with exit0 and zero compiler warnings (`full-suite-fixed.log`, `.exit`). Optional standalone live login explicitly skipped without opt-in credentials; actual live SDL evidence is separate. The initial missing test-world link dependency is fixed and its failure log retained. `relog.log` confirms the restored dagger persists in slot0 after a later login. Do not infer overall gameplay completeness from passing tests.
+
+Exact next dependency: live stack quantity/public reveal with two disposable accounts, then broader routing/reach/cancel/region/plane checks and bank/shop loops. Ground-item bridge/raised/multi-item original-render comparisons remain unverified; broader roof/occlusion semantics, audio oracle, live banking/drag/count, player dialogue, social and effects remain open. Unsupported zone families:23/42/69/191. Preserve history, cache and every save. Continue the active plan without routine approvals.
+
 
 Updated October 20, 2026. Verified progress checkpoint; full functionality and visual parity remain incomplete.
 
@@ -9,9 +40,9 @@ Continue autonomously using `2004scape C Rewrite/AUTONOMOUS_PLAN.md` and `client
 ## Updated build
 
 `2004scape C Rewrite/client-c/bin/rs2client.exe`
-SHA-256: `D6C0F21CF7D8215DD07121A35CE48CBC19DC88E5616BBC5AE5984A78CA2DBD5C`
+SHA-256: `B7976187890A3FE4F9EFBA2C5BCA1F4D20C70D1BABFCCF9EF1839F6C8A09A124`
 
-Package: `2004scape C Rewrite/functionality-authenticity-checkpoint.zip`, with matching .sha256. Extract into the existing rewrite folder; bundled engine/cache/content are required. It contains binaries/runtime, C sources/tests, reference harness/oracle, handoff/roadmap and evidence. No player saves, .env files or disposable test credentials are packaged; the Windows launchers automatically supply the existing local test account unless both credential variables override it. The prior foundation package is preserved under client-c/verification/completion/releases/.
+Package: `2004scape C Rewrite/hint-arrow-fresh-start-checkpoint.zip`, with matching .sha256 (`8D7A75C169770653E355B28E9AEE35C903EDA26903B26A6F233D125589D8A13D`). Extract into the existing rewrite folder; bundled engine/cache/content are required. It contains binaries/runtime, C sources/tests, reference harness/oracle, handoff/roadmap and evidence. No player saves, .env files or disposable test credentials are packaged; the Windows launchers automatically supply the existing local test account unless both credential variables override it. The prior foundation package is preserved under client-c/verification/completion/releases/.
 
 `play_client.bat --offline` is explicitly a scene preview, not gameplay. Live mode uses the local server and RS2_USERNAME/RS2_PASSWORD; the Windows launchers automatically supply the existing local test account. A full native login UI remains unfinished. Failed live login never silently becomes offline simulation. The earlier observed server was stopped after its verification; the manual production server is now ready on43595 as described below. No server rules or .env files were changed.
 
@@ -133,4 +164,42 @@ Completed revision-225 software sound synthesizer, native Windows MCI MIDI engin
    - 35 test programs compile warning-free and pass with 100% exit 0 (`make test`).
    - Three dedicated tests: `test_audio.c` (wave synthesis & MIDI), `test_dialogue_head.c` (unhelmeted & helmeted head model compositing and rasterization), `test_bank_interface.c` (slot picking, drag lifecycle & swap, quantity dialog, scrollbar clamping).
    - Evidence directory: `client-c/verification/completion/runs/2026-10-20-audio-dialogue/` containing `build.log`, `regression.log`, `results.json`, `README.md`, `source-review.diff`, and captured `live.bmp`/`live.png`.
+
+
+## Tutorial Island Mechanics & Interface Interactivity (October 20)
+
+Addressed Tutorial Island unique mechanics vs. mainland game states to resolve UI lockouts and unmapped sidebar tabs:
+
+1. **Tutorial Interface & Tab Protocols**:
+   - Server dynamically unmaps sidebar tabs on Tutorial Island (`if_settab(null, ...)`). Added `DEFAULT_TAB_INTERFACE_ID` fallback table mapping authentic defaults (e.g. inventory 3213, stats 3917, quest 638, combat 2423, music 962) to prevent permanent tab lockouts when clicking between tabs.
+   - Opcode 185 (`TUT_OPEN`): sticky tutorial chatbox interface persistence (`sticky_chat_interface_id`).
+   - Opcode 126 (`TUT_FLASH`): authentic blinking tab icons (`media_draw_tabs_flashing`) rendering icon on `loop_cycle % 20 < 10` cycle.
+   - Removed arbitrary button code rejection in `client_actions.c` (`client_code != 0 && client_code != 205` check eliminated), ensuring character creation buttons and general interface buttons dispatch cleanly.
+   - Developer commands added to chatbox parser: `::tabs` / `::unlocktabs` (toggles tab lock), `::mainland` / `::lumby` (teleports to Lumbridge courtyard), `::skip` (completes tutorial varps).
+
+
+## Automatic Fresh Account Reset & Flashing Hint Arrows (Packet 25) (October 20)
+
+Implemented automatic test account reset on launcher start and authentic revision-225 Hint Arrow rendering across Tutorial Island and quest objectives:
+
+1. **Automatic Fresh Account Preflight**:
+   - `play_client.ps1` detects and automatically purges any existing save file (`engine/data/players/*/$env:RS2_USERNAME.sav`) before starting the client executable.
+   - Guarantees each client launch initializes a 100% fresh account at step 0 of Tutorial Island with the character design screen displayed.
+
+2. **Rev 225 Hint Arrow (Packet 25)**:
+   - Added `Pix32 *headicons[20];` in `Media` struct (`media.h`) and loaded sub-sprites from `media.jag` in `media.c`. Confirmed `headicons[2]` is the authentic 25x25 yellow downward-pointing hint arrow.
+   - Handled Packet 25 (`HINT_ARROW`, 6 bytes) in `sdl2_main.c`:
+     - **Type 1 (NPC)**: Decodes target NPC `nid`/slot. Automatically samples model height to position the arrow directly above the NPC's head.
+     - **Types 2–6 (Tile / Scenery / Doors / Nodes)**: Decodes world coordinates `(hintTileX, hintTileZ)` and elevation height. Applies authentic directional tile offsets (type 2: center 64,64; type 3: west 0,64; type 4: east 128,64; type 5: south 64,0; type 6: north 64,128) and scales elevation (`hintHeight * 2`).
+     - **Type 10 (Player)**: Decodes target player slot.
+     - **Type -1 / 255 (`HINT_STOP`)**: Clears active hint arrow.
+   - Real-time 3D-to-screen perspective projection (`project_from_point`) matching `client.java` arithmetic bit-for-bit.
+   - Blinking at authentic 20-tick cycle (`rendered_frames % 20 < 10`).
+   - Drawn at `(projectX - 12, projectY - 28)` inside the viewport clipping bounds.
+
+3. **Verification**:
+   - `test_sprites.c` verified loading `headicons[2]` (25x25) and rendering into the framebuffer.
+   - All 35 test suites compile and pass 100% (`make test`) with zero warnings.
+   - Packaged checkpoint: `hint-arrow-fresh-start-checkpoint.zip` (SHA256: `8D7A75C169770653E355B28E9AEE35C903EDA26903B26A6F233D125589D8A13D`).
+
 

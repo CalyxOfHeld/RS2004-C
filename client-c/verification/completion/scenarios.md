@@ -20,3 +20,14 @@ All statuses start UNVERIFIED. Test fixtures are explicitly identified and do no
 | WORLD-01 | Reachable/blocked objects, NPCs and ground items; doors/stairs | Correct action/reach/routing and server scene/interface updates | Live server + actual client |
 | REMAIN-01 | Banking, shops, combat/skilling, dialog/quests, social/audio | Capability-specific complete sessions, no fake success state | Live server + actual client |
 | QA-01 | Audit each existing PASS assertion | Label fixture/unit/integration/live/reference correctly; no blanket parity claims | Source + recorded executions |
+
+## Ground-item checkpoint (October 20, 2026)
+
+| ID | Setup/input | Observed result | Evidence and limit |
+| --- | --- | --- | --- |
+| WORLD-OBJ-01 | Real cache objects through production223/49/151/50/135 packets, duplicate IDs and malformed enclosed events | State/order/model ownership, owner suppression and clear/rebase assertions pass | test_ground_items, ground-tests.log; fixture/cache |
+| WORLD-OBJ-02 | Triangle-pick actual cache dagger, dispatch Take to loopback | Approach93 then OPOBJ3/200 with world3250,3250 and item1205; removed target rejected | test_ground_items; encrypted loopback, not gameplay |
+| WORLD-OBJ-03 | Prepared disposable ground201 at world3232,3232; actual SDL inventory Drop and rendered Take | Inventory1 → ground ADD/inventory0 → ground DEL/inventory1; later relog preserves item | runs/2026-10-20-ground-items/verified-loop.*, relog.log; actual production server |
+| TUT-INITIAL-01 | New disposable groundtut201 accepts design | Sticky tutorial text, disabled tabs and NPC arrow visible | tutorial.log/png; initial state only, not tutorial completion |
+
+All36 programs pass with zero compiler warnings in full-suite-fixed.log. Optional standalone login explicitly skips; separate live evidence above passes. No new release ZIP assembled. Live COUNT/public reveal, region/plane gameplay and full original-render comparisons remain unverified.

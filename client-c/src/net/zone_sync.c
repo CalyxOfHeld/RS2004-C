@@ -29,6 +29,16 @@ static void unsupported(ZoneSync *z,int index) {
     z->unsupported|=1u<<index;
 }
 static bool apply_event(ZoneSync *z,World *world,World3D *scene,LocConfig *locs,CollisionMap *collision,int level,int opcode,const uint8_t *data) {
+    if(opcode==223 || opcode==49 || opcode==151 || opcode==50) {
+        int x=z->base_x+((data[0]>>4)&7),y=z->base_z+(data[0]&7);
+        if(x<0 || y<0 || x>=scene->max_tile_x || y>=scene->max_tile_z) return true;
+        if(opcode==50 && ((data[5]<<8)|data[6])==z->local_pid) return true;
+        int id=(data[1]<<8)|data[2],count=opcode==49?0:(data[3]<<8)|data[4];
+        int next=opcode==151?(data[5]<<8)|data[6]:0;
+        if(!ground_items_event(&scene->tiles[level][x][y],z->objects,opcode,id,count,next)) return false;
+        if(z->trace) printf("[GROUND] opcode=%d tile=(%d,%d,%d) id=%d count=%d new=%d\n",opcode,level,x,y,id,count,next);
+        return true;
+    }
     if(opcode!=59 && opcode!=76) {unsupported(z,event_index(opcode));return true;}
     int x=z->base_x+((data[0]>>4)&7),y=z->base_z+(data[0]&7),shape=data[1]>>2,rotation=data[1]&3;
     int id=opcode==59 ? (data[2]<<8)|data[3]:-1;
@@ -38,6 +48,11 @@ static bool apply_event(ZoneSync *z,World *world,World3D *scene,LocConfig *locs,
     z->dirty=true;
     if(z->trace) printf("[ZONE] location=(%d,%d,%d) id=%d shape=%d rotation=%d\n",level,x,y,id,shape,rotation);
     return true;
+}
+static bool valid_item(ZoneSync *z,int op,const uint8_t *data) {
+    if(op!=223 && op!=49 && op!=151 && op!=50) return true;
+    int id=(data[1]<<8)|data[2];if(op==49 || op==151) id&=32767;
+    return z->objects && id<z->objects->count;
 }
 int zone_sync_apply(ZoneSync *z,World *world,World3D *scene,LocConfig *locs,CollisionMap *collision,int level,int opcode,const uint8_t *data,size_t length) {
     int index=event_index(opcode);
@@ -52,12 +67,14 @@ int zone_sync_apply(ZoneSync *z,World *world,World3D *scene,LocConfig *locs,Coll
             int op=data[pos++],i=event_index(op);if(i<0 || (size_t)zone_lengths[i]>length-pos) return -1;
             if((op==59 || op==76) && data[pos+1]>>2>22) return -1;
             if(op==59 && ((data[pos+2]<<8)|data[pos+3])>=locs->count) return -1;
+            if(!valid_item(z,op,data+pos)) return -1;
             pos+=zone_lengths[i];
         }
     } else {
         if(length!=(size_t)zone_lengths[index] || !z->has_base) return -1;
         if((opcode==59 || opcode==76) && data[1]>>2>22) return -1;
         if(opcode==59 && ((data[2]<<8)|data[3])>=locs->count) return -1;
+        if(!valid_item(z,opcode,data)) return -1;
     }
     if(opcode==7 || opcode==135 || opcode==162) {z->base_x=data[0];z->base_z=data[1];z->has_base=true;}
     if(opcode==135) {
@@ -68,7 +85,9 @@ int zone_sync_apply(ZoneSync *z,World *world,World3D *scene,LocConfig *locs,Coll
             if(!world_change_location(world,scene,locs,collision,level,old.x,old.z,old.id,old.shape,old.rotation)) return -1;
             memmove(&z->changes[i],&z->changes[i+1],(z->change_count-i-1)*sizeof(old));z->change_count--;z->dirty=true;
         }
-        // Ground item reset is pending with the ground item synchronization family.
+        for(int x=z->base_x;x<z->base_x+8 && x<scene->max_tile_x;x++)
+            for(int y=z->base_z;y<z->base_z+8 && y<scene->max_tile_z;y++)
+                ground_items_clear(&scene->tiles[level][x][y]);
         return 1;
     }
     if(opcode==162) {

@@ -33,6 +33,7 @@ typedef struct {
     Pix32 *mapdots[4];
     Pix8 *mapscene[50];
     Pix32 *mapfunction[50];
+    Pix32 *headicons[20];
 
     Pix8 *redstone1;
     Pix8 *redstone2;

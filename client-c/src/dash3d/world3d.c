@@ -76,6 +76,7 @@ void world3d_reset(World3D *w) {
         for (int x = 0; x < w->max_tile_x; x++) {
             for (int z = 0; z < w->max_tile_z; z++) {
                 GroundTile *t = &w->tiles[l][x][z];
+                ground_items_clear(t);
                 t->level = l;
                 t->x = x;
                 t->z = z;
@@ -331,6 +332,26 @@ void world3d_render(World3D *w,int eyeX,int eyeY,int eyeZ,int pitch,int yaw,int 
                     ground_triangle(w,x,z,a,b,c,o->triangle_texture[t]);
                 }
             }
+        }
+        for(int x=minx;x<=maxx;x++) for(int z=minz;z<=maxz;z++) {
+            GroundTile *tile=&w->tiles[l][x][z];GroundItem *models[3];
+            int count=ground_items_models(tile,models);
+            int y=(w->heightmap[l][x][z]+w->heightmap[l][x+1][z]+w->heightmap[l][x][z+1]+w->heightmap[l][x+1][z+1])/4;
+            int raise=0;
+            for(int i=0;i<tile->loc_count;i++)
+                if(tile->locs[i].shape>=9 && tile->locs[i].shape<=21 && tile->locs[i].model->obj_raise>raise) raise=tile->locs[i].model->obj_raise;
+            y-=raise;
+            bool picked=false;
+            // Original draws the two lower distinct items before the top item.
+            for(int i=1;i<=count;i++) {
+                Model *model=models[i%count]->model;
+                if(w->picker && w->picker->check_hover)
+                    picked=model_draw_pickable(model,0,pitch,yaw,x*128+64-eyeX,y-eyeY,z*128+64-eyeZ,w->picker->mouse_x,w->picker->mouse_y)||picked;
+                else model_draw(model,0,pitch,yaw,x*128+64-eyeX,y-eyeY,z*128+64-eyeZ);
+            }
+            // Picking any visible stack model exposes every item on that tile.
+            if(picked) for(GroundItem *item=tile->items;item;item=item->next)
+                mouse_picker_add_picked(w->picker,mouse_picker_make_bitset(3,item->id,x,z));
         }
         // Include a multi-tile object when its footprint intersects the range,
         // even when its anchor tile lies outside it. Each location is drawn once.

@@ -19,6 +19,8 @@ if (-not $offlinePreview -and -not $env:RS2_USERNAME -and -not $env:RS2_PASSWORD
     $defaultCredentialsApplied = $true
 }
 
+# Account saves are persistent. Use a new disposable username for fresh tests.
+
 $exitCode = 1
 try {
     Set-Location -LiteralPath $clientRoot

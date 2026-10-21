@@ -153,6 +153,7 @@ bool component_handle_scroll(Component *com, int mx, int my, int sx, int sy, int
 bool component_handle_scroll_recursive(ComponentConfig *cfg, Component *com, int mx, int my, int x, int y, int scroll_y);
 int  component_inv_find_slot(Component *child, int vx, int vy, int mx, int my);
 Component *component_find_inv_slot(ComponentConfig *cfg, Component *com, int mx, int my, int x, int y, int scroll_y, int *out_slot);
+  bool component_drag_release(ComponentConfig *cfg, Component *destination, int slot);
 void component_handle_mousewheel(ComponentConfig *cfg, Component *com, int mx, int my, int x, int y, int scroll_y, int wheel_y);
 bool component_build_menu(ComponentConfig *cfg, Component *com, int mx, int my, int x, int y, int scroll_y, struct ContextMenu *menu, struct ObjConfig *obj_cfg);
 

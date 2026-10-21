@@ -248,5 +248,7 @@ Model* loc_get_model(const LocType* loc, int shape, int rotation, Arena* arena) 
         m->point_z[i]=m->point_z[i]*loc->resizez/128+loc->offsetz;
     }
     model_calculate_normals(m, 64 + loc->ambient, 768 + loc->contrast * 5, -50, -10, -50);
+    if(loc->blockwalk) for(int i=0;i<m->num_points;i++)
+        if(-m->point_y[i]>m->obj_raise) m->obj_raise=-m->point_y[i];
     return m;
 }

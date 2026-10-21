@@ -41,6 +41,7 @@ typedef struct {
     int32_t priority;
     int32_t min_depth;
     int32_t max_depth;
+    int32_t obj_raise; // Original LocType.blockwalk model height for item stacks.
 } Model;
 
 void   model_init_repo(Jagfile *models_jag, Arena *arena);

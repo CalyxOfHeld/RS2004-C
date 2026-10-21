@@ -11,6 +11,27 @@ void entity_sync_init(EntitySyncContext *ctx, NpcConfig *npc_cfg) {
     ctx->npc_cfg = npc_cfg;
 }
 
+static void rebase_entity(PathingEntity *entity, int dx, int dz) {
+    // Original client.java REBUILD_NORMAL: retain every queued step and the
+    // interpolated position in world space as the scene origin changes.
+    for (int step=0; step<10; step++) {
+        entity->path_tile_x[step]-=dx;
+        entity->path_tile_z[step]-=dz;
+    }
+    entity->x-=dx*128;
+    entity->z-=dz*128;
+}
+
+void entity_sync_rebase(EntitySyncContext *ctx, int delta_x, int delta_z) {
+    if (!ctx || (!delta_x && !delta_z)) return;
+    rebase_entity(&ctx->local_player.base,delta_x,delta_z);
+    for (int i=0;i<MAX_PLAYERS;i++)
+        if (ctx->players[i] && ctx->players[i]!=&ctx->local_player)
+            rebase_entity(&ctx->players[i]->base,delta_x,delta_z);
+    for (int i=0;i<MAX_NPCS;i++)
+        if (ctx->npcs[i]) rebase_entity(&ctx->npcs[i]->base,delta_x,delta_z);
+}
+
 bool entity_sync_player_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_size) {
     if (!ctx || !pkt || packet_size>pkt->length) return false;
     pkt->length=packet_size;

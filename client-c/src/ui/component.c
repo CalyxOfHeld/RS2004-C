@@ -507,6 +507,26 @@ Component *component_find_inv_slot(ComponentConfig *cfg, Component *com, int mx,
     return NULL;
 }
 
+bool component_drag_release(ComponentConfig *cfg,Component *destination,int slot) {
+    if(!cfg) return false;
+    ComponentDragState drag=cfg->drag;
+    cfg->drag.active=false;
+    if(!drag.active || !drag.threshold || drag.cycles<5 || !destination ||
+        destination->id!=drag.component_id || !destination->draggable ||
+        !destination->inv_slot_obj_id || !destination->inv_slot_obj_count ||
+        destination->width<=0 || destination->height<=0 ||
+        drag.slot<0 || drag.slot>=destination->width*destination->height ||
+        slot<0 || slot>=destination->width*destination->height || slot==drag.slot ||
+        destination->inv_slot_obj_id[drag.slot]<=0) return false;
+    // client.java objGrabThreshold / objDragCycles: swap, then INV_BUTTOND.
+    int id=destination->inv_slot_obj_id[slot],count=destination->inv_slot_obj_count[slot];
+    destination->inv_slot_obj_id[slot]=destination->inv_slot_obj_id[drag.slot];
+    destination->inv_slot_obj_count[slot]=destination->inv_slot_obj_count[drag.slot];
+    destination->inv_slot_obj_id[drag.slot]=id;
+    destination->inv_slot_obj_count[drag.slot]=count;
+    return true;
+}
+
 bool component_build_menu(ComponentConfig *cfg, Component *com, int mx, int my, int x, int y, int scroll_y, ContextMenu *menu, ObjConfig *obj_cfg) {
     if (!cfg || !com || com->type != COMPONENT_TYPE_CONTAINER || !com->child_id || com->hide) return false;
     if (mx < x || my < y || mx >= x + com->width || my >= y + com->height) return false;

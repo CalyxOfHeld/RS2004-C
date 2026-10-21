@@ -62,13 +62,13 @@ static bool approach(ClientActions *ctx,const PathTarget *target) {
     if(!ctx->pathfinder || !ctx->collision || !ctx->map || !ctx->entities) return false;
     PathingEntity *player=&ctx->entities->local_player.base;PathResult path;
     int plane=ctx->entities->current_plane;if(plane<0 || plane>=4) return false;
-    if(pathfinder_find_target(ctx->pathfinder,&ctx->collision[plane],player->path_tile_x[0],player->path_tile_z[0],target,false,&path) && path.step_count>0)
+    bool found=pathfinder_find_target(ctx->pathfinder,&ctx->collision[plane],player->path_tile_x[0],player->path_tile_z[0],target,false,&path);    if(!found && target->shape==-1 && target->width==0 && target->length==0) {        PathTarget adjacent=*target;adjacent.width=adjacent.length=1;        found=pathfinder_find_target(ctx->pathfinder,&ctx->collision[plane],player->path_tile_x[0],player->path_tile_z[0],&adjacent,false,&path);    }    if(found && path.step_count>0)
         return protocol_send_operation_route(ctx->session,ctx->map->base_tile_x,ctx->map->base_tile_z,player->path_tile_x[0],player->path_tile_z[0],path.steps_x,path.steps_z,path.step_count,false);
     return true;
 }
 static bool world_operation(ClientActions *ctx,MenuAction action) {
     if(!ctx->entities || !ctx->live) return false;
-    PathTarget target={.shape=-1};
+    PathTarget target={.shape=-1};    if(action.type==MENU_OBJ_OP && ctx->scene && ctx->map) {        if(action.x<0 || action.z<0 || action.x>=ctx->scene->max_tile_x || action.z>=ctx->scene->max_tile_z) return false;        GroundItem *item=ctx->scene->tiles[ctx->entities->current_plane][action.x][action.z].items;        while(item && item->id!=action.target) item=item->next;        if(!item) return false;        target.x=action.x;target.z=action.z;        if(!approach(ctx,&target)) return false;        return protocol_send_opobj(ctx->session,action.operation,ctx->map->base_tile_x+action.x,ctx->map->base_tile_z+action.z,action.target);    }
     if(action.type==MENU_NPC_OP) {
         if(action.target<0 || action.target>=MAX_NPCS || !ctx->entities->npcs[action.target]) return false;
         NpcEntity *npc=ctx->entities->npcs[action.target];
@@ -133,7 +133,7 @@ ActionResult client_action_dispatch(ClientActions *ctx,MenuAction action) {
         LocType loc;if(!loc_get(ctx->locations,action.target,&loc)) return ACTION_FAILED;
         chatbox_add_message(ctx->chatbox,0,NULL,loc.desc[0]?loc.desc:loc.name);loc_free_entry(&loc);return ACTION_LOCAL;
     }
-    if(action.type==MENU_NPC_OP || action.type==MENU_LOC_OP || action.type==MENU_PLAYER_OP) {
+    if(action.type==MENU_NPC_OP || action.type==MENU_LOC_OP || action.type==MENU_PLAYER_OP || action.type==MENU_OBJ_OP) {
         sent=world_operation(ctx,action);
     } else if(action.type==MENU_IF_BUTTON) {
         Component *button=component_get(ctx->components,action.component);
@@ -158,7 +158,7 @@ ActionResult client_action_dispatch(ClientActions *ctx,MenuAction action) {
         }
     } else if(action.type==MENU_IF_CLOSE) {
         if(ctx->live) sent=protocol_send_close_modal(ctx->session);
-        if(!ctx->live || sent) {*ctx->viewport_interface=-1;*ctx->chat_interface=-1;}
+        if(!ctx->live || sent) {            *ctx->viewport_interface=-1;*ctx->chat_interface=-1;            if(ctx->sidebar_interface) *ctx->sidebar_interface=-1;        }
     } else if(action.type==MENU_IF_CONTINUE) {
         if(ctx->live) sent=protocol_send_resume_pausebutton(ctx->session,action.component);
         // The server controls what appears next; do not fabricate/hide a dialog.

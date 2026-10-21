@@ -52,6 +52,19 @@ int main(void) {
     assert(has_pixels);
     printf("  'titlebox' successfully drawn to framebuffer!\n");
 
+    // 4. Test Hint Arrow Headicons (Rev 225 Tutorial Island & Quest hint arrow)
+    Jagfile *media_jag = jagfile_load_file("../engine/data/pack/client/media", &arena);
+    assert(media_jag != NULL);
+    Pix32 *hint_arrow = pix32_load(media_jag, "headicons", 2, &arena);
+    assert(hint_arrow != NULL);
+    printf("  'headicons[2]' (Hint Arrow) loaded: %dx%d crop=(%d,%d)\n",
+           hint_arrow->width, hint_arrow->height, hint_arrow->crop_x, hint_arrow->crop_y);
+    assert(hint_arrow->width == 25);
+    assert(hint_arrow->height == 25);
+    pix32_draw(hint_arrow, 100, 100);
+    assert(fb[105 + 105 * 500] != 0);
+    printf("  'headicons[2]' hint arrow successfully rendered to framebuffer!\n");
+
     arena_free(&arena);
     printf("[Test Sprites] ALL TESTS PASSED! Bit-for-bit sprite loading verified.\n");
     return 0;

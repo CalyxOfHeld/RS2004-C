@@ -36,13 +36,17 @@ bool media_load(Media *m, Jagfile *media_jag, Arena *arena) {
         m->mapdots[i] = pix32_load(media_jag, "mapdots", i, arena);
     }
 
-    for(int i=0;i<50;i++) {
-        m->mapscene[i]=pix8_load(media_jag,"mapscene",i,arena);
-        if(!m->mapscene[i]) break;
+    for (int i = 0; i < 50; i++) {
+        m->mapscene[i] = pix8_load(media_jag, "mapscene", i, arena);
+        if (!m->mapscene[i]) break;
     }
-    for(int i=0;i<50;i++) {
-        m->mapfunction[i]=pix32_load(media_jag,"mapfunction",i,arena);
-        if(!m->mapfunction[i]) break;
+    for (int i = 0; i < 50; i++) {
+        m->mapfunction[i] = pix32_load(media_jag, "mapfunction", i, arena);
+        if (!m->mapfunction[i]) break;
+    }
+    for (int i = 0; i < 20; i++) {
+        m->headicons[i] = pix32_load(media_jag, "headicons", i, arena);
+        if (!m->headicons[i]) break;
     }
 
     m->redstone1 = pix8_load(media_jag, "redstone1", 0, arena);

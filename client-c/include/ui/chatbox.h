@@ -30,6 +30,7 @@ typedef struct {
 void chatbox_init(Chatbox *chat, const char *username);
 void chatbox_open_count_dialog(Chatbox *chat);
 void chatbox_close_count_dialog(Chatbox *chat);
+int chatbox_count_value(const Chatbox *chat);
 void chatbox_add_message(Chatbox *chat, int type, const char *sender, const char *text);
 void chatbox_key_press(Chatbox *chat, char ch);
 void chatbox_backspace(Chatbox *chat);

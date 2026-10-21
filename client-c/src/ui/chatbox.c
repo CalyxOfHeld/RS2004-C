@@ -3,6 +3,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
+
+int chatbox_count_value(const Chatbox *chat) {
+    // Original Integer.parseInt rejects overflow and submits zero on failure.
+    if(!chat) return 0;
+    int value=0;
+    for(const char *p=chat->count_dialog_input;*p;p++) {
+        if(*p<'0' || *p>'9' || value>(INT_MAX-(*p-'0'))/10) return 0;
+        value=value*10+(*p-'0');
+    }
+    return value;
+}
 
 void chatbox_init(Chatbox *chat, const char *username) {
     if (!chat) return;
@@ -59,7 +71,7 @@ void chatbox_key_press(Chatbox *chat, char ch) {
     if (!chat) return;
     if (chat->count_dialog_open) {
         size_t len = strlen(chat->count_dialog_input);
-        if (ch >= '0' && ch <= '9' && len < sizeof(chat->count_dialog_input) - 1) {
+        if (ch >= '0' && ch <= '9' && len < 10) {
             chat->count_dialog_input[len] = ch;
             chat->count_dialog_input[len + 1] = '\0';
         }

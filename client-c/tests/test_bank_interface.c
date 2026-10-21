@@ -3,12 +3,33 @@
 #include <string.h>
 #include <assert.h>
 #include "ui/component.h"
+#include "ui/component_packets.h"
 #include "ui/chatbox.h"
 #include "net/protocol.h"
 #include "core/arena.h"
 
 int main(void) {
     printf("--- Running Bank & Interface Enhancements Test ---\n");
+
+    InterfaceState panels;
+    interface_state_init(&panels);
+    const uint8_t bank_panels[]={0x14,0xac,0x07,0xd5}; // 5292 / 2005
+    assert(interface_state_apply(&panels,28,bank_panels,4)==1);
+    assert(panels.viewport==5292 && panels.sidebar==2005 && panels.chat==-1);
+    InterfaceState previous=panels;
+    assert(interface_state_apply(&panels,28,bank_panels,3)==-1);
+    assert(!memcmp(&panels,&previous,sizeof(panels)));
+    assert(interface_state_apply(&panels,129,NULL,0)==1);
+    assert(panels.viewport==-1 && panels.sidebar==-1 && panels.chat==-1);
+    assert(interface_state_apply(&panels,28,bank_panels,4)==1);
+    const uint8_t dialog[]={0x13,0x12}; // npcchat1 4882
+    assert(interface_state_apply(&panels,14,dialog,2)==1);
+    assert(panels.chat==4882 && panels.sidebar==-1 && panels.viewport==-1);
+    assert(interface_state_apply(&panels,195,bank_panels+2,2)==1);
+    assert(panels.chat==-1 && panels.sidebar==2005 && panels.viewport==-1);
+    assert(interface_state_apply(&panels,168,bank_panels,2)==1);
+    assert(panels.viewport==5292 && panels.sidebar==-1 && panels.chat==-1);
+    puts("  [PASS] production bank/chat/side modal transitions and malformed-packet atomic rejection");
 
     Arena arena = arena_create(16 * 1024 * 1024);
 
@@ -52,10 +73,10 @@ int main(void) {
     memset(grid->inv_slot_obj_id, 0, total_slots * sizeof(int));
     memset(grid->inv_slot_obj_count, 0, total_slots * sizeof(int));
 
-    // Place 995 (Coins) in slot 0, 4151 (Abyssal whip) in slot 5
+    // Place 995 (Coins) in slot 0, 1205 (Bronze dagger) in slot 5
     grid->inv_slot_obj_id[0] = 995 + 1;
     grid->inv_slot_obj_count[0] = 1000000;
-    grid->inv_slot_obj_id[5] = 4151 + 1;
+    grid->inv_slot_obj_id[5] = 1205 + 1;
     grid->inv_slot_obj_count[5] = 1;
 
     // 2. Verify recursive slot picking (component_find_inv_slot)
@@ -107,22 +128,27 @@ int main(void) {
     assert(dest_com == grid);
     assert(dest_slot == 5);
 
-    // Swap slots
-    int from = cfg.drag.slot;
-    int to = dest_slot;
-    int temp_id = dest_com->inv_slot_obj_id[to];
-    dest_com->inv_slot_obj_id[to] = dest_com->inv_slot_obj_id[from];
-    dest_com->inv_slot_obj_id[from] = temp_id;
-    int temp_cnt = dest_com->inv_slot_obj_count[to];
-    dest_com->inv_slot_obj_count[to] = dest_com->inv_slot_obj_count[from];
-    dest_com->inv_slot_obj_count[from] = temp_cnt;
+    assert(component_drag_release(&cfg,dest_com,dest_slot));
+    assert(!cfg.drag.active);
 
-    // Check slot 0 now has Whip, slot 5 has Coins
-    assert(grid->inv_slot_obj_id[0] == 4151 + 1);
+    // Check slot 0 now has Dagger, slot 5 has Coins
+    assert(grid->inv_slot_obj_id[0] == 1205 + 1);
     assert(grid->inv_slot_obj_count[0] == 1);
     assert(grid->inv_slot_obj_id[5] == 995 + 1);
     assert(grid->inv_slot_obj_count[5] == 1000000);
     printf("  [PASS] Item drag swap verified: slot 0 and slot 5 exchanged successfully\n");
+
+    for(int scenario=0;scenario<4;scenario++) {
+        int before_id=grid->inv_slot_obj_id[0];
+        cfg.drag=(ComponentDragState){.active=true,.threshold=true,.cycles=5,
+            .component_id=grid->id,.slot=0};
+        if(scenario==0) cfg.drag.cycles=4;
+        if(scenario==1) cfg.drag.threshold=false;
+        if(scenario==2) cfg.drag.component_id=grid->id+1;
+        assert(!component_drag_release(&cfg,grid,scenario==3?total_slots:5));
+        assert(!cfg.drag.active && grid->inv_slot_obj_id[0]==before_id);
+    }
+    puts("  [PASS] short clicks, unmoved pointer, another component and out-of-range drop do not swap");
 
     // 4. Test Chatbox Amount Input Dialog (P_COUNTDIALOG)
     Chatbox chatbox;
@@ -137,16 +163,21 @@ int main(void) {
     const char *test_input = "5a0B0";
     for (size_t i = 0; i < strlen(test_input); i++) {
         char ch = test_input[i];
-        if (ch >= '0' && ch <= '9') {
-            size_t len = strlen(chatbox.count_dialog_input);
-            if (len < sizeof(chatbox.count_dialog_input) - 1) {
-                chatbox.count_dialog_input[len] = ch;
-                chatbox.count_dialog_input[len + 1] = '\0';
-            }
-        }
+        chatbox_key_press(&chatbox,ch);
     }
     assert(strcmp(chatbox.count_dialog_input, "500") == 0);
     printf("  [PASS] Chatbox quantity dialog input filtered non-digits: input='500'\n");
+
+    assert(chatbox_count_value(&chatbox)==500);
+    chatbox_open_count_dialog(&chatbox);
+    const char *max_count="2147483647";
+    for(const char *c=max_count;*c;c++) chatbox_key_press(&chatbox,*c);
+    assert(chatbox_count_value(&chatbox)==2147483647);
+    chatbox_key_press(&chatbox,'8');
+    assert(strlen(chatbox.count_dialog_input)==10);
+    chatbox_backspace(&chatbox);chatbox_key_press(&chatbox,'8');
+    assert(chatbox_count_value(&chatbox)==0);
+    puts("  [PASS] production quantity input filters digits, limits length and rejects 32-bit overflow");
 
     chatbox_close_count_dialog(&chatbox);
     assert(!chatbox.count_dialog_open);

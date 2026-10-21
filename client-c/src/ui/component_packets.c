@@ -4,6 +4,36 @@
 #include <limits.h>
 #include <math.h>
 
+void interface_state_init(InterfaceState *state) {
+    state->viewport=state->sidebar=state->chat=-1;
+}
+
+int interface_state_apply(InterfaceState *state,int opcode,const uint8_t *data,size_t length) {
+    // client.java read(): modal sidebar overlays are separate from tab mappings.
+    size_t expected;
+    switch(opcode) {
+        case 28: expected=4;break;
+        case 14: case 168: case 195: expected=2;break;
+        case 129: expected=0;break;
+        default: return 0;
+    }
+    if(!state || length!=expected || (expected && !data)) return -1;
+    int id=expected ? ((data[0]<<8)|data[1]):-1;
+    if(id==65535) id=-1;
+    if(opcode==28) {
+        state->viewport=id;state->sidebar=(data[2]<<8)|data[3];
+        if(state->sidebar==65535) state->sidebar=-1;
+        state->chat=-1;
+    } else if(opcode==14) {
+        state->chat=id;state->sidebar=state->viewport=-1;
+    } else if(opcode==168) {
+        state->viewport=id;state->sidebar=state->chat=-1;
+    } else if(opcode==195) {
+        state->sidebar=id;state->viewport=state->chat=-1;
+    } else interface_state_init(state);
+    return 1;
+}
+
 typedef struct { const uint8_t *data; size_t size,pos; bool error; } Reader;
 static uint32_t read_be(Reader *r,size_t bytes) {
     if(r->pos>r->size || bytes>r->size-r->pos) {r->error=true;return 0;}

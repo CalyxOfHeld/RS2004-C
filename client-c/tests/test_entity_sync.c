@@ -270,6 +270,34 @@ int main(void) {
     assert(sync_ctx.npcs[5]->base.path_tile_z[0] == 51); // 48 + 3
     printf("[PASS] Packet 1 (NPC_INFO) bitstream synchronization verified! (Hans spawned at tile (33, 51))\n");
 
+    // These actors came from the actual production bitstream decoder above.
+    // A scene shift must preserve world positions and queued movement in both
+    // directions, including cached players outside the current visible list.
+    PathingEntity *actors[]={&sync_ctx.local_player.base,
+        &sync_ctx.players[15]->base,&sync_ctx.npcs[5]->base};
+    int original_x[3],original_z[3],tile_x[3][10],tile_z[3][10];
+    for(int i=0;i<3;i++) {
+        original_x[i]=actors[i]->x;original_z[i]=actors[i]->z;
+        memcpy(tile_x[i],actors[i]->path_tile_x,sizeof(tile_x[i]));
+        memcpy(tile_z[i],actors[i]->path_tile_z,sizeof(tile_z[i]));
+    }
+    entity_sync_rebase(&sync_ctx,16,-8);
+    for(int i=0;i<3;i++) {
+        assert(actors[i]->x+16*128==original_x[i]);
+        assert(actors[i]->z-8*128==original_z[i]);
+        for(int step=0;step<10;step++) {
+            assert(actors[i]->path_tile_x[step]+16==tile_x[i][step]);
+            assert(actors[i]->path_tile_z[step]-8==tile_z[i][step]);
+        }
+    }
+    entity_sync_rebase(&sync_ctx,-16,8);
+    for(int i=0;i<3;i++) {
+        assert(actors[i]->x==original_x[i] && actors[i]->z==original_z[i]);
+        assert(!memcmp(tile_x[i],actors[i]->path_tile_x,sizeof(tile_x[i])));
+        assert(!memcmp(tile_z[i],actors[i]->path_tile_z,sizeof(tile_z[i])));
+    }
+    puts("PASS: decoded local/remote players and NPC retain world positions and all queued steps across reversible scene shifts");
+
     // Explicit wire fixtures for masks and shortened visible lists.
     uint8_t masks[128]={0};int bits=0;
     put_bits(masks,&bits,1,8);put_bits(masks,&bits,1,1);put_bits(masks,&bits,0,2);put_bits(masks,&bits,8191,13);

@@ -64,7 +64,7 @@ int main(void) {
     }
 
     assert(generated_count > 0);
-    printf("[PASS] Authentic 2004 RS2 sound synthesis verified bit-for-bit!\n");
+    printf("[PASS] Cache sounds produce non-flat 22,050 Hz 8-bit WAV output; Java sample parity is unverified\n");
 
     // Test 3: Sound queue and tick delay processing
     audio_queue_sound(2, 1, 5); // delay 5 ticks

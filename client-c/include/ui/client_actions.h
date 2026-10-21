@@ -19,7 +19,7 @@ typedef struct {
     ObjConfig *objects;
     MenuSelection *selection;
     Chatbox *chatbox;
-    int *viewport_interface, *chat_interface;
+    int *viewport_interface, *chat_interface, *sidebar_interface;
     bool live,trace;
     IdkConfig *idkits;
     ClientDesign *design;
