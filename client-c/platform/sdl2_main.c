@@ -25,6 +25,7 @@
 #include "ui/component_packets.h"
 #include "ui/client_actions.h"
 #include "ui/context_menu.h"
+#include "ui/title_screen.h"
 #include "config/flo.h"
 #include "config/seq.h"
 #include "config/loc.h"
@@ -202,12 +203,7 @@ int main(int argc, char *argv[]) {
     }
     const char *login_username = getenv("RS2_USERNAME");
     const char *login_password = getenv("RS2_PASSWORD");
-    if (!offline && (!login_username || !*login_username || !login_password || !*login_password)) {
-        fprintf(stderr, "Live login requires both RS2_USERNAME and RS2_PASSWORD.\n");
-        fprintf(stderr, "Use play_client.bat to enter your local game account, or supply both environment variables. See MANUAL-TESTING.md.\n");
-        fprintf(stderr, "No connection was attempted. --offline is only an explicit demonstration.\n");
-        return 1;
-    }
+    bool autologin = login_username && *login_username && login_password && *login_password;
     setbuf(stdout, NULL);
     int rendered_frames = 0;
     Uint32 last_keepalive=SDL_GetTicks();
@@ -656,34 +652,33 @@ int main(int argc, char *argv[]) {
     protocol_set_crcs(&session, crcs);
 
     bool live_server = false;
-    if (!offline) printf("[INFO] Checking for live 2004scape server at 127.0.0.1:%d...\n", server_port);
-    LoginResponse login_res = offline ? LOGIN_NET_ERROR : protocol_login(&session,"127.0.0.1",server_port,login_username,login_password,false);
-    if (login_res == LOGIN_SUCCESS || login_res == LOGIN_MOD_SUCCESS) {
-        live_server = true;
-        player.visible=false;
-        printf("[PASS] Connected to LIVE SERVER! (is_mod=%d)\n", session.is_mod);
-    } else if(offline) {
+    // client.ingame: false shows the title screen (updateTitle/drawTitleScreen).
+    bool ingame = offline;
+    bool login_pending = false, reconnecting = false, logout_now = false;
+    int idle_timeout = 0;   // client.idleTimeout
+    TitleScreen title;
+    title_screen_init(&title, (uint64_t)SDL_GetPerformanceCounter());
+    if (offline) {
         printf("[MODE] Explicit offline demonstration; inventory/entities are fixtures, no gameplay verification.\n");
     } else {
-        fprintf(stderr,"Login failed (%d) at 127.0.0.1:%d.\n",login_res,server_port);
-        if (login_res == LOGIN_NET_ERROR) {
-            fprintf(stderr,"Start start_local_server.bat, wait for World ready, then use play_client.bat (port 43595). See MANUAL-TESTING.md.\n");
-        } else if (login_res == LOGIN_ACCOUNT_LOGGED_IN) {
-            fprintf(stderr,"This account is still logged in or its previous logout is pending. Close its other client, wait for the server to finish logging it out, then retry.\n");
-            fprintf(stderr,"The server returned code 5; this does not indicate a wrong password. See MANUAL-TESTING.md.\n");
-        } else if (login_res == LOGIN_INVALID_CREDENTIALS) {
-            fprintf(stderr,"The server rejected the username or password. Check the local account details and see MANUAL-TESTING.md.\n");
-        } else {
-            fprintf(stderr,"The server returned login code %d. Check MANUAL-TESTING.md for its meaning.\n",login_res);
+        if (!title_jag || !has_fonts || !title_screen_load(&title, title_jag)) {
+            fprintf(stderr, "Title screen cache artwork could not be loaded\n"); SDL_Quit(); return 1;
         }
-        SDL_Quit();return 1;
+        printf("[STATE] title screen state=%d\n", title.state);
+        if (autologin) {
+            // Launcher convenience: fill the original login box and press Login.
+            snprintf(title.username, sizeof(title.username), "%s", login_username);
+            snprintf(title.password, sizeof(title.password), "%s", login_password);
+            title.state = 2; title.login_field = 0;
+            title.message0[0] = '\0';
+            snprintf(title.message1, sizeof(title.message1), "Connecting to server...");
+            login_pending = true;
+        }
     }
 
     Chatbox chatbox;
     chatbox_init(&chatbox, "Player");
-    if (live_server) {
-        chatbox_add_message(&chatbox, 0, NULL, "Connected to LostCity 2004 Server.");
-    } else {
+    if (!live_server && offline) {
         chatbox_add_message(&chatbox,0,NULL,"Offline scene preview. Gameplay requires a server.");
     }
     MenuSelection selection={0};comp_cfg.selection=&selection;
@@ -695,7 +690,24 @@ int main(int argc, char *argv[]) {
         .entities=&sync_ctx,.scene=world3d,.locations=&loc_cfg,.pathfinder=&pathfinder,.collision=collision_maps,.map=&streamer,
         .destination_x=has_minimap ? &minimap.flag_scene_tile_x : NULL,
         .destination_z=has_minimap ? &minimap.flag_scene_tile_z : NULL,
-        .click_feedback=&click_feedback,.selected_tab=&selected_tab};
+        .click_feedback=&click_feedback,.selected_tab=&selected_tab,.idle_timeout=&idle_timeout};
+    int title_click_button = 0, title_click_x = 0, title_click_y = 0;
+
+    // client.logout(): close the stream, return to title state 0 with empty
+    // credentials, clear model caches, reset the scene and collision maps and
+    // stop the music. The title artwork is loaded again by drawTitleScreen.
+    #define CLIENT_LOGOUT() do { \
+        protocol_close_session(&session); \
+        live_server = false; ingame = false; reconnecting = false; login_pending = false; \
+        actions.live = false; \
+        title_screen_logout_reset(&title); \
+        loc_clear_model_cache(true); actor_models_clear(); \
+        world3d_reset(world3d); \
+        for (int level_ = 0; level_ < 4; level_++) collision_map_reset(&collision_maps[level_]); \
+        midi_stop(); \
+        if (!title_screen_load(&title, title_jag)) { fprintf(stderr, "Title screen reload failed\n"); running = false; } \
+        printf("[STATE] logout -> title state=%d\n", title.state); \
+    } while (0)
     SDL_StartTextInput();
 
     // High-resolution 50Hz game loop timing (matching GameShell.java:150-210)
@@ -742,6 +754,27 @@ int main(int argc, char *argv[]) {
         midi_is_playing();
         verification_push_input(rendered_frames);
         while (SDL_PollEvent(&event)) {
+            if (!ingame && event.type != SDL_QUIT) {
+                if (event.type == SDL_MOUSEMOTION) {
+                    mouse_x = event.motion.x; mouse_y = event.motion.y;
+                } else if (event.type == SDL_MOUSEBUTTONDOWN) {
+                    mouse_x = event.button.x; mouse_y = event.button.y;
+                    title_click_x = mouse_x; title_click_y = mouse_y;
+                    title_click_button = event.button.button == SDL_BUTTON_RIGHT ? 2 : 1;
+                } else if (event.type == SDL_TEXTINPUT) {
+                    const unsigned char *text = (const unsigned char *)event.text.text;
+                    for (int i = 0; text[i]; i++) {
+                        if (text[i] == 0xC2 && text[i + 1] == 0xA3) { title_screen_push_key(&title, 163); i++; }
+                        else if (text[i] >= 30 && text[i] < 128) title_screen_push_key(&title, text[i]);
+                    }
+                } else if (event.type == SDL_KEYDOWN) {
+                    SDL_Keycode key = event.key.keysym.sym;
+                    if (key == SDLK_BACKSPACE || key == SDLK_DELETE) title_screen_push_key(&title, 8);
+                    else if (key == SDLK_TAB) title_screen_push_key(&title, 9);
+                    else if (key == SDLK_RETURN || key == SDLK_KP_ENTER) title_screen_push_key(&title, 10);
+                }
+                continue;
+            }
             if (event.type == SDL_QUIT) {
                 running = false;
             } else if (event.type == SDL_TEXTINPUT) {
@@ -1120,6 +1153,19 @@ int main(int argc, char *argv[]) {
         // 50 Hz Client Logic Tick Accumulator (matching GameShell.java:200-206)
         while (var6 < 256) {
             game_ticks++;
+            if (!ingame) {
+                if (!login_pending && title_screen_update(&title, title_click_button, title_click_x, title_click_y) == TITLE_LOGIN_REQUESTED) {
+                    // client.login(): show "Connecting to server..." before the blocking connect.
+                    title.message0[0] = '\0';
+                    snprintf(title.message1, sizeof(title.message1), "Connecting to server...");
+                    login_pending = true;
+                }
+                title_click_button = 0;
+                var6 += var4;
+                continue;
+            }
+            title_click_button = 0;
+            if (idle_timeout > 0) idle_timeout--;
             sync_ctx.cycle=game_ticks;effects.cycle=game_ticks;
             audio_tick();
             if (comp_cfg.drag.active) comp_cfg.drag.cycles++;
@@ -1136,7 +1182,7 @@ int main(int argc, char *argv[]) {
             // A. Poll incoming network packets from live server (client.java:7665)
             if (live_server) {
                 if(SDL_GetTicks()-last_keepalive>=1000) {
-                    if(!protocol_send_keepalive(&session)) {protocol_close_session(&session);live_server=false;}
+                    if(!protocol_send_keepalive(&session)) reconnecting=true;   // IOException -> tryReconnect
                     last_keepalive=SDL_GetTicks();
                 }
                 int opcode = 0;
@@ -1145,7 +1191,7 @@ int main(int argc, char *argv[]) {
                 int receive_status;
                 while ((receive_status=protocol_poll_packet(&session, &opcode, payload, sizeof(payload), &pkt_len)) > 0) {
                     int zone_result=zone_sync_apply(&zones,world,world3d,&loc_cfg,collision_maps,sync_ctx.current_plane,opcode,payload,pkt_len);
-                    if(zone_result<0) {fprintf(stderr,"Malformed zone packet %d\n",opcode);protocol_close_session(&session);live_server=false;break;}
+                    if(zone_result<0) {fprintf(stderr,"Malformed zone packet %d\n",opcode);logout_now=true;break;}
                     if(zone_result>0) {
                         if(zones.dirty && has_minimap) minimap_build(&minimap,world,world3d,&media,sync_ctx.current_plane);
                         zones.dirty=false;continue;
@@ -1153,7 +1199,7 @@ int main(int argc, char *argv[]) {
                     int panel_update=interface_state_apply(&interfaces,opcode,payload,pkt_len);
                     if(panel_update<0) {
                         fprintf(stderr,"Malformed interface packet %d\n",opcode);
-                        protocol_close_session(&session);live_server=false;break;
+                        logout_now=true;break;
                     }
                     if(panel_update>0) {
                         chatbox_close_count_dialog(&chatbox);
@@ -1164,7 +1210,7 @@ int main(int argc, char *argv[]) {
                     int update=component_apply_packet(&comp_cfg,&varp_ctx,&arena_perm,opcode,payload,pkt_len);
                     if(update<0) {
                         fprintf(stderr,"[Protocol] Malformed component packet %d (%zu bytes)\n",opcode,pkt_len);
-                        protocol_close_session(&session);live_server=false;break;
+                        logout_now=true;break;
                     }
                     if(update>0) {
                         if(trace && (opcode==150 || opcode==175)) {
@@ -1202,10 +1248,9 @@ int main(int argc, char *argv[]) {
                             int tab = payload[0];
                             if (tab >= 0 && tab < 14) selected_tab = tab;
                         }
-                    } else if (opcode == 142) { // LOGOUT
-                        live_server = false;
-                        protocol_close_session(&session);
-                        chatbox_add_message(&chatbox, 0, NULL, "You have logged out.");
+                    } else if (opcode == 142) { // LOGOUT: client.logout(), remaining input is discarded
+                        if(trace) printf("[STATE] server logout packet\n");
+                        logout_now=true;break;
                     } else if (opcode == 146) { // IF_SETANIM
                         if (pkt_len >= 4) {
                             int com_id = (payload[0] << 8) | payload[1];
@@ -1297,7 +1342,7 @@ int main(int argc, char *argv[]) {
                         if (name_len >= sizeof(song_name) || name_len + 9 != pkt_len ||
                             memchr(payload, 0, name_len) != NULL) {
                             fprintf(stderr,"[Protocol] Malformed MIDI_SONG\n");
-                            protocol_close_session(&session);live_server=false;break;
+                            logout_now=true;break;
                         }
                         memcpy(song_name,payload,name_len);
                         song_name[name_len]='\0';
@@ -1311,7 +1356,7 @@ int main(int argc, char *argv[]) {
                     } else if (opcode == 212) { // MIDI_JINGLE
                         if (pkt_len < 6) {
                             fprintf(stderr,"[Protocol] Malformed MIDI_JINGLE\n");
-                            protocol_close_session(&session);live_server=false;break;
+                            logout_now=true;break;
                         }
                         uint32_t uncomp_len = (uint32_t)payload[2]<<24 | (uint32_t)payload[3]<<16 |
                             (uint32_t)payload[4]<<8 | payload[5];
@@ -1333,7 +1378,7 @@ int main(int argc, char *argv[]) {
                         int previous_plane=sync_ctx.current_plane;
                         Packet pinfo = packet_wrap(payload, pkt_len);
                         if(!entity_sync_player_info(&sync_ctx,&pinfo,pkt_len)) {
-                            fprintf(stderr,"[Protocol] Invalid PLAYER_INFO\n");protocol_close_session(&session);live_server=false;break;
+                            fprintf(stderr,"[Protocol] Invalid PLAYER_INFO\n");logout_now=true;break;
                         }
                         if(previous_plane!=sync_ctx.current_plane && has_minimap) {
                             minimap_build(&minimap,world,world3d,&media,sync_ctx.current_plane);
@@ -1346,7 +1391,7 @@ int main(int argc, char *argv[]) {
                     } else if (opcode == 1) { // NPC_INFO
                         Packet ninfo = packet_wrap(payload, pkt_len);
                         if(!entity_sync_npc_info(&sync_ctx,&ninfo,pkt_len)) {
-                            fprintf(stderr,"[Protocol] Invalid NPC_INFO\n");protocol_close_session(&session);live_server=false;break;
+                            fprintf(stderr,"[Protocol] Invalid NPC_INFO\n");logout_now=true;break;
                         }
                     } else if (opcode == 237) { // REBUILD_NORMAL
                         int old_base_x=streamer.base_tile_x,old_base_z=streamer.base_tile_z;
@@ -1382,10 +1427,21 @@ int main(int argc, char *argv[]) {
                         }
                     }
                 }
-                if(receive_status<0 && live_server) {
-                    live_server=false;protocol_close_session(&session);
-                    chatbox_add_message(&chatbox,0,NULL,"Connection lost.");
+                if(receive_status<0 && !logout_now) {
+                    // client.read(): IOException -> tryReconnect, other failures -> logout.
+                    if(session.protocol_error) logout_now=true; else reconnecting=true;
                 }
+                if(reconnecting && !logout_now) {
+                    // client.tryReconnect(): a pending logout button press logs out.
+                    if(idle_timeout>0) logout_now=true;
+                    else {
+                        protocol_close_session(&session);live_server=false;actions.live=false;
+                        if(has_minimap) minimap.flag_scene_tile_x=0;
+                        login_pending=true;
+                        printf("[STATE] connection lost; reconnecting\n");
+                    }
+                }
+                if(logout_now) {logout_now=false;CLIENT_LOGOUT();var6+=var4;continue;}
             }
 
             // B. Camera & Player Movement Controls (client.java:6671-6684)
@@ -1478,18 +1534,6 @@ int main(int argc, char *argv[]) {
         int ground_y = camera_get_height(sync_ctx.current_plane, player.base.x, player.base.z, world3d->heightmap, world->tile_flags);
         player.base.y = ground_y;
 
-        // Clear Framebuffer
-        pix2d_bind(pixels, CLIENT_WIDTH, CLIENT_HEIGHT);
-        pix2d_cls();
-
-        // 1. Render 3D Viewport (0..512, 0..334)
-        pix2d_set_clip(VIEWPORT_X, VIEWPORT_Y, VIEWPORT_X + VIEWPORT_W, VIEWPORT_Y + VIEWPORT_H);
-        pix3d_center_x = VIEWPORT_X + VIEWPORT_W / 2;
-        pix3d_center_y = VIEWPORT_Y + VIEWPORT_H / 2;
-        mouse_picker_reset(&picker, mouse_x, mouse_y);
-        if (pending_click) {
-            world3d_click(world3d, pending_click_x, pending_click_y);
-        }
         int cross_frame=click_feedback_frame(&click_feedback);
         bool capture_cross=capture_clicks && cross_frame>=0 &&
             (cross_frame!=last_captured_cross || click_feedback.cycle<last_cross_cycle);
@@ -1502,6 +1546,25 @@ int main(int argc, char *argv[]) {
             int length=snprintf(interval_path,sizeof(interval_path),"%s.frame-%06d.bmp",capture_path,rendered_frames+1);
             if(length<0 || (size_t)length>=sizeof(interval_path)) {fprintf(stderr,"Capture path too long\n");return 1;}
             frame_capture_path=interval_path;
+        }
+
+        // Clear Framebuffer
+        pix2d_bind(pixels, CLIENT_WIDTH, CLIENT_HEIGHT);
+        if (!ingame) {
+            // client.draw() -> drawTitleScreen; the flame thread updates imageTitle0/1.
+            title_screen_run_flames(&title, SDL_GetTicks64(), game_ticks);
+            title_screen_draw(&title, &font_b12, game_ticks);
+            goto present_frame;
+        }
+        pix2d_cls();
+
+        // 1. Render 3D Viewport (0..512, 0..334)
+        pix2d_set_clip(VIEWPORT_X, VIEWPORT_Y, VIEWPORT_X + VIEWPORT_W, VIEWPORT_Y + VIEWPORT_H);
+        pix3d_center_x = VIEWPORT_X + VIEWPORT_W / 2;
+        pix3d_center_y = VIEWPORT_Y + VIEWPORT_H / 2;
+        mouse_picker_reset(&picker, mouse_x, mouse_y);
+        if (pending_click) {
+            world3d_click(world3d, pending_click_x, pending_click_y);
         }
         location_anim_tick(world3d,&loc_cfg,game_ticks-location_anim_cycle);
         location_anim_cycle=game_ticks;
@@ -1949,7 +2012,17 @@ int main(int argc, char *argv[]) {
         if (has_fonts && menu.visible) {
             context_menu_draw(&menu, mouse_x, mouse_y, &font_b12);
         }
+        if (reconnecting && has_fonts) {
+            // client.tryReconnect() message, drawn into areaViewport at (8,11).
+            pix2d_set_clip(VIEWPORT_X, VIEWPORT_Y, VIEWPORT_X + VIEWPORT_W, VIEWPORT_Y + VIEWPORT_H);
+            pixfont_draw_string_center(&font_p12, VIEWPORT_X + 257, VIEWPORT_Y + 144, 0, "Connection lost");
+            pixfont_draw_string_center(&font_p12, VIEWPORT_X + 256, VIEWPORT_Y + 143, 0xFFFFFF, "Connection lost");
+            pixfont_draw_string_center(&font_p12, VIEWPORT_X + 257, VIEWPORT_Y + 159, 0, "Please wait - attempting to reestablish");
+            pixfont_draw_string_center(&font_p12, VIEWPORT_X + 256, VIEWPORT_Y + 158, 0xFFFFFF, "Please wait - attempting to reestablish");
+            pix2d_reset_clip();
+        }
 
+    present_frame:
         // Update SDL texture & present
         SDL_UpdateTexture(framebuffer, NULL, pixels, CLIENT_WIDTH * sizeof(uint32_t));
         SDL_RenderClear(renderer);
@@ -1967,7 +2040,53 @@ int main(int argc, char *argv[]) {
         }
         SDL_RenderPresent(renderer);
         rendered_frames++;
+
+        if (login_pending && running) {
+            // client.login(username, password, reconnect) after the frame that shows it.
+            bool reconnect = reconnecting;
+            login_pending = false; reconnecting = false;
+            LoginResponse reply = protocol_login_ex(&session, "127.0.0.1", server_port, title.username, title.password, false, reconnect);
+            printf("[LOGIN] %s reply=%d\n", reconnect ? "reconnect" : "login", (int)reply);
+            if (reply == LOGIN_SUCCESS || reply == LOGIN_MOD_SUCCESS) {
+                // client.login() success reset, then prepareGameScreen/unloadTitle.
+                idle_timeout = 0; hint_type = 0;
+                context_menu_clear(&menu); menu.visible = false;
+                chatbox_free(&chatbox); chatbox_init(&chatbox, "Player");
+                selection.item_selected = false; selection.spell_selected = false;
+                streamer.scene_state = 0;
+                cam.orbit_yaw = capture_yaw;
+                if (has_minimap) { minimap.flag_scene_tile_x = 0; minimap.flag_scene_tile_z = 0; }
+                entity_sync_cleanup(&sync_ctx);
+                entity_sync_init(&sync_ctx, &npc_cfg);
+                sync_ctx.trace = trace; sync_ctx.seq_cfg = &seq_cfg;
+                player.visible = false;
+                zones.local_pid = -1;
+                effects_clear(&effects);
+                zone_sync_reset(&zones);
+                sticky_chat_interface_id = -1;
+                interface_state_init(&interfaces);
+                selected_tab = 3;
+                flashing_tab = -1;
+                design = (ClientDesign){0};
+                comp_cfg.drag.active = false; pending_click = false;
+                last_keepalive = SDL_GetTicks();
+                title_screen_unload(&title);
+                ingame = true; live_server = true; actions.live = true;
+                printf("[PASS] Connected to LIVE SERVER! (is_mod=%d)\n", session.is_mod);
+            } else if (reply == LOGIN_RECONNECT_SUCCESS) {
+                context_menu_clear(&menu); menu.visible = false;
+                last_keepalive = SDL_GetTicks();
+                ingame = true; live_server = true; actions.live = true;
+                printf("[STATE] reconnected\n");
+            } else if (reconnect || ingame) {
+                CLIENT_LOGOUT();   // tryReconnect: still not in game -> logout()
+            } else {
+                title_screen_set_login_reply(&title, (int)reply);
+                printf("[STATE] login message0=\"%s\" message1=\"%s\"\n", title.message0, title.message1);
+            }
+        }
     }
+    #undef CLIENT_LOGOUT
 
     printf("[Lost City 2004 C] Shutting down...\n");
 

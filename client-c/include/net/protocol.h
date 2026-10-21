@@ -8,11 +8,13 @@
 #include "net/client_stream.h"
 
 typedef enum {
+    LOGIN_RETRY = 1,
     LOGIN_SUCCESS = 2,
     LOGIN_INVALID_CREDENTIALS = 3,
     LOGIN_ACCOUNT_LOGGED_IN = 5,
     LOGIN_REVISION_CRC_ERROR = 6,
     LOGIN_WORLD_FULL = 7,
+    LOGIN_RECONNECT_SUCCESS = 15,
     LOGIN_RATE_LIMITED = 16,
     LOGIN_MOD_SUCCESS = 18,
     LOGIN_NET_ERROR = -1
@@ -24,6 +26,7 @@ typedef struct {
     Isaac out_cipher;
     bool in_game;
     bool is_mod;
+    bool protocol_error; /* last receive failure was a framing error, not I/O (client.java T1/T2) */
     uint32_t archive_crcs[9];
     int packet_opcode; /* -1 until the next encrypted opcode is available */
     int packet_size;
@@ -35,6 +38,9 @@ typedef struct {
 void protocol_init_session(GameSession *session);
 void protocol_set_crcs(GameSession *session, const uint32_t crcs[9]);
 LoginResponse protocol_login(GameSession *session, const char *host, int port, const char *username, const char *password, bool low_mem);
+/* client.login(): opcode 18 when reconnecting, otherwise 16. Reply 1 is retried
+   after two seconds; replies 2, 18 and 15 leave the session in game. */
+LoginResponse protocol_login_ex(GameSession *session, const char *host, int port, const char *username, const char *password, bool low_mem, bool reconnect);
 int protocol_read_packet(GameSession *session, uint8_t *out_payload, size_t capacity, size_t *out_len);
 int protocol_poll_packet(GameSession *session, int *out_opcode, uint8_t *out_payload, size_t capacity, size_t *out_len);
 

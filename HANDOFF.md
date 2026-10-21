@@ -1,3 +1,34 @@
+# Logout returns to the original title screen; in-client login — October 21, 2026
+
+Native SHA-256: `0510EADD01B31BC64212ABAA78D6A71B62FFE62A4095F6356ED4CA0BCFF597E4`. Installed `client-c/bin/rs2client.exe`; the launcher update `rs2client_bridge.exe` and `rs2client_decor.exe` match. Launch `play_client.bat` normally. The previous build `CD6A014A…7C4A` is preserved in this run's `before/`. New cumulative overlay: `logout-title-checkpoint.zip` with its SHA-256 sidecar.
+
+Reproduced first with disposable `sollogb21`: the logout button sent IF_BUTTON 2458 and server opcode 142 closed the socket, but the world stayed rendered with a synthetic "You have logged out." line, and logging in again was impossible.
+
+**Now ported from `deob/client.java`:**
+- The title screen: the `title.dat` JPEG is decoded bit-exact to Java's libjpeg-6b path by the new `src/gfx/jpeg.c`. Also the nine title PixMaps with the mirrored background and logo, titlebox/titlebutton, `updateTitle`, `drawTitleScreen` states 0/2/3, and `updateFlames`/`updateFlameBuffer`/`drawFlames` (new `src/ui/title_screen.c`).
+- `login()` with all reply messages and its success reset, then `prepareGameScreen`.
+- `logout()`: socket close, title state 0, credentials cleared, model caches, scene and collision reset, MIDI stop.
+- Opcode 142 and malformed packets call `logout()`. I/O loss calls `tryReconnect`: the "Connection lost" overlay, a reconnect login with opcode 18 and reply 15, or logout when `idleTimeout > 0`.
+- Clientcode 205 sets `idleTimeout = 250`.
+- Reply 1 is retried after 2 s.
+
+The launchers' `RS2_USERNAME`/`RS2_PASSWORD` now prefill the original login box and press Login once. The raw executable without them shows the title. `--offline` is unchanged. The synthetic connect/logout/connection-lost chat lines are removed.
+
+All **53 test programs pass with zero warnings**. The new `test_title_screen` replays `TitleOracle.java`, which runs the unchanged client `loadTitle`/`drawTitleScreen`/`drawFlames` on the real archive. **1,182,628 pixels match exactly** across the background/logo, five title states and seven flame-gradient branches on fixed buffers. The test also checks the `updateTitle` input rules and the login opcode 16/18, reply 15 and reply-1 retry handshake against a loopback fake server.
+
+Live on PID 2352 with disposable `sollogc21`: login, button logout to the title, typed re-login from the title, second logout. Captures are in `after/frame-*.png`. The normal launcher with `sollogd21` exits 0.
+
+**Not claimed:**
+- Flame frames cannot equal Java's frames, because `Math.random` is unseeded.
+- A live connection loss was not induced, so reconnect is tested against the fake server only.
+- `idleNetCycles` reconnect, the AFK idle timer, anticheat camera randoms and `drawProgress` remain unported.
+
+Saves: 34 of 35 are byte-identical. `antigravity.sav` changed at 11:40:37 although no run used that account, as in earlier user sessions; it was not modified or restored. The disposable `sollogb21`/`c21`/`d21` saves are retained. No server, content, cache or launcher-source edits, commits or delegates.
+
+Evidence and diff: `client-c/verification/completion/runs/2026-10-21-logout-title/`. Next: resume `AUTONOMOUS_PLAN.md` with the remaining gates: roofs/occluders, texture/palette parity, setBridge traversal, dynamic relighting, `idleNetCycles`/AFK timers, and the gameplay audit. The full roadmap remains unfinished.
+
+---
+
 # Lumbridge corner wall decorations corrected — October 21, 2026
 
 Native SHA-256: `CD6A014A97D66C15AA6F09815D49B854ED224479B8680426A98082D1529D7C4A`. Installed `client-c/bin/rs2client.exe`, launcher update `rs2client_bridge.exe`, and `rs2client_decor.exe` match. Launch `play_client.bat` normally. The previous shared-lighting bridge binary is preserved under this run's before/ directory and in the unchanged shared-lighting-checkpoint.zip. New cumulative overlay: wall-decoration-checkpoint.zip and its SHA-256 sidecar. Existing engine/cache/content/build dependencies are required.

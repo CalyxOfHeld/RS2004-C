@@ -34,6 +34,7 @@ typedef struct {
     ClickFeedback *click_feedback;
     int click_x, click_y;
     int *selected_tab;
+    int *idle_timeout; // optional client.idleTimeout (clientcode 205 logout button)
 } ClientActions;
 typedef enum { ACTION_UNAVAILABLE, ACTION_LOCAL, ACTION_SENT, ACTION_WALK, ACTION_FAILED } ActionResult;
 void client_design_init(ClientDesign *design,IdkConfig *kits);

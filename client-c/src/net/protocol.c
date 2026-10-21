@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
+#include <time.h>
+#endif
 
 static int server_packet_sizes[256];
 static bool packet_sizes_init = false;
@@ -103,8 +106,25 @@ void protocol_set_crcs(GameSession *session, const uint32_t crcs[9]) {
     memcpy(session->archive_crcs, crcs, sizeof(session->archive_crcs));
 }
 
+static void protocol_sleep_ms(unsigned ms) {
+#ifdef _WIN32
+    Sleep(ms);
+#else
+    struct timespec ts = {(time_t)(ms / 1000), (long)(ms % 1000) * 1000000L};
+    nanosleep(&ts, NULL);
+#endif
+}
+
 LoginResponse protocol_login(GameSession *session, const char *host, int port, const char *username, const char *password, bool low_mem) {
+    return protocol_login_ex(session, host, port, username, password, low_mem, false);
+}
+
+LoginResponse protocol_login_ex(GameSession *session, const char *host, int port, const char *username, const char *password, bool low_mem, bool reconnect) {
     init_packet_sizes();
+    session->in_game = false;
+    session->protocol_error = false;
+    session->packet_opcode = -1;
+    session->packet_header_read = session->packet_payload_read = 0;
 
     if (!client_stream_connect(&session->stream, host, port)) {
         fprintf(stderr, "[Login] Could not connect to %s:%d.\n", host, port);
@@ -147,10 +167,10 @@ LoginResponse protocol_login(GameSession *session, const char *host, int port, c
     uint8_t cipher_buf[256];
     size_t cipher_len = rsa_encrypt(rsa_buf, rsa_pkt.pos, cipher_buf, sizeof(cipher_buf));
 
-    // 5. Build Login packet (Opcode 16)
+    // 5. Build Login packet (opcode 18 to reconnect, otherwise 16)
     uint8_t login_buf[1024];
     Packet login_pkt = packet_wrap(login_buf, sizeof(login_buf));
-    p1(&login_pkt, 16); // opcode 16
+    p1(&login_pkt, reconnect ? 18 : 16);
     size_t payload_len = 1 + 1 + 36 + 1 + cipher_len;
     p1(&login_pkt, (int32_t)payload_len);
     p1(&login_pkt, 225); // revision 225
@@ -184,14 +204,28 @@ LoginResponse protocol_login(GameSession *session, const char *host, int port, c
         session->is_mod = (resp == 18);
         return (LoginResponse)resp;
     }
+    if (resp == 15) {   // reconnect accepted: rights are kept from the first login
+        session->in_game = true;
+        return LOGIN_RECONNECT_SUCCESS;
+    }
 
     client_stream_close(&session->stream);
+    if (resp == 1) {
+        protocol_sleep_ms(2000);
+        return protocol_login_ex(session, host, port, username, password, low_mem, reconnect);
+    }
     return (LoginResponse)resp;
 }
 
 static int protocol_receive_error(GameSession *session, const char *reason) {
     fprintf(stderr, "[Protocol] Receive failed: %s\n", reason);
     protocol_close_session(session);
+    return -1;
+}
+
+static int protocol_framing_error(GameSession *session, const char *reason) {
+    protocol_receive_error(session, reason);
+    session->protocol_error = true;
     return -1;
 }
 
@@ -207,7 +241,7 @@ int protocol_poll_packet(GameSession *session, int *out_opcode, uint8_t *out_pay
         session->packet_opcode = (raw - isaac_next(&session->in_cipher)) & 255;
         session->packet_size = server_packet_sizes[session->packet_opcode];
         session->packet_header_read = session->packet_payload_read = 0;
-        if (session->packet_size == -3) return protocol_receive_error(session, "unknown server opcode");
+        if (session->packet_size == -3) return protocol_framing_error(session, "unknown server opcode");
     }
     if (session->packet_size < 0) {
         size_t required = (size_t)-session->packet_size;
@@ -221,7 +255,7 @@ int protocol_poll_packet(GameSession *session, int *out_opcode, uint8_t *out_pay
     }
     size_t length = (size_t)session->packet_size;
     if (length > capacity || length > sizeof(session->stream.in_buf))
-        return protocol_receive_error(session, "payload exceeds destination capacity");
+        return protocol_framing_error(session, "payload exceeds destination capacity");
     if (session->packet_payload_read < length) {
         int count = client_stream_read_some(&session->stream,
             session->stream.in_buf + session->packet_payload_read, length - session->packet_payload_read);

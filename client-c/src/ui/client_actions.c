@@ -141,6 +141,9 @@ ActionResult client_action_dispatch(ClientActions *ctx,MenuAction action) {
             ActionResult design=design_button(ctx,button->client_code);
             if(design==ACTION_FAILED || button->client_code!=326) return design;
         }
+        // client.handleInterfaceAction: logout waits up to 250 cycles, and a
+        // connection loss during that window logs out instead of reconnecting.
+        if(button->client_code==205 && ctx->idle_timeout) *ctx->idle_timeout=250;
         if(ctx->live) sent=protocol_send_button(ctx->session,action.component);
         if(!ctx->live || sent) {
             if(action.operation==4 || action.operation==5) varp_handle_component_click(ctx->varps,button);
