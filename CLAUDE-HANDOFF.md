@@ -24,6 +24,22 @@ SHA-256: `341AB6F2BF27D4FBF7CDBB991C695C224E2D4EAA3679DF7ED8AC5ABE8B4D6C2D`
 - Evidence and tools (`scenarios.ps1`, `controls.ps1`, `tamper.py`, `cmplogs.py`) are in `client-c/verification/completion/runs/2026-10-22-phaseB-replay/`.
 - **Next (B3/B4):** a Java oracle over the recorded inbound stream, compared per tick, then `make parity`.
 
+## B3 design notes (not started; written for the next session)
+
+1. **The oracle is a new `reference/src/ParityOracle.java`** on the unchanged jar (`javaclient/build/libs/rs2client.jar` first on the classpath).
+   - Do not use the `referenceTask` hook in `reference/isolation.patch`. It exists only in the patched overlay; the unchanged jar does not have it.
+   - **Drive it synchronously** instead of with `GameShell.run`: call `update()` once per logged `U` and `draw()` once per `F`, from the oracle thread, through reflection (see `TitleOracle.java` for the field and method helpers).
+   - Avoid starting the flame thread: set `flameActive=true` before `loadTitle`, as TitleOracle does. Its Math.random use is timing-dependent and cannot match C.
+2. **Network feed.** Use a localhost `ServerSocket` that serves the log's inbound bytes.
+   - **Before each cycle,** deliver bytes up to what C saw: the delivered count is the cycle's first `NA` plus the bytes consumed so far. Then poll the client's `stream.available()` until it matches, so the result is deterministic.
+   - **Flag any cycle where C saw new bytes arrive mid-cycle** (`NA` grew). That cycle cannot be reproduced exactly.
+3. **Login.** Call `client.login(user, pass, false)` at the frame where C logged `NC`. C autologs in from `client_end_frame`; Java has no autologin.
+   - Java's ISAAC seeds come from Math.random, so they differ from C's. After login, replace Java's in/out `Isaac` objects with ones built from C's seeds. To get them, have the C replay print the seeds and its `jrandom` 48-bit state at login, and set Java's `Math$RandomNumberGeneratorHolder` Random seed to that state.
+   - Compare the login packet as plaintext (the RSA block holds the seeds). Compare all later outgoing bytes exactly.
+4. **Comparison.** For each tick, compare outgoing packets and the composited PixMap areas (offsets as in `ReferenceHarness.java`) against the C framebuffer. Dump the first difference.
+   - **Expect differences in the 3D viewport.** Finding F2 says the C renderer is not a port of the Java one; that is Phase C. Gate on the 2D areas and on packets first.
+5. **`make parity`** runs `rs2replay` plus the oracle on a checked-in session log, such as `runs/2026-10-22-phaseB-replay/live-record/session.rec`, with `RS2_PASSWORD` from the environment.
+
 The user's server runs on ports 43595, 8889 and 8899 under PID 2352. The user has authorized Claude to start and stop the local server (snapshot saves around live runs). Never stop processes Claude did not start.
 
 ## Completed in the latest checkpoint (Phase A)
