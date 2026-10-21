@@ -208,8 +208,9 @@ void minimap_draw_dot(
 ) {
     if (!dot_sprite) return;
 
-    int dx = (target_x - player_x) / 32;
-    int dz = (target_z - player_z) / 32;
+    // Revision-225 drawMinimap quantizes each position before subtraction.
+    int dx = target_x / 32 - player_x / 32;
+    int dz = target_z / 32 - player_z / 32;
 
     int dist_sq = dx * dx + dz * dz;
     if (dist_sq > 6400) return; // Outside minimap circle

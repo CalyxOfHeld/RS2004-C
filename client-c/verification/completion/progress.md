@@ -15,3 +15,7 @@ Preserve every existing and new account, cache and history. Server PID3128 on435
 ## Subsequent small task: MIDI failure reporting
 
 Completed the bounded MIDI status fix. Installed executable SHA-256: `773E06C0D5508E0A6510DD8ADAD5EEABA1D85CBFB9F08C613D6B545598736BE8`. Build exited0 with zero warnings; no tests or audible/live checks were run for this change. Prior suite/live evidence applies to the old binary. See runs/2026-10-21-midi-status/README.md and source-review.diff. The earlier checkpoint ZIP is preserved; midi-status-client-update.zip contains this newer executable. Latest usage75%; write the full handoff at95% as requested. No additional feature task has started.
+
+## Small task: minimap dot offsets
+
+Matched revision225 division-before-subtraction for NPC/ground-item minimap dot offsets on both axes. Built exit0 with zero warnings; no tests/live visual checks run. Latest executable SHA-256: `39CEFC6F09C3A7557081D8FE41211E58D2E56A7E7619EC9DBB090AA6C5ACB88B`. See runs/2026-10-21-minimap-offset/README.md and source-review.diff. Latest update ZIP: minimap-offset-client-update.zip (also includes MIDI fix). Full minimap navigation/destination flags remain open.
