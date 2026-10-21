@@ -1,6 +1,7 @@
 #include "entity/pathing_entity.h"
 #include "config/seq.h"
 #include <string.h>
+static int actor_sequence_delay(const SeqType *seq,int frame);
 
 void pathing_entity_init(PathingEntity *e) {
     if (!e) return;
@@ -122,7 +123,7 @@ bool pathing_entity_update_exact(PathingEntity *e,const SeqConfig *sequences,int
         e->x+=(sx-e->x)/remaining;e->z+=(sz-e->z)/remaining;
     } else {
         bool move=cycle==e->exact_start_cycle || e->primary_seq_id<0 || e->primary_seq_delay!=0;
-        if(!move && sequences && e->primary_seq_id<sequences->count)move=e->primary_seq_cycle+1>seq_get_delay(&sequences->instances[e->primary_seq_id],e->primary_seq_frame);
+        if(!move && sequences && e->primary_seq_id<sequences->count)move=e->primary_seq_cycle+1>actor_sequence_delay(&sequences->instances[e->primary_seq_id],e->primary_seq_frame);
         if(move) {
             int duration=e->exact_start_cycle-e->exact_end_cycle,elapsed=cycle-e->exact_end_cycle;
             int ex=e->exact_end_x*128+e->size*64,ez=e->exact_end_z*128+e->size*64;
@@ -273,21 +274,26 @@ void pathing_entity_update_facing(PathingEntity *e) {
     e->secondary_seq_id = e->seq_walk_id;
 }
 
+static int actor_sequence_delay(const SeqType *seq,int frame) {
+    if(frame<0 || frame>=seq->frame_count)return 1;
+    return seq->delay[frame]<0 ? seq->delay[frame]:seq_get_delay(seq,frame);
+}
+
 void pathing_entity_update_sequences(PathingEntity *e, const SeqConfig *seq_cfg) {
     if (!e || !seq_cfg) return;
+    e->seq_stretches=false;
 
     if (e->secondary_seq_id >= 0 && e->secondary_seq_id < seq_cfg->count) {
         const SeqType *seq = &seq_cfg->instances[e->secondary_seq_id];
         if (seq->frame_count > 0) {
             e->secondary_seq_cycle++;
-            int delay = seq_get_delay(seq, e->secondary_seq_frame);
-            if (delay <= 0) delay = 1;
+            int delay = actor_sequence_delay(seq, e->secondary_seq_frame);
             if (e->secondary_seq_frame < seq->frame_count && e->secondary_seq_cycle > delay) {
-                e->secondary_seq_cycle = 1;
+                e->secondary_seq_cycle = 0;
                 e->secondary_seq_frame++;
             }
             if (e->secondary_seq_frame >= seq->frame_count) {
-                e->secondary_seq_cycle = 1;
+                e->secondary_seq_cycle = 0;
                 e->secondary_seq_frame = 0;
             }
         }
@@ -297,16 +303,15 @@ void pathing_entity_update_sequences(PathingEntity *e, const SeqConfig *seq_cfg)
         const SeqType *seq = &seq_cfg->instances[e->primary_seq_id];
         if (seq->frame_count > 0) {
             e->primary_seq_cycle++;
-            int delay = seq_get_delay(seq, e->primary_seq_frame);
-            if (delay <= 0) delay = 1;
+            int delay = actor_sequence_delay(seq, e->primary_seq_frame);
             while (e->primary_seq_frame < seq->frame_count && e->primary_seq_cycle > delay) {
                 e->primary_seq_cycle -= delay;
                 e->primary_seq_frame++;
                 if (e->primary_seq_frame < seq->frame_count) {
-                    delay = seq_get_delay(seq, e->primary_seq_frame);
-                    if (delay <= 0) delay = 1;
+                    delay = actor_sequence_delay(seq, e->primary_seq_frame);
                 }
             }
+            e->seq_stretches=seq->stretches;
             if (e->primary_seq_frame >= seq->frame_count) {
                 e->primary_seq_frame -= seq->replayoff;
                 e->primary_seq_loop++;

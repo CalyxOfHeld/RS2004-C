@@ -260,7 +260,7 @@ Model* loc_get_model_frame(const LocType* loc, int shape, int rotation, int fram
     Model *cached=cache_get(frame_cache,30,key);
     if(cached) {
         Model *result=model_copy(cached,arena);
-        if(result && !arena && !loc->anim_has_alpha) model_share_alpha(result,cached);
+        if(result && !loc->anim_has_alpha) model_share_alpha(result,cached);
         return result;
     }
     bool mirror=loc->mirror != (rotation>3);
@@ -303,7 +303,7 @@ Model* loc_get_model_frame(const LocType* loc, int shape, int rotation, int fram
     m->label_vertices=NULL;m->label_vertex_counts=NULL;m->num_label_vertices=0;
     cache_put(frame_cache,30,key,m);
     Model *result=model_copy(m,arena);
-    if(result && !arena && !loc->anim_has_alpha) model_share_alpha(result,m);
+    if(result && !loc->anim_has_alpha) model_share_alpha(result,m);
     return result;
 }
 

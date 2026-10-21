@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 
 void entity_sync_init(EntitySyncContext *ctx, NpcConfig *npc_cfg) {
     if (!ctx) return;
@@ -20,6 +21,26 @@ static void rebase_entity(PathingEntity *entity, int dx, int dz) {
     }
     entity->x-=dx*128;
     entity->z-=dz*128;
+}
+
+void entity_sync_update_facing(EntitySyncContext *ctx,PathingEntity *actor,int base_x,int base_z,int local_pid) {
+    PathingEntity *target=NULL;
+    if(actor->target_id>=0 && actor->target_id<MAX_NPCS && ctx->npcs[actor->target_id])target=&ctx->npcs[actor->target_id]->base;
+    if(actor->target_id>=32768) {
+        int slot=actor->target_id-32768;if(slot==local_pid)slot=ctx->local_player_index;
+        if(slot==ctx->local_player_index)target=&ctx->local_player.base;
+        else if(slot>=0 && slot<MAX_PLAYERS && ctx->players[slot])target=&ctx->players[slot]->base;
+    }
+    if(target) {
+        int dx=actor->x-target->x,dz=actor->z-target->z;
+        if(dx || dz)actor->dst_yaw=(int)((uint32_t)(int)(atan2((double)dx,(double)dz)*325.949)&2047u);
+    }
+    if((actor->target_tile_x || actor->target_tile_z) && (actor->path_length==0 || actor->seq_trigger>0)) {
+        int dx=actor->x-(actor->target_tile_x-base_x-base_x)*64,dz=actor->z-(actor->target_tile_z-base_z-base_z)*64;
+        if(dx || dz)actor->dst_yaw=(int)((uint32_t)(int)(atan2((double)dx,(double)dz)*325.949)&2047u);
+        actor->target_tile_x=actor->target_tile_z=0;
+    }
+    pathing_entity_update_facing(actor);
 }
 
 void entity_sync_rebase(EntitySyncContext *ctx, int delta_x, int delta_z) {

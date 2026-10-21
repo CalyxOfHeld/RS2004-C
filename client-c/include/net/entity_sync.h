@@ -32,6 +32,7 @@ typedef struct {
 
 void entity_sync_init(EntitySyncContext *ctx, NpcConfig *npc_cfg);
 void entity_sync_rebase(EntitySyncContext *ctx, int delta_x, int delta_z);
+void entity_sync_update_facing(EntitySyncContext *ctx,PathingEntity *actor,int base_x,int base_z,int local_pid);
 bool entity_sync_player_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_size);
 bool entity_sync_npc_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_size);
 void entity_sync_cleanup(EntitySyncContext *ctx);

@@ -115,21 +115,8 @@ Model *actor_spotanim_model(PathingEntity *a,SpotAnimConfig *c,Arena *frame) {
     return a->spotanim_frame<0?NULL:spotanim_model(c,a->spotanim_id,a->spotanim_frame,0,a->spotanim_height,false,frame);
 }
 Model *actor_with_spotanim(Model *body,PathingEntity *a,SpotAnimConfig *c,Arena *frame) {
-    a->height=0;for(int i=0;i<body->num_points;i++)if(-body->point_y[i]>a->height)a->height=-body->point_y[i];
     Model *spot=actor_spotanim_model(a,c,frame);if(!spot)return body;
     size_t need=65536u+(size_t)(body->num_points+spot->num_points)*128u+(size_t)(body->num_faces+spot->num_faces)*128u;
     if(need>frame->capacity-frame->offset)return body;
-    Model *parts[]={body,spot};Model *m=model_create_composite(parts,2,frame);if(!m)return body;
-    // Original two-model constructor preserves each already lit face. The
-    // general native composite builds geometry; retain the original lighting.
-    m->face_colour_a=arena_alloc(frame,m->num_faces*sizeof(int32_t));
-    m->face_colour_b=arena_alloc(frame,m->num_faces*sizeof(int32_t));
-    m->face_colour_c=arena_alloc(frame,m->num_faces*sizeof(int32_t));
-    int out=0;
-    for(int n=0;n<2;n++) for(int i=0;i<parts[n]->num_faces;i++,out++) {
-        m->face_colour_a[out]=parts[n]->face_colour_a[i];
-        m->face_colour_b[out]=parts[n]->face_colour_b[i];
-        m->face_colour_c[out]=parts[n]->face_colour_c[i];
-    }
-    return m;
+    Model *parts[]={body,spot};Model *m=model_combine_lit(parts,2,frame);return m ? m:body;
 }

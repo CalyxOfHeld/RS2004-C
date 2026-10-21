@@ -1,4 +1,5 @@
 #include "entity/player_entity.h"
+#include "entity/actor_model.h"
 #include "core/jstring.h"
 #include <string.h>
 #include <stdlib.h>
@@ -65,17 +66,16 @@ void player_entity_read_appearance(PlayerEntity *p, Packet *pkt) {
     p->combat_level = g1(pkt);
     p->visible = true;
 
-    p->appearance_hashcode = 0;
-    for (int i = 0; i < 12; i++) {
-        p->appearance_hashcode <<= 4;
-        if (p->appearances[i] >= 256) {
-            p->appearance_hashcode += (p->appearances[i] - 256);
-        }
-    }
-    for (int i = 0; i < 5; i++) {
-        p->appearance_hashcode <<= 3;
-        p->appearance_hashcode += p->colors[i];
-    }
+    p->appearance_hashcode=player_appearance_hash(p);
+}
+
+uint64_t player_appearance_hash(const PlayerEntity *p) {
+    uint64_t hash=0;
+    for(int i=0;i<12;i++){hash<<=4;if(p->appearances[i]>=256)hash+=p->appearances[i]-256;}
+    if(p->appearances[0]>=256)hash+=(p->appearances[0]-256)>>4;
+    if(p->appearances[1]>=256)hash+=(p->appearances[1]-256)>>8;
+    for(int i=0;i<5;i++){hash<<=3;hash+=p->colors[i];}
+    return (hash<<1)+(unsigned)p->gender;
 }
 
 void player_entity_dispose(PlayerEntity *p) {
@@ -94,8 +94,7 @@ Model *player_with_location(Model *body,PlayerEntity *p,int cycle,int ground_y,A
     return merged ? merged:body;
 }
 
-Model* player_entity_get_model(PlayerEntity *p, IdkConfig *idk_cfg, ObjConfig *obj_cfg, SeqConfig *seq_cfg, Arena *arena) {
-    (void)seq_cfg;
+static Model* player_base(PlayerEntity *p, IdkConfig *idk_cfg, ObjConfig *obj_cfg,int right,int left,Arena *arena) {
     if (!p || !p->visible) return NULL;
 
     Model *parts[12];
@@ -103,6 +102,8 @@ Model* player_entity_get_model(PlayerEntity *p, IdkConfig *idk_cfg, ObjConfig *o
 
     for (int i = 0; i < 12; i++) {
         int app = p->appearances[i];
+        if(i==5 && right>=0)app=right;
+        if(i==3 && left>=0)app=left;
         if (app >= 256 && app < 512) {
             if (idk_cfg) {
                 IdkType *idk = idk_get(idk_cfg, app - 256);
@@ -138,6 +139,28 @@ Model* player_entity_get_model(PlayerEntity *p, IdkConfig *idk_cfg, ObjConfig *o
 
     model_calculate_normals(res, 64, 850, -30, -50, -30);
     return res;
+}
+
+Model* player_entity_get_model(PlayerEntity *p,IdkConfig *idk_cfg,ObjConfig *obj_cfg,SeqConfig *seq_cfg,Arena *arena) {
+    if(!p || !p->visible)return NULL;
+    p->appearance_hashcode=player_appearance_hash(p);uint64_t key=p->appearance_hashcode;
+    int right=-1,left=-1;
+    if(seq_cfg && p->base.primary_seq_id>=0 && p->base.primary_seq_id<seq_cfg->count && p->base.primary_seq_delay==0) {
+        SeqType *seq=&seq_cfg->instances[p->base.primary_seq_id];right=seq->righthand;left=seq->lefthand;
+        if(right>=0)key+=(uint64_t)((int64_t)(right-p->appearances[5])*256);
+        if(left>=0)key+=(uint64_t)((int64_t)(left-p->appearances[3])*65536);
+    }
+    Model *rest=actor_model_cached(true,key);
+    if(!rest) {
+        Arena *scratch=actor_model_scratch();Model *base=player_base(p,idk_cfg,obj_cfg,right,left,scratch);
+        if(!base)return NULL;model_create_label_references(base,scratch);rest=actor_model_store(true,key,base);
+    }
+    Model *model=model_copy(rest,arena);if(!model)return NULL;
+    model_share_alpha(model,rest);
+    int primary,secondary;const int *mask;actor_model_frames(&p->base,seq_cfg,&primary,&secondary,&mask);
+    model_apply_transforms(model,primary,secondary,mask);
+    p->base.height=0;for(int v=0;v<model->num_points;v++)if(-model->point_y[v]>p->base.height)p->base.height=-model->point_y[v];
+    return model;
 }
 
 Model* player_entity_get_head_model(PlayerEntity *p, IdkConfig *idk_cfg, ObjConfig *obj_cfg, Arena *arena) {

@@ -32,6 +32,7 @@ typedef struct {
     int secondary_seq_cycle;
     int secondary_seq_delay;
     int secondary_seq_loop;
+    bool seq_stretches;
 
     int path_length;
     int path_tile_x[10];

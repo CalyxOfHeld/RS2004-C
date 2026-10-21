@@ -10,6 +10,8 @@ typedef struct {
     size_t capacity;
     size_t offset;
     size_t peak;
+    int32_t **shared_refs;
+    size_t shared_count,shared_capacity;
 } Arena;
 
 Arena arena_create(size_t capacity);
@@ -18,6 +20,8 @@ void *arena_alloc(Arena *arena, size_t size);
 void *arena_alloc_zero(Arena *arena, size_t size);
 char *arena_strdup(Arena *arena, const char *str);
 void arena_reset(Arena *arena);
+// Retain a heap reference-counted int array until reset/free (counter at [0]).
+bool arena_retain_shared(Arena *arena,int32_t *storage);
 
 // Global arenas used throughout client
 extern Arena g_arena_perm;   // Static cache, configs, fonts

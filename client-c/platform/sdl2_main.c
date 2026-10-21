@@ -52,6 +52,7 @@
 #include "net/zone_sync.h"
 #include "dash3d/location_anim.h"
 #include "dash3d/location_merge.h"
+#include "entity/actor_model.h"
 #include "net/client_stream.h"
 #include "net/protocol.h"
 #include "net/rsa.h"
@@ -548,19 +549,6 @@ int main(int argc, char *argv[]) {
     player.base.seq_turn_around_id = 820;
     player.base.secondary_seq_id = 808;
 
-    Arena arena_player_model=arena_create(4*1024*1024);
-    Arena arena_npc_models=arena_create(16*1024*1024);
-    Model **npc_models=calloc(npc_cfg.count,sizeof(Model *));
-    Model *player_rest_model = player_entity_get_model(&player, &idk_cfg, &obj_cfg, NULL, &arena_player_model);
-    if (player_rest_model) {
-        model_create_label_references(player_rest_model, &arena_player_model);
-    }
-
-    Model *hans_rest_model = npc_entity_get_model(&hans, &arena_perm);
-    if (hans_rest_model) {
-        model_create_label_references(hans_rest_model, &arena_perm);
-    }
-
     Arena arena_frame = arena_create(4 * 1024 * 1024);
 
     // 6. Camera Settings (authentic Rev 225 orbit system)
@@ -635,7 +623,6 @@ int main(int argc, char *argv[]) {
     VarpContext varp_ctx;
     varp_init(&varp_ctx);
     comp_cfg.varp_ctx = &varp_ctx;
-    uint64_t last_player_appearance_hash = player.appearance_hashcode;
     int mouse_x = 0, mouse_y = 0;
     ClickFeedback click_feedback = {0};
     bool pending_click = false;
@@ -1372,7 +1359,6 @@ int main(int argc, char *argv[]) {
                                 if(trace) printf("[NAV] rebased destination world=(%d,%d)\n",
                                     streamer.base_tile_x+minimap.flag_scene_tile_x,streamer.base_tile_z+minimap.flag_scene_tile_z);
                             }
-                            arena_reset(&arena_npc_models);memset(npc_models,0,npc_cfg.count*sizeof(Model *));
                             const char *m_dir = "../engine/data/pack/client/maps";
                             FILE *tf = fopen("../engine/data/pack/client/maps/m50_50", "rb");
                             if (tf) { fclose(tf); } else { m_dir = "engine/data/pack/client/maps"; }
@@ -1450,18 +1436,18 @@ int main(int argc, char *argv[]) {
                     streamer.base_tile_x+minimap.flag_scene_tile_x,streamer.base_tile_z+minimap.flag_scene_tile_z);
                 minimap.flag_scene_tile_x = 0;
             }
-            pathing_entity_update_facing(&player.base);
+            entity_sync_update_facing(&sync_ctx,&player.base,streamer.base_tile_x,streamer.base_tile_z,zones.local_pid);
             pathing_entity_update_sequences(&player.base, &seq_cfg);
 
             if(live_server) {
                 for(int i=0;i<sync_ctx.npc_count;i++) {
                     NpcEntity *npc=sync_ctx.npcs[sync_ctx.npc_indices[i]];if(!npc) continue;
-                    pathing_entity_update_movement(&npc->base);pathing_entity_update_facing(&npc->base);pathing_entity_update_sequences(&npc->base,&seq_cfg);
+                    pathing_entity_update_movement(&npc->base);entity_sync_update_facing(&sync_ctx,&npc->base,streamer.base_tile_x,streamer.base_tile_z,zones.local_pid);pathing_entity_update_sequences(&npc->base,&seq_cfg);
                 }
                 for(int i=0;i<sync_ctx.player_count;i++) {
                     PlayerEntity *other=sync_ctx.players[sync_ctx.player_indices[i]];if(!other) continue;
                     if(!pathing_entity_update_exact(&other->base,&seq_cfg,game_ticks))pathing_entity_update_movement(&other->base);
-                    pathing_entity_update_facing(&other->base);pathing_entity_update_sequences(&other->base,&seq_cfg);
+                    entity_sync_update_facing(&sync_ctx,&other->base,streamer.base_tile_x,streamer.base_tile_z,zones.local_pid);pathing_entity_update_sequences(&other->base,&seq_cfg);
                 }
             }
             pathing_entity_update_movement(&hans.base);
@@ -1625,22 +1611,9 @@ int main(int argc, char *argv[]) {
         // Render Entities inside viewport with full camera rotation
         arena_reset(&arena_frame);
 
-        // Advance & render NPC Hans (idle stand sequence 808)
-        int h_frame_id = -1;
-        if (has_anim && hans.base.secondary_seq_id >= 0 && hans.base.secondary_seq_id < seq_cfg.count) {
-            SeqType *h_seq = &seq_cfg.instances[hans.base.secondary_seq_id];
-            if (h_seq->frame_count > 0 && hans.base.secondary_seq_frame < h_seq->frame_count) {
-                h_frame_id = h_seq->frames[hans.base.secondary_seq_frame];
-            }
-        }
-
-        if (offline && hans_rest_model) {
-            Model *h_model = model_copy(hans_rest_model, &arena_frame);
+        if (offline) {
+            Model *h_model = npc_entity_get_animated_model(&hans,&seq_cfg,&arena_frame);
             if (h_model) {
-                if (h_frame_id != -1) {
-                    model_apply_transform(h_model, h_frame_id);
-                }
-                model_calculate_normals(h_model, 64, 768, -50, -10, -50);
                 int hx = hans.base.x - eye_x;
                 int hy = world3d->heightmap[0][hans.base.path_tile_x[0]][hans.base.path_tile_z[0]] - eye_y;
                 int hz = hans.base.z - eye_z;
@@ -1657,31 +1630,20 @@ int main(int argc, char *argv[]) {
                 int slot=sync_ctx.npc_indices[index];NpcEntity *npc=sync_ctx.npcs[slot];
                 if(!npc || !npc->has_type) continue;
                 int type=npc->type.index;if(type<0 || type>=npc_cfg.count) continue;
-                if(!npc_models[type]) {
-                    if(arena_npc_models.capacity-arena_npc_models.offset<1024*1024) {
-                        arena_reset(&arena_npc_models);memset(npc_models,0,npc_cfg.count*sizeof(Model *));
-                    }
-                    npc_models[type]=npc_entity_get_model(npc,&arena_npc_models);
-                    if(npc_models[type]) model_create_label_references(npc_models[type],&arena_npc_models);
-                }
-                size_t mark=arena_frame.offset;Model *model=model_copy(npc_models[type],&arena_frame);
+                size_t mark=arena_frame.offset;Model *model=npc_entity_get_animated_model(npc,&seq_cfg,&arena_frame);
                 if(model) {
-                    if (npc->base.height == 0) {
-                        int min_y = 0;
-                        for (int p = 0; p < model->num_points; p++) {
-                            if (model->point_y[p] < min_y) min_y = model->point_y[p];
-                        }
-                        if (min_y < 0) npc->base.height = -min_y;
-                    }
-                    model_create_label_references(model,&arena_frame);
-                    int frame=current_entity_frame(&npc->base,&seq_cfg);
-                    if(frame>=0) model_apply_transform(model,frame);
-                    model_calculate_normals(model,64,850,-30,-50,-30);
                     model=actor_with_spotanim(model,&npc->base,&spot_cfg,&arena_frame);
                     int y=camera_get_height(sync_ctx.current_plane,npc->base.x,npc->base.z,world3d->heightmap,world->tile_flags);
                     if(verification_npc_type==type) {
+                        int64_t distance=(int64_t)(npc->base.x-player.base.x)*(npc->base.x-player.base.x)+(int64_t)(npc->base.z-player.base.z)*(npc->base.z-player.base.z);
+                        bool nearest=true;
+                        for(int n=0;n<sync_ctx.npc_count;n++) {NpcEntity *candidate=sync_ctx.npcs[sync_ctx.npc_indices[n]];
+                            if(!candidate || !candidate->has_type || candidate->type.index!=type)continue;
+                            int64_t d=(int64_t)(candidate->base.x-player.base.x)*(candidate->base.x-player.base.x)+(int64_t)(candidate->base.z-player.base.z)*(candidate->base.z-player.base.z);
+                            if(d<distance){nearest=false;break;}
+                        }
                         int sx,sy;
-                        if(project_from_point(npc->base.x,y-npc->base.height/2,npc->base.z,eye_x,eye_y,eye_z,camera_pitch,camera_yaw,&sx,&sy)) {
+                        if(nearest && project_from_point(npc->base.x,y-npc->base.height/2,npc->base.z,eye_x,eye_y,eye_z,camera_pitch,camera_yaw,&sx,&sy)) {
                             int best=100000,bx=-1,by=-1;
                             for(int dy=-20;dy<=20;dy+=2) for(int dx=-16;dx<=16;dx+=2) {
                                 int px=sx+dx,py=sy+dy,score=dx*dx+dy*dy;
@@ -1706,9 +1668,6 @@ int main(int argc, char *argv[]) {
                 if(!other || !other->visible) continue;
                 size_t mark=arena_frame.offset;Model *model=player_entity_get_model(other,&idk_cfg,&obj_cfg,&seq_cfg,&arena_frame);
                 if(model) {
-                    model_create_label_references(model,&arena_frame);int frame=current_entity_frame(&other->base,&seq_cfg);
-                    if(frame>=0) model_apply_transform(model,frame);
-                    model_calculate_normals(model,64,850,-30,-50,-30);
                     model=actor_with_spotanim(model,&other->base,&spot_cfg,&arena_frame);
                     int y=camera_get_height(sync_ctx.current_plane,other->base.x,other->base.z,world3d->heightmap,world->tile_flags);
                     model=player_with_location(model,other,game_ticks,y,&arena_frame);
@@ -1723,22 +1682,9 @@ int main(int argc, char *argv[]) {
         int p_frame_id = has_anim ? current_entity_frame(&player.base,&seq_cfg):-1;
         if(trace && capture_this_frame)printf("[ANIM] draw local primary=%d frame=%d delay=%d transform=%d game_cycle=%d\n",player.base.primary_seq_id,player.base.primary_seq_frame,player.base.primary_seq_delay,p_frame_id,game_ticks);
 
-        if (!player_rest_model || player.appearance_hashcode != last_player_appearance_hash) {
-            arena_reset(&arena_player_model);
-            player_rest_model = player_entity_get_model(&player, &idk_cfg, &obj_cfg, NULL, &arena_player_model);
-            if (player_rest_model) {
-                model_create_label_references(player_rest_model, &arena_player_model);
-                last_player_appearance_hash = player.appearance_hashcode;
-            }
-        }
-
-        if (player.visible && player_rest_model) {
-            Model *p_model = model_copy(player_rest_model, &arena_frame);
+        if (player.visible) {
+            Model *p_model = player_entity_get_model(&player,&idk_cfg,&obj_cfg,&seq_cfg,&arena_frame);
             if (p_model) {
-                if (p_frame_id != -1) {
-                    model_apply_transform(p_model, p_frame_id);
-                }
-                model_calculate_normals(p_model, 64, 850, -30, -50, -30);
                 p_model=actor_with_spotanim(p_model,&player.base,&spot_cfg,&arena_frame);
                 p_model=player_with_location(p_model,&player,game_ticks,ground_y,&arena_frame);
                 int px = player.base.x - eye_x;
@@ -2043,7 +1989,7 @@ int main(int argc, char *argv[]) {
     flo_free(&flo_cfg);
     obj_free(&obj_cfg);
     seq_free(&seq_cfg);
-    free(npc_models);arena_free(&arena_npc_models);arena_free(&arena_player_model);
+    actor_models_clear();
     arena_free(&arena_frame);
     arena_free(&arena_perm);
 

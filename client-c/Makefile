@@ -7,6 +7,7 @@ CORE_SRCS   = src/core/arena.c src/core/packet.c src/core/isaac.c src/core/bzip2
 GFX_SRCS    = src/gfx/pix2d.c src/gfx/pix8.c src/gfx/pix32.c src/gfx/pix3d.c src/gfx/model.c src/gfx/pixfont.c src/gfx/media.c src/gfx/anim.c
 CONFIG_SRCS = src/config/flo.c src/config/seq.c src/config/loc.c src/config/npc.c src/config/obj.c src/config/idk.c src/config/spotanim.c
 ENTITY_SRCS = src/entity/pathing_entity.c src/entity/player_entity.c src/entity/npc_entity.c
+ENTITY_SRCS += src/entity/actor_model.c
 NET_SRCS    = src/net/rsa.c src/net/client_stream.c src/net/protocol.c src/net/entity_sync.c src/net/zone_sync.c
 DASH3D_SRCS = src/dash3d/collision_map.c src/dash3d/world3d.c src/dash3d/ground_items.c src/dash3d/world.c src/dash3d/minimap.c src/dash3d/pathfinder.c src/dash3d/map_streamer.c src/dash3d/camera.c src/dash3d/effects.c
 UI_SRCS     = src/ui/client_actions.c src/ui/component_packets.c src/ui/component.c src/ui/context_menu.c src/ui/chatbox.c src/ui/mouse_picking.c src/ui/varp.c src/ui/click_feedback.c src/ui/combat_feedback.c
@@ -57,6 +58,9 @@ TEST_BINS += bin/test_effects.exe
 TEST_BINS += bin/test_location_anim.exe
 TEST_BINS += bin/test_location_merge.exe
 TEST_BINS += bin/test_exact_movement.exe
+TEST_BINS += bin/test_actor_models.exe
+TEST_BINS += bin/test_actor_clock.exe
+TEST_BINS += bin/test_facing.exe
 
 test: $(TEST_BINS)
 	@echo "================ RUNNING TESTS ================"
@@ -95,6 +99,9 @@ test: $(TEST_BINS)
 	@./bin/test_location_anim.exe
 	@./bin/test_location_merge.exe
 	@./bin/test_exact_movement.exe
+	@./bin/test_actor_models.exe
+	@./bin/test_actor_clock.exe
+	@./bin/test_facing.exe
 	@./bin/test_chatbox.exe
 	@./bin/test_mouse_picking.exe
 	@./bin/test_pathfinding.exe

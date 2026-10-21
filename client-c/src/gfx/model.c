@@ -746,9 +746,16 @@ Model *model_copy(const Model *src, Arena *arena) {
     }
 
     if (src->label_vertices) {
-        dst->label_vertices = src->label_vertices;
-        dst->label_vertex_counts = src->label_vertex_counts;
         dst->num_label_vertices = src->num_label_vertices;
+        {
+            size_t count=src->num_label_vertices;
+            dst->label_vertices=arena ? arena_alloc_zero(arena,count*sizeof(int32_t*)):calloc(count,sizeof(int32_t*));
+            dst->label_vertex_counts=arena ? arena_alloc(arena,count*sizeof(int32_t)):malloc(count*sizeof(int32_t));
+            memcpy(dst->label_vertex_counts,src->label_vertex_counts,count*sizeof(int32_t));
+            for(size_t i=0;i<count;i++) if(src->label_vertex_counts[i]) {
+                size_t bytes=src->label_vertex_counts[i]*sizeof(int32_t);dst->label_vertices[i]=arena ? arena_alloc(arena,bytes):malloc(bytes);memcpy(dst->label_vertices[i],src->label_vertices[i],bytes);
+            }
+        }
     } else if (dst->vertex_label) {
         model_create_label_references(dst, arena);
     }
@@ -779,12 +786,14 @@ Model *model_create_composite(Model **models, int32_t count, Arena *arena) {
     int32_t total_points = 0;
     int32_t total_faces = 0;
     int32_t total_t = 0;
+    bool has_alpha=false,has_face_labels=false;
 
     for (int32_t i = 0; i < count; i++) {
         if (models[i]) {
             total_points += models[i]->num_points;
             total_faces += models[i]->num_faces;
             total_t += models[i]->num_t;
+            has_alpha|=models[i]->face_alpha!=NULL;has_face_labels|=models[i]->face_label!=NULL;
         }
     }
     if (total_faces == 0) return NULL;
@@ -804,8 +813,8 @@ Model *model_create_composite(Model **models, int32_t count, Arena *arena) {
     m->face_colour = (int32_t *)arena_alloc(arena, total_faces * sizeof(int32_t));
     m->face_render_type = (int32_t *)arena_alloc_zero(arena, total_faces * sizeof(int32_t));
     m->face_priority = (int32_t *)arena_alloc_zero(arena, total_faces * sizeof(int32_t));
-    m->face_alpha = (int32_t *)arena_alloc_zero(arena, total_faces * sizeof(int32_t));
-    m->face_label = (int32_t *)arena_alloc_zero(arena, total_faces * sizeof(int32_t));
+    if(has_alpha)m->face_alpha = (int32_t *)arena_alloc_zero(arena, total_faces * sizeof(int32_t));
+    if(has_face_labels)m->face_label = (int32_t *)arena_alloc_zero(arena, total_faces * sizeof(int32_t));
 
     m->texture_a=arena_alloc(arena,total_t*sizeof(int32_t));
     m->texture_b=arena_alloc(arena,total_t*sizeof(int32_t));
@@ -819,7 +828,7 @@ Model *model_create_composite(Model **models, int32_t count, Arena *arena) {
         for (int32_t f = 0; f < src->num_faces; f++) {
             int out_f = m->num_faces++;
             m->face_colour[out_f] = src->face_colour[f];
-            if (src->face_render_type) m->face_render_type[out_f] = src->face_render_type[f] + ((src->face_render_type[f] & 2) ? (m->num_t<<2) : 0);
+            if (src->face_render_type) m->face_render_type[out_f] = src->face_render_type[f];
             m->face_priority[out_f] = src->face_priority ? src->face_priority[f] : src->priority;
             if (src->face_alpha) m->face_alpha[out_f] = src->face_alpha[f];
             if (src->face_label) m->face_label[out_f] = src->face_label[f];
@@ -917,7 +926,7 @@ void model_create_label_references(Model *m, Arena *arena) {
 }
 
 static void apply_single_transform(Model *m, int type, const int *labels, int label_count, int dx, int dy, int dz) {
-    if (!m || !m->label_vertices || !labels) return;
+    if (!m || !labels) return;
 
     // Original Model transform type 5 operates on face-label groups, not
     // vertex groups. The old implementation silently omitted alpha animation.
@@ -929,6 +938,7 @@ static void apply_single_transform(Model *m, int type, const int *labels, int la
             }
         return;
     }
+    if(!m->label_vertices) return;
 
     if (type == 0) {
         int count = 0;
@@ -1099,25 +1109,29 @@ void model_apply_transforms(Model *m, int primary_frame, int secondary_frame, co
         while (grp > mask_val && mask_val != -1) {
             mask_val = mask[mask_idx++];
         }
-        if (grp == mask_val || f2->base->types[grp] == 0) {
-            apply_single_transform(m, f2->base->types[grp], f2->base->labels[grp], f2->base->label_counts[grp], f2->x[i], f2->y[i], f2->z[i]);
+        if(grp<0 || grp>=f1->base->length)continue;
+        if (grp == mask_val || f1->base->types[grp] == 0) {
+            apply_single_transform(m, f1->base->types[grp], f1->base->labels[grp], f1->base->label_counts[grp], f2->x[i], f2->y[i], f2->z[i]);
         }
     }
 }
 
 bool model_share_alpha(Model *destination,Model *source) {
-    if(!source->face_alpha || destination->allocation_arena || source->allocation_arena) return false;
+    if(!source->face_alpha || source->allocation_arena) return false;
     if(!source->alpha_storage) {
         int32_t *storage=malloc((source->num_faces+1)*sizeof(int32_t));
         if(!storage) return false;
         storage[0]=1;memcpy(storage+1,source->face_alpha,source->num_faces*sizeof(int32_t));
         free(source->face_alpha);source->alpha_storage=storage;source->face_alpha=storage+1;
     }
-    if(destination->alpha_storage) {
-        if(--destination->alpha_storage[0]==0) free(destination->alpha_storage);
-    } else free(destination->face_alpha);
+    if(destination->allocation_arena) {
+        if(!arena_retain_shared(destination->allocation_arena,source->alpha_storage))return false;
+    } else {
+        if(destination->alpha_storage) {if(--destination->alpha_storage[0]==0)free(destination->alpha_storage);}
+        else free(destination->face_alpha);
+        source->alpha_storage[0]++;
+    }
     destination->alpha_storage=source->alpha_storage;destination->face_alpha=source->face_alpha;
-    destination->alpha_storage[0]++;
     return true;
 }
 

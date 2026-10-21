@@ -26,6 +26,7 @@ typedef struct {
 } PlayerEntity;
 
 void   player_entity_init(PlayerEntity *p);
+uint64_t player_appearance_hash(const PlayerEntity *player);
 void   player_entity_dispose(PlayerEntity *p);
 Model *player_with_location(Model *body,PlayerEntity *player,int cycle,int ground_y,Arena *arena);
 void   player_entity_read_appearance(PlayerEntity *p, Packet *pkt);
