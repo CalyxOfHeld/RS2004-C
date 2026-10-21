@@ -279,7 +279,7 @@ bool world3d_add_loc(World3D *w, int level, int x, int z, int y, Model *model, i
     loc->y = y;
     loc->model = model;
     loc->bitset = bitset;
-    loc->shape=10;loc->owns_model=false;loc->yaw=0;
+    loc->shape=10;loc->rotation=0;loc->owns_model=false;loc->yaw=0;
     loc->min_tile_x = x;
     loc->max_tile_x = x + width - 1;
     loc->min_tile_z = z;
@@ -287,6 +287,27 @@ bool world3d_add_loc(World3D *w, int level, int x, int z, int y, Model *model, i
     return true;
 }
 
+
+int world3d_location_draws(const WorldLocation *loc,int eye_x,int eye_z,WorldLocationDraw out[2]) {
+    if(loc->shape<6 || loc->shape>8) {out[0]=(WorldLocationDraw){loc->x,loc->y,loc->z,loc->yaw};return 1;}
+    // Original World3D.drawTile front/back wall-decoration branches. Shapes
+    // 6/7 use opposite diagonal faces; shape8 can draw both, with distinct offsets.
+    static const int inset_x[]={53,-53,-53,53},inset_z[]={-53,-53,53,53};
+    static const int outset_x[]={-45,45,45,-45},outset_z[]={45,45,-45,-45};
+    static const int back[]={76,8,137,4,0,1,38,2,19};
+    int rot=loc->rotation,dx=loc->x-eye_x,dz=loc->z-eye_z,count=0;
+    int sx=rot==1 || rot==2 ? -dx:dx,sz=rot==2 || rot==3 ? -dz:dz;
+    int direction=eye_x/128==loc->min_tile_x ? 1:eye_x/128<loc->min_tile_x ? 2:0;
+    direction+=eye_z/128==loc->min_tile_z ? 3:eye_z/128>loc->min_tile_z ? 6:0;
+    for(int pass=0;pass<2;pass++) {
+        if(pass && !back[direction]) continue;
+        if(loc->shape!=7 && (pass ? sz>=sx:sz<sx))
+            out[count++]=(WorldLocationDraw){loc->x+inset_x[rot],loc->y,loc->z+inset_z[rot],rot*512+256};
+        if(loc->shape!=6 && (pass ? sz<=sx:sz>sx))
+            out[count++]=(WorldLocationDraw){loc->x+outset_x[rot],loc->y,loc->z+outset_z[rot],(rot*512+1280)&2047};
+    }
+    return count;
+}
 
 static void ground_triangle(World3D *w, int tx,int tz,Pix3DVertex a,Pix3DVertex b,Pix3DVertex c,int texture) {
     // Keep picking restricted to visible front-facing ground triangles.
@@ -367,15 +388,18 @@ void world3d_render(World3D *w,int eyeX,int eyeY,int eyeZ,int pitch,int yaw,int 
             for(int i=0;i<tile->loc_count;i++) {
                 WorldLocation *loc=&tile->locs[i];
                 if(loc->max_tile_x<minx || loc->min_tile_x>maxx || loc->max_tile_z<minz || loc->min_tile_z>maxz) continue;
+                WorldLocationDraw draws[2];int draw_count=world3d_location_draws(loc,eyeX,eyeZ,draws);
+                for(int part=0;part<draw_count;part++) {WorldLocationDraw draw=draws[part];
                 if(w->picker && w->picker->check_hover) {
-                    if(model_draw_pickable(loc->model,loc->yaw,pitch,yaw,loc->x-eyeX,loc->y-eyeY,loc->z-eyeZ,w->picker->mouse_x,w->picker->mouse_y))
+                    if(model_draw_pickable(loc->model,draw.yaw,pitch,yaw,draw.x-eyeX,draw.y-eyeY,draw.z-eyeZ,w->picker->mouse_x,w->picker->mouse_y))
                     {
                         uint32_t bitset=(2u<<29)|((uint32_t)((loc->bitset>>14)&32767)<<14)|((uint32_t)loc->min_tile_z<<7)|(uint32_t)loc->min_tile_x;
                         bool duplicate=false;
                         for(int picked=0;picked<w->picker->picked_count;picked++) if(w->picker->picked_bitsets[picked]==bitset) duplicate=true;
                         if(!duplicate && w->picker->picked_count<MAX_PICKED) w->picker->picked_bitsets[w->picker->picked_count++]=bitset;
                     }
-                } else model_draw(loc->model,loc->yaw,pitch,yaw,loc->x-eyeX,loc->y-eyeY,loc->z-eyeZ);
+                } else model_draw(loc->model,draw.yaw,pitch,yaw,draw.x-eyeX,draw.y-eyeY,draw.z-eyeZ);
+                }
             }
         }
     }

@@ -1512,20 +1512,23 @@ int main(int argc, char *argv[]) {
             GroundTile *tile=&world3d->tiles[sync_ctx.current_plane][x][z];
             for(int k=0;k<tile->loc_count && verification_loc_id>=0;k++) {
                 WorldLocation *loc=&tile->locs[k];if(((loc->bitset>>14)&32767)!=verification_loc_id || !loc->model)continue;
+                WorldLocationDraw draws[2];int draw_count=world3d_location_draws(loc,eye_x,eye_z,draws);
+                for(int part=0;part<draw_count && verification_loc_id>=0;part++) {WorldLocationDraw draw=draws[part];
                 int min_y=0,max_y=0;
                 for(int v=0;v<loc->model->num_points;v++){if(loc->model->point_y[v]<min_y)min_y=loc->model->point_y[v];if(loc->model->point_y[v]>max_y)max_y=loc->model->point_y[v];}
                 int sx,sy;
-                if(!project_from_point(loc->x,loc->y+(min_y+max_y)/2,loc->z,eye_x,eye_y,eye_z,camera_pitch,camera_yaw,&sx,&sy))continue;
+                if(!project_from_point(draw.x,draw.y+(min_y+max_y)/2,draw.z,eye_x,eye_y,eye_z,camera_pitch,camera_yaw,&sx,&sy))continue;
                 int best=100000,bx=-1,by=-1;
                 for(int dy=-30;dy<=30;dy+=2)for(int dx=-24;dx<=24;dx+=2) {
                     int px=sx+dx,py=sy+dy,score=dx*dx+dy*dy;
                     if(score>=best || px<VIEWPORT_X || px>=VIEWPORT_X+VIEWPORT_W || py<VIEWPORT_Y || py>=VIEWPORT_Y+VIEWPORT_H)continue;
-                    if(model_draw_pickable(loc->model,loc->yaw,camera_pitch,camera_yaw,loc->x-eye_x,loc->y-eye_y,loc->z-eye_z,px,py)){best=score;bx=px;by=py;}
+                    if(model_draw_pickable(loc->model,draw.yaw,camera_pitch,camera_yaw,draw.x-eye_x,draw.y-eye_y,draw.z-eye_z,px,py)){best=score;bx=px;by=py;}
                 }
                 if(bx>=0) {
                     SDL_Event pointer;memset(&pointer,0,sizeof(pointer));pointer.type=SDL_MOUSEMOTION;pointer.motion.x=bx;pointer.motion.y=by;SDL_PushEvent(&pointer);
                     verification_cursor_x=bx;verification_cursor_y=by;verification_loc_id=-1;
                     printf("[INPUT] rendered loc=%d world=(%d,%d,%d) pointer=(%d,%d)\n",(loc->bitset>>14)&32767,sync_ctx.current_plane,streamer.base_tile_x+x,streamer.base_tile_z+z,bx,by);
+                }
                 }
             }
         }

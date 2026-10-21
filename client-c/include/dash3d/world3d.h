@@ -49,6 +49,7 @@ typedef struct {
     Model *model;
     int bitset;
     int shape;
+    int rotation;
     bool owns_model;
     int yaw;
     int min_tile_x;
@@ -56,6 +57,7 @@ typedef struct {
     int min_tile_z;
     int max_tile_z;
 } WorldLocation;
+typedef struct {int x,y,z,yaw;} WorldLocationDraw;
 
 typedef struct GroundItem {
     int id,count;
@@ -125,5 +127,6 @@ bool world3d_add_loc(World3D *w, int level, int x, int z, int y, Model *model, i
                      int width, int length);
 void world3d_render(World3D *w, int eyeX, int eyeY, int eyeZ, int pitch, int yaw, int roll, int plane);
 bool world3d_build_models(World3D *w);
+int world3d_location_draws(const WorldLocation *loc,int eye_x,int eye_z,WorldLocationDraw out[2]);
 
 #endif // RS2_WORLD3D_H

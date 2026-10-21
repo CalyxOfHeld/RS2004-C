@@ -186,7 +186,8 @@ static bool place_location(World *w,LocConfig *loc_cfg,World3D *world3d,Collisio
         }
 
         int model_shape=shape==11 ? 10:(shape>=4 && shape<=8) ? 4:shape;
-        Model *parts[2]={world3d ? loc_get_model(&loc,model_shape,shape==2 ? rotation+4:rotation,NULL):NULL,NULL};
+        bool decor=shape>=4 && shape<=8;
+        Model *parts[2]={world3d ? loc_get_model(&loc,model_shape,decor ? 0:shape==2 ? rotation+4:rotation,NULL):NULL,NULL};
         if(world3d && shape==2) parts[1]=loc_get_model(&loc,2,(rotation+1)&3,NULL);
         for(int part=0;part<2;part++) {Model *m=parts[part];
         if (m) {
@@ -195,8 +196,29 @@ static bool place_location(World *w,LocConfig *loc_cfg,World3D *world3d,Collisio
             if(loc.sharelight && !shadows) model_calculate_normals(m,64+loc.ambient,768+loc.contrast*5,-50,-10,-50);
             loc_skew_model(m,&loc,y_sw,y_se,y_ne,y_nw);
             int bitset = 0xC0000000 | (loc_id << 14) | (tile_x << 7) | tile_z;
-            bool added=world3d_add_loc(world3d,level,tile_x,tile_z,avg_y,m,bitset,w_wid,w_len);
-            if(added) {GroundTile *tile=&world3d->tiles[level][tile_x][tile_z];tile->locs[tile->loc_count-1].shape=shape;tile->locs[tile->loc_count-1].owns_model=true;tile->locs[tile->loc_count-1].yaw=shape==11 ? 256:0;}
+            int offset=16;
+            if(world3d && shape==5) {
+                GroundTile *tile=&world3d->tiles[level][tile_x][tile_z];
+                for(int j=tile->loc_count-1;j>=0;j--) if(tile->locs[j].shape<4) {
+                    LocType wall;if(loc_get(loc_cfg,(tile->locs[j].bitset>>14)&32767,&wall)) {
+                        if(wall.active) offset=wall.wallwidth; // Original getWallBitset > 0.
+                        loc_free_entry(&wall);
+                    }
+                    break;
+                }
+            }
+            bool added=world3d_add_loc(world3d,level,tile_x,tile_z,avg_y,m,bitset,decor ? 1:w_wid,decor ? 1:w_len);
+            if(added) {
+                GroundTile *tile=&world3d->tiles[level][tile_x][tile_z];WorldLocation *placed=&tile->locs[tile->loc_count-1];
+                placed->shape=shape;placed->rotation=rotation;placed->owns_model=true;
+                placed->yaw=decor ? rotation*512:shape==11 ? 256:0;
+                if(shape==5) {static const int dx[]={1,0,-1,0},dz[]={0,-1,0,1};placed->x+=dx[rotation]*offset;placed->z+=dz[rotation]*offset;}
+                if(shadows && (shape==0 || shape==2) && loc.wallwidth!=16) for(int j=0;j<tile->loc_count;j++) {
+                    WorldLocation *d=&tile->locs[j];if(d->shape<4 || d->shape>8) continue;
+                    int cx=tile_x*128+64,cz=tile_z*128+64;
+                    d->x=cx+(d->x-cx)*loc.wallwidth/16;d->z=cz+(d->z-cz)*loc.wallwidth/16;
+                }
+            }
             else model_free_unshared(m);
             if(shadows && added && loc.shadow && (shape==10 || shape==11)) {
                 double radius2=0;
