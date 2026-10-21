@@ -1,3 +1,7 @@
+# Final current checkpoint
+
+Read the new top of HANDOFF.md and TEST-THIS-CHECKPOINT.md. Native SHA-256: `78346F76B3BE7C689B2C472F60E092FA647B64F31D92AD742943D3AEE406D28F`. Latest complete package: handoff-checkpoint-2026-10-21.zip. Eight small changes built cleanly; tests/live checks were not rerun. No further code work is running. Cursor/Grok recovery deferred.
+
 # Current progress — October 21, 2026
 
 PAUSED at the user's request for manual testing. Read the top of HANDOFF.md, TEST-THIS-CHECKPOINT.md and NEXT-STEPS-AND-GEMINI.md. Full functionality and original visual parity remain incomplete.

@@ -1,6 +1,6 @@
 # External-agent continuation: revision-225 minimap protocol audit
 
-Updated October 21, 2026 after four small client changes. The user reports that Cursor/Grok partially performed this work before exhausting usage. Its partial results have not yet been located or reviewed here: the expected gemini-audit output directory is currently empty. Do not treat an empty output folder as proof that no work occurred. This filename and output directory are retained for compatibility with the original assignment; the reported worker was Cursor/Grok, not Gemini.
+Updated October 21, 2026 after eight small client changes. The user reports that Cursor/Grok partially performed this work before exhausting usage. Its partial results have not yet been located or reviewed here: the expected gemini-audit output directory is currently empty. Do not treat an empty output folder as proof that no work occurred. This filename and output directory are retained for compatibility with the original assignment; the reported worker was Cursor/Grok, not Gemini.
 
 Recovery of the prior Cursor/Grok output is deferred at the user's request; do not spend more tokens searching for it. If the user later supplies files or a final response, record completed/incomplete items and continue the outstanding audit. Preserve recovered output and identify which claims were independently checked. Without that output, state the limitation before producing new analysis; do not claim to have resumed specific findings you have not seen.
 
@@ -21,7 +21,7 @@ Use only the bundled revision-225 Java client, TypeScript port and engine/conten
 | Operation-approach destination flag | runs/2026-10-21-approach-flag; shared action helper now updates the same flag after a successful nonempty approach-route send; runtime verification pending |
 | Live minimap click navigation | runs/2026-10-21-minimap-click; original rectangle/inverse transform, current zero zoom/angle and opcode165 with14-byte trailer; runtime verification pending |
 
-All run paths above are relative to client-c/verification/completion/. Each contains README.md, source-review.diff and build.log. Read each build record; tests/live scenarios have not been rerun for these small changes. The older 37-program/live acceptance must not be attributed to the latest executable. Current binary hash and files are pinned in the approach-flag run manifest. No code in this table needs implementing again merely because it appeared absent in the older handoff.
+All run paths above are relative to client-c/verification/completion/. Each contains README.md, source-review.diff and build.log. Read each build record; tests/live scenarios have not been rerun for these small changes. The older 37-program/live acceptance must not be attributed to the latest executable. Current binary hash and files are pinned in the minimap-click run manifest. No code in this table needs implementing again merely because it appeared absent in the older handoff.
 
 ### Remaining audit priorities
 

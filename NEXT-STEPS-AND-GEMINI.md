@@ -1,3 +1,5 @@
+Current handoff is now written at the top of HANDOFF.md. Latest complete package: handoff-checkpoint-2026-10-21.zip. No further implementation is running. Earlier usage/status wording below describes progress before finalization.
+
 # Current next move and external-agent work
 
 Updated October 21, 2026. After the test checkpoint, the user authorized one small task at a time. Eight small changes are complete; no new implementation task is running during this documentation update. The server was left available for manual testing. Last account usage check:92% of the five-hour window used,14% weekly. Write the next full runnable handoff at95% used/5% remaining, as requested. Current progress and run notes supersede the older paused handoff where they differ.

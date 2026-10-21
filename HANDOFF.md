@@ -1,3 +1,47 @@
+# Current handoff — October 21, 2026
+
+## Read this section first
+
+Stopping at the requested usage handoff boundary. The last usage reading before writing was93% used/7% remaining; the user reserves the final5% for handoff. No further implementation is running. The small final task consolidated TEST-THIS-CHECKPOINT.md and continuation instructions. All lower sections are historical and are superseded where they conflict with this section.
+
+Latest runnable native: `client-c/bin/rs2client.exe`.
+SHA-256: `78346F76B3BE7C689B2C472F60E092FA647B64F31D92AD742943D3AEE406D28F`.
+Complete update: `handoff-checkpoint-2026-10-21.zip`; authoritative archive checksum is its .sha256 sidecar. It overlays this existing rewrite checkout and requires the existing engine/cache/content. `play_client.bat` launches the installed native on127.0.0.1:43595. TEST-THIS-CHECKPOINT.md is the consolidated user guide. No remote is configured; no Git push or commit was made. The Git working tree is predominantly untracked; do not reset it or discard changes.
+
+## Eight small code tasks since the tested world-loops checkpoint
+
+1. MIDI backend checks open/play/status/restart errors and reports failed song commands; short writes/signature buffers reject.
+2. Minimap dots quantize target/player coordinates separately, matching original Java.
+3. Ordinary visible-player minimap dots use original cache mapdots2. Friend colouring awaits social state.
+4. Original cache mapflag renders scene-walk destination; arrival/packet19 clears it, region rebase shifts it, distant markers respect the mapback mask.
+5. Shared operation approach helper updates the same flag after a successful nonempty route send.
+6. MIDI_SONG54 uses byte10 name termination and exact metadata framing; unsigned metadata assembly avoids signed shifts.
+7. Shared g4/g8 assemble unsigned values and map to signed Java values without C signed-shift overflow/out-of-range casts.
+8. Live minimap clicks use original x582..727/y14..164 rectangle, inverse camera rotation and collision routing. Opcode165 shares route compression and appends the original14-byte trailer, included in packet length. Zero angle/zoom match current rendering. Successful sends set the flag; local movement is not fabricated. Menu/drag/main-modal gates apply; same-tile/failed routes send nothing. Ctrl forwards the run modifier.
+
+Each task has source snapshots, source-review.diff, build.log, build.exit, README and manifest under `client-c/verification/completion/runs/2026-10-21-<task>/`. Every build exited0 with zero warnings. No tests or live sessions were run for these eight changes. Do not transfer old acceptance claims to this binary. The final minimap implementation is unverified in a live session.
+
+## Earlier evidence that remains valid for its recorded checkpoint
+
+The old `world-loops-test-checkpoint.zip` preserves executable3035DF94DAFA31A55C038CB1F25DEC795118BD7513EBA85AA463B3ACF0077919. Its37-program suite and the later shared-object Makefile suite passed. Ground COUNT150->200/public reveal, bank X/drag, natural bank dialogue/player portrait, natural shop Buy/Sell and stairs up/down have bounded instrumented live SDL evidence in runs/2026-10-21-world-loops. Fixture placement/preparation is explicitly distinguished from natural travel/acquisition. Failed probes are retained. Captures were losslessly converted to PNG; replay scripts still name original BMPs.
+
+Original Java audio oracle matches all435 cache sounds at loop counts1/2 for20,359,589 WAV bytes with a shared deterministic noise table. This is not random-generator, MIDI or device-timing parity. It fixed actual tone terminator/track-bound/invalid-loop errors; fixture and provenance remain packaged.
+
+## Next work
+
+- Address the user's feedback first. A live minimap click/camera/arrival/cancel/region check and regression coverage are the immediate verification gaps; tests were not requested for these small tasks and were not run. Do not label them passed from build output.
+- Review original-input parity, nearest endpoints, route compression limits and nonzero minimap angle/zoom before claiming full navigation completion. Original/server sources are authoritative; do not use OSRS or later revisions.
+- Network-driven MIDI still calls the shared bzip_decompress without output-capacity bounds and with fatal error handling. This is a known follow-up, not fixed by packet framing checks. Song CRC/size validation, temporary-file collisions, jingle delay and device behavior also remain incomplete.
+- Continue remaining item-use/spell/combat/skilling/social/effect and renderer/session gates from AUTONOMOUS_PLAN.md. Zone families23/42/69/191 remain unsupported. Roof/bridge/occlusion and complete gameplay/visual parity remain unfinished.
+
+## Preservation and external-agent work
+
+Keep all operations/temp files within2004scape-LostCityRS. Preserve cache, history and every save, including stack211a/stack211b/bank211/bank212. Existing server PID3128 was confirmed owning43595/8889/8899 at this handoff; leave it running and verify ownership before any startup. Do not stop unrelated processes or restore the old launcher's save purge. No .env or test-account passwords are packaged.
+
+The user clarified that Cursor/Grok partially attempted the external audit before exhausting usage. Its output has not been located or reviewed; the expected gemini-audit directory is empty. The user explicitly deferred searching. Do not search again without a new request or supplied path/output. No external findings were accepted here. GEMINI-AUDIT-TASK.md retains its historical filename but directs review of current implementation rather than duplicate work. Do not spawn GPT delegates. User requested Sol or Astra for continuation; no new task/model switch has been started.
+
+---
+
 # Handoff: revision-225 native client — paused for user testing
 
 ## Current verified checkpoint - October 21, 2026
