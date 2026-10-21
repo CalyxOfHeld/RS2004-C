@@ -29,6 +29,7 @@ typedef struct {
     Pathfinder *pathfinder;
     CollisionMap *collision;
     MapStreamer *map;
+    int *destination_x, *destination_z; // optional shared minimap scene-tile flag
 } ClientActions;
 typedef enum { ACTION_UNAVAILABLE, ACTION_LOCAL, ACTION_SENT, ACTION_WALK, ACTION_FAILED } ActionResult;
 void client_design_init(ClientDesign *design,IdkConfig *kits);

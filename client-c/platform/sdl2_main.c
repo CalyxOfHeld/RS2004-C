@@ -691,7 +691,9 @@ int main(int argc, char *argv[]) {
     ClientActions actions={.session=&session,.components=&comp_cfg,.varps=&varp_ctx,.objects=&obj_cfg,
         .selection=&selection,.chatbox=&chatbox,.viewport_interface=&interfaces.viewport,
         .chat_interface=&interfaces.chat,.sidebar_interface=&interfaces.sidebar,.live=live_server,.trace=trace,.idkits=&idk_cfg,.design=&design,
-        .entities=&sync_ctx,.scene=world3d,.locations=&loc_cfg,.pathfinder=&pathfinder,.collision=collision_maps,.map=&streamer};
+        .entities=&sync_ctx,.scene=world3d,.locations=&loc_cfg,.pathfinder=&pathfinder,.collision=collision_maps,.map=&streamer,
+        .destination_x=has_minimap ? &minimap.flag_scene_tile_x : NULL,
+        .destination_z=has_minimap ? &minimap.flag_scene_tile_z : NULL};
     SDL_StartTextInput();
 
     // High-resolution 50Hz game loop timing (matching GameShell.java:150-210)

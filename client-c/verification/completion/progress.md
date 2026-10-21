@@ -27,3 +27,11 @@ Draw active received players using original mapdots index2, gated on non-null/vi
 ## Small task: scene-walk destination flag
 
 Loaded original mapflag; set from successfully sent scene-click route; clear on arrival/packet19; retain world destination on rebase; original distance/mask rules and final centre marker. Scope excludes approach-route flag replacement and minimap clicking. Build exit0/zero warnings; no tests/live scenario checks run. See runs/2026-10-21-destination-flag/README.md and source-review.diff. Latest native SHA-256: `5799B7166660D13580BDEB7BE0537F68F33D2CC518DEB9D60376E71B82F9F868`. Latest cumulative package: destination-flag-client-update.zip. Full handoff remains due at95% usage.
+
+## External audit status correction
+
+The user clarified that Cursor/Grok partially performed the external audit before exhausting usage. Prior statements that no work had run are superseded by this report. The expected gemini-audit directory is empty; no partial deliverables were located in the checkout by filename/content searches, so their scope and correctness remain unknown. Asked for their saved path or final response. GEMINI-AUDIT-TASK.md now instructs recovery and continuation before duplicate analysis, records Cursor/Grok attribution, and separates recovered claims from reviewed findings. No external findings have been accepted or integrated in this chat yet. No code or executable changed during this documentation correction.
+
+## Small task: operation-approach destination flag
+
+Shared approach helper now updates optional pointers to the same destination after a successful nonempty send. Failed/empty routes preserve prior state. NPC/loc/player/ground-item callers share this behavior. Build exit0/zero warnings; no tests/live checks run. Latest native SHA-256: `EC1BC954A68815B6DA156E60F98594418A528E13243AC515DAAD829D4AD3E2C1`. Latest cumulative package: approach-flag-client-update.zip. See runs/2026-10-21-approach-flag/README.md and source-review.diff. Cursor/Grok recovery deferred; its brief now reviews this completed integration. Full handoff at95% as requested.
