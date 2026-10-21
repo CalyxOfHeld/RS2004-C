@@ -1,0 +1,7 @@
+{
+  "source": "..\\engine\\data\\players\\main\\codextrace.sav",
+  "reference_account_save": "..\\engine\\data\\players\\main\\codexref.sav",
+  "source_sha256": "6910e005e2f542a330c6b027a75df2c78b070daabe85ed79f3e2cf3f66b244cc",
+  "preparation": "Clone of disposable codextrace server save for reference-only scene comparison; no original user account changed.",
+  "isolation_patch": "Copied signlink mandatory in-project cache lookup; copied client local HTTP endpoint, observational stack trace, one-shot task scheduling on original update thread. Renderer/game behavior untouched. Original reference sources not modified."
+}
