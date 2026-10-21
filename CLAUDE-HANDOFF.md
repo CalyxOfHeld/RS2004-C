@@ -5,14 +5,24 @@ Workspace: `C:\Users\USER\Documents\2004scape-LostCityRS\2004scape C Rewrite`
 
 ## Current state
 
-The native client is at a verified checkpoint (Phase A of `CLAUDE-PLAN.md` is complete). The installed executable is:
+The native client is at a verified checkpoint. Phase A of `CLAUDE-PLAN.md` is complete, and so are Phase B checkpoints B1/B2: loop extraction and session record/replay. The installed executable is:
 
 `client-c/bin/rs2client.exe`
 
-SHA-256: `E931CB6CC9B617625550D528BD32227DB695F05E21342E3C18CDC0F58A42FEBE`
+SHA-256: `341AB6F2BF27D4FBF7CDBB991C695C224E2D4EAA3679DF7ED8AC5ABE8B4D6C2D`
 
 - `rs2client_bridge.exe` and `rs2client_decor.exe` match this hash. Use `play_client.bat` to launch it.
-- The previous build (`0510EADD…97E4`, from the logout checkpoint) is kept as `client-c/bin/rs2client.lastgood.exe`.
+- The Phase A build (`E931…FEBE`) is `client-c/bin/rs2client.lastgood.exe`. The older `0510…97E4` is `rs2client.lastgood-0510.exe`.
+- The headless replayer is `client-c/bin/rs2replay.exe`.
+
+## Phase B so far (B1/B2)
+
+- **The client is in `src/client/client.c`,** with its API in `include/client/client.h`. `platform/sdl2_main.c` is only the SDL layer and GameShell pacing. The before/after builds are byte-identical on 54 frames across 4 scenarios.
+- **Recording:** `rs2client --record PATH` (with `--seed N` optional, plus `--fixed-step` for tests) writes a session log.
+- **Replay:** `rs2replay LOG [--out DIR]` reproduces it headlessly. It checks every outgoing byte and every frame hash, and takes `RS2_PASSWORD` from the environment.
+- **Live 440-frame login/logout session:** replay PASS. The negative controls fail as expected.
+- Evidence and tools (`scenarios.ps1`, `controls.ps1`, `tamper.py`, `cmplogs.py`) are in `client-c/verification/completion/runs/2026-10-22-phaseB-replay/`.
+- **Next (B3/B4):** a Java oracle over the recorded inbound stream, compared per tick, then `make parity`.
 
 The user's server runs on ports 43595, 8889 and 8899 under PID 2352. The user has authorized Claude to start and stop the local server (snapshot saves around live runs). Never stop processes Claude did not start.
 

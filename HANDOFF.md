@@ -1,3 +1,34 @@
+# Phase B (B1/B2): client loop extraction, session record/replay — October 22, 2026 (Claude)
+
+**Native build.** SHA-256 `341AB6F2BF27D4FBF7CDBB991C695C224E2D4EAA3679DF7ED8AC5ABE8B4D6C2D` is installed as `client-c/bin/rs2client.exe`, and `rs2client_bridge.exe` and `rs2client_decor.exe` match it.
+- The Phase A build `E931…FEBE` is now `bin/rs2client.lastgood.exe`.
+- The older `0510…97E4` is kept as `bin/rs2client.lastgood-0510.exe`.
+- New: `bin/rs2replay.exe` (`30D915AC…F3DF`).
+
+**B1. The loop moved out of `main()`.**
+- The client now lives in `src/client/client.c`, with its API in `include/client/client.h`: init, begin_frame, queue_event, process_events, update (one cycle), draw, end_frame and shutdown.
+- `platform/sdl2_main.c` is only the SDL layer and GameShell pacing.
+- New flags: `--seed N` (Math.random) and `--fixed-step` (one cycle per frame, tests only).
+- **Equivalence:** the before/after builds are byte-identical on all 54 captured frames and on all logs, across 4 scenarios.
+
+**B2. Record and replay.**
+- `rs2client --record PATH` logs the seed, args, input, cycles, clock reads, every socket result and a per-frame framebuffer hash. The password is not logged.
+- `rs2replay LOG` re-runs the same client headlessly with no window, audio or socket, using `RS2_PASSWORD` from the environment. It checks every outgoing byte and every frame hash.
+- **Live results** (`claudesm22`, server PID 2352): a 440-frame session of login, REBUILD_NORMAL, the smoke input, then logout to the title screen.
+  - Replay PASS, with all 7 captures byte-identical.
+  - The negative controls fail as they should: a flipped inbound bit, a truncated log, and a same-length wrong password. The truncation control exposed a gap, fixed with the `Q` end marker.
+- **Offline wall-clock recording:** replay PASS.
+- **Saves:** 38/38 pre-existing saves are byte-identical.
+- **Tests:** `make test` passes with 0 warnings.
+
+**Evidence:** `client-c/verification/completion/runs/2026-10-22-phaseB-replay/README.md`.
+
+**Next: B3/B4.**
+- Run the recorded inbound stream through the unchanged Java `client` (oracle under `verification/completion/reference/src`) and compare per tick with C.
+- Add `make parity`.
+
+---
+
 # Phase A: foundation audit and decoder oracle — October 22, 2026 (Claude)
 
 **Native build.** SHA-256 `E931CB6CC9B617625550D528BD32227DB695F05E21342E3C18CDC0F58A42FEBE` is installed as `client-c/bin/rs2client.exe`; `rs2client_bridge.exe` and `rs2client_decor.exe` match it. The previous build `0510EADD…97E4` is kept as `bin/rs2client.lastgood.exe`.

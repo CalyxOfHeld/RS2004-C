@@ -1,0 +1,289 @@
+[RECORD] session log -> C:\Users\USER\Documents\2004scape-LostCityRS\2004scape C Rewrite\client-c\verification\completion\runs\2026-10-22-phaseB-replay\live-record\session.rec (seed 176864205146)
+[Lost City 2004 C] Starting RS2 Revision 225 Client...
+[INFO] Loading 2004scape cache...
+[Textures] Loaded 50 cache textures
+[PASS] Audio synthesizer online (sounds.dat unpacked)
+[PASS] 229 Animation Bases & 7783 Frames loaded from models cache
+[INFO] Cache loaded: 78 flo, 1027 seq, 3387 loc, 1017 npc, 2886 obj, 82 idk
+[PASS] 2004scape Bitmap Fonts loaded (p11, p12, b12, q8)
+[PASS] 2004scape Media artwork loaded (frames, tabs, compass, icons)
+[PASS] 7386 UI Components unpacked from interface.jag
+[INFO] Building Lumbridge 3D scene (m50_50 / l50_50)...
+[LOCANIM] start id=196 tile=(0,5,19) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,5,24) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,7,12) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,9,11) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,11,11) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,11,26) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,12,19) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,12,22) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,13,23) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,14,12) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,14,25) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,16,12) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,40,6) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,40,12) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,47,6) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,47,12) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,8,13) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,8,15) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,8,21) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,8,23) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,9,17) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,9,18) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,9,25) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,12,12) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,12,17) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,12,18) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,12,25) layer=1 seq=481 random=1
+[LOCANIM] start id=724 tile=(0,43,48) layer=2 seq=473 random=1
+[LOCANIM] start id=724 tile=(0,45,43) layer=2 seq=473 random=1
+[LOCANIM] start id=724 tile=(0,47,43) layer=2 seq=473 random=1
+[LOCANIM] start id=724 tile=(0,48,48) layer=2 seq=473 random=1
+[LOCANIM] start id=869 tile=(1,16,17) layer=2 seq=471 random=1
+[LOCANIM] start id=869 tile=(1,16,20) layer=2 seq=471 random=1
+[LOCANIM] start id=869 tile=(2,10,18) layer=2 seq=471 random=1
+[LOCANIM] start id=869 tile=(2,10,20) layer=2 seq=471 random=1
+[LOCANIM] start id=869 tile=(2,30,13) layer=2 seq=471 random=1
+[LOCANIM] start id=2724 tile=(0,14,49) layer=2 seq=477 random=1
+[LOCANIM] start id=2725 tile=(0,5,20) layer=2 seq=478 random=1
+[LOCANIM] start id=2727 tile=(0,32,38) layer=2 seq=477 random=1
+[LOCANIM] start id=2732 tile=(0,45,46) layer=2 seq=475 random=1
+[PASS] 3D Scene built successfully!
+[PASS] Minimap radar & compass needle initialized
+[INFO] Entering main render loop. Controls:
+       [Arrow Keys] Rotate camera Pitch & Yaw
+       [W, A, S, D] Move only in explicit offline preview
+       [Left Click] Walk to tile / Interact / Select tab
+       [Right Click] Open available target operations
+       [ESC] Close active interface/menu, otherwise exit
+[STATE] title screen state=0
+[LOGIN] login reply=18
+[PASS] Connected to LIVE SERVER! (is_mod=1)
+[LOCANIM] start id=196 tile=(0,37,33) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,56,49) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,56,54) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,75,69) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,75,71) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,77,69) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,77,71) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,78,63) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,78,67) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,78,69) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,80,63) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,82,73) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,83,47) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,83,54) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,83,63) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,83,70) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,85,47) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,85,54) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,85,63) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,85,69) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,85,70) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,87,47) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,87,54) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,88,47) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,88,54) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,88,69) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,50,47) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,50,49) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,50,51) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,50,53) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,51,54) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,53,54) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,55,47) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,55,54) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,56,49) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,75,67) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,75,71) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,77,49) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,77,52) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,77,67) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,77,71) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,80,48) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,80,53) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,82,47) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,82,54) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,82,71) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,82,73) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,84,47) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,84,54) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,84,68) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,84,70) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,85,73) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,86,47) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,86,54) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,87,68) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,88,48) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,88,53) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(2,84,69) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(2,84,71) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(2,87,69) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(2,87,71) layer=1 seq=481 random=1
+[LOCANIM] start id=685 tile=(3,76,69) layer=2 seq=488 random=1
+[LOCANIM] start id=2724 tile=(0,55,46) layer=2 seq=477 random=1
+[LOCANIM] start id=2725 tile=(0,49,65) layer=2 seq=478 random=1
+[LOCANIM] start id=196 tile=(0,64,100) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,66,98) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,67,98) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,70,98) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,72,98) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,74,100) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,75,102) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,64,100) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,66,102) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,69,99) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,69,102) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,72,98) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(2,67,101) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(2,68,100) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(2,68,102) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(2,72,100) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(2,72,102) layer=1 seq=481 random=1
+[LOCANIM] start id=206 tile=(1,70,102) layer=1 seq=481 random=1
+[LOCANIM] start id=724 tile=(0,61,97) layer=2 seq=473 random=1
+[LOCANIM] start id=724 tile=(0,63,92) layer=2 seq=473 random=1
+[LOCANIM] start id=724 tile=(0,72,92) layer=2 seq=473 random=1
+[LOCANIM] start id=724 tile=(0,76,97) layer=2 seq=473 random=1
+[LOCANIM] start id=724 tile=(0,80,101) layer=2 seq=473 random=1
+[LOCANIM] start id=196 tile=(0,97,23) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,97,25) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,97,36) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,97,38) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,98,21) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,98,26) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,98,27) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,98,34) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,98,40) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,100,21) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,100,26) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,100,40) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,101,23) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,101,38) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,102,27) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,102,34) layer=1 seq=481 random=1
+[LOCANIM] start id=907 tile=(0,99,28) layer=1 seq=468 random=1
+[LOCANIM] start id=907 tile=(0,99,33) layer=1 seq=468 random=1
+[VERIFY] Live REBUILD_NORMAL: 9 mapsquares, base=(3040,3056)
+[STATE] panels main=-1 side=-1 chat=-1
+[STATE] varp=18 value=0
+[STATE] varp=20 value=0
+[STATE] varp=21 value=0
+[STATE] varp=22 value=0
+[STATE] varp=23 value=0
+[STATE] varp=24 value=0
+[STATE] varp=25 value=0
+[STATE] varp=43 value=0
+[STATE] varp=75 value=0
+[STATE] varp=79 value=0
+[STATE] varp=83 value=0
+[STATE] varp=84 value=0
+[STATE] varp=85 value=0
+[STATE] varp=86 value=0
+[STATE] varp=87 value=0
+[STATE] varp=88 value=0
+[STATE] varp=89 value=0
+[STATE] varp=90 value=0
+[STATE] varp=91 value=0
+[STATE] varp=92 value=0
+[STATE] varp=93 value=0
+[STATE] varp=94 value=0
+[STATE] varp=95 value=0
+[STATE] varp=96 value=0
+[STATE] varp=97 value=0
+[STATE] varp=101 value=0
+[STATE] varp=106 value=0
+[STATE] varp=108 value=0
+[STATE] varp=115 value=0
+[STATE] varp=143 value=0
+[STATE] varp=153 value=0
+[STATE] varp=156 value=0
+[STATE] varp=157 value=0
+[STATE] varp=158 value=0
+[STATE] varp=166 value=2
+[STATE] varp=168 value=2
+[STATE] varp=169 value=2
+[STATE] varp=170 value=0
+[STATE] varp=171 value=0
+[STATE] varp=172 value=0
+[STATE] varp=173 value=0
+[STATE] varp=210 value=0
+[STATE] varp=211 value=0
+[STATE] varp=261 value=0
+[STATE] varp=262 value=0
+[STATE] varp=263 value=0
+[STATE] varp=286 value=0
+[STATE] varp=287 value=0
+[STATE] game_message=Welcome to RuneScape.
+
+[STATE] varp=18 value=1
+[STATE] varp=43 value=0
+[HINT] type=1 npc=4388 tile=(0,0) h=0 pl=-1
+[MIDI] Playing music track: newbie_melody (19737 bytes uncompressed)
+[STATE] stat=0 level=1 xp_times10=0
+[STATE] stat=1 level=1 xp_times10=0
+[STATE] stat=2 level=1 xp_times10=0
+[STATE] stat=3 level=10 xp_times10=11540
+[STATE] stat=4 level=1 xp_times10=0
+[STATE] stat=5 level=1 xp_times10=0
+[STATE] stat=6 level=1 xp_times10=0
+[STATE] stat=7 level=1 xp_times10=0
+[STATE] stat=8 level=1 xp_times10=0
+[STATE] stat=9 level=1 xp_times10=0
+[STATE] stat=10 level=1 xp_times10=0
+[STATE] stat=11 level=1 xp_times10=0
+[STATE] stat=12 level=1 xp_times10=0
+[STATE] stat=13 level=1 xp_times10=0
+[STATE] stat=14 level=1 xp_times10=0
+[STATE] stat=15 level=1 xp_times10=0
+[STATE] stat=16 level=1 xp_times10=0
+[STATE] stat=17 level=1 xp_times10=0
+[STATE] stat=18 level=1 xp_times10=0
+[STATE] stat=19 level=1 xp_times10=0
+[STATE] stat=20 level=1 xp_times10=0
+[CAPTURE] camera=(6976,-1786,5555) pitch=128 yaw=0 -> C:\Users\USER\Documents\2004scape-LostCityRS\2004scape C Rewrite\client-c\verification\completion\runs\2026-10-22-phaseB-replay\live-record\live.bmp.frame-000110.bmp.terrain.bmp
+[VERIFY] player tile=(54,50) sequence=808 frame=10
+[NAV] frame=109 player_world=(3094,3106) destination_local=(0,0) yaw=0
+[STATE] live=1 plane=0 npcs=6 players=0 appearance_weapon=0 hash=318601272360960
+[ENTITY] npc slot=4388 type=945 name=RuneScape Guide world=(3095,3108) minimap=1
+[ENTITY] npc slot=4392 type=952 name=Fishing spot world=(3103,3092) minimap=0
+[ENTITY] npc slot=4391 type=952 name=Fishing spot world=(3101,3092) minimap=0
+[ENTITY] npc slot=4393 type=943 name=Survival Expert world=(3104,3093) minimap=1
+[ENTITY] npc slot=4385 type=949 name=Quest Guide world=(3087,3120) minimap=1
+[ENTITY] npc slot=4395 type=153 name=Butterfly world=(3108,3100) minimap=0
+[ANIM] draw local primary=-1 frame=0 delay=0 transform=1882 game_cycle=228
+[CAPTURE] SDL renderer -> C:\Users\USER\Documents\2004scape-LostCityRS\2004scape C Rewrite\client-c\verification\completion\runs\2026-10-22-phaseB-replay\live-record\live.bmp.frame-000110.bmp
+[CAPTURE] camera=(6976,-1786,5555) pitch=128 yaw=0 -> C:\Users\USER\Documents\2004scape-LostCityRS\2004scape C Rewrite\client-c\verification\completion\runs\2026-10-22-phaseB-replay\live-record\live.bmp.frame-000220.bmp.terrain.bmp
+[VERIFY] player tile=(54,50) sequence=808 frame=5
+[NAV] frame=219 player_world=(3094,3106) destination_local=(0,0) yaw=0
+[STATE] live=1 plane=0 npcs=6 players=0 appearance_weapon=0 hash=318601272360960
+[ENTITY] npc slot=4388 type=945 name=RuneScape Guide world=(3095,3108) minimap=1
+[ENTITY] npc slot=4392 type=952 name=Fishing spot world=(3103,3092) minimap=0
+[ENTITY] npc slot=4391 type=952 name=Fishing spot world=(3101,3092) minimap=0
+[ENTITY] npc slot=4393 type=943 name=Survival Expert world=(3101,3094) minimap=1
+[ENTITY] npc slot=4385 type=949 name=Quest Guide world=(3087,3120) minimap=1
+[ENTITY] npc slot=4395 type=153 name=Butterfly world=(3108,3100) minimap=0
+[ANIM] draw local primary=-1 frame=0 delay=0 transform=1019 game_cycle=373
+[CAPTURE] SDL renderer -> C:\Users\USER\Documents\2004scape-LostCityRS\2004scape C Rewrite\client-c\verification\completion\runs\2026-10-22-phaseB-replay\live-record\live.bmp.frame-000220.bmp
+[INPUT] frame=300 event=key
+[INPUT] frame=320 event=move
+[CAPTURE] camera=(6976,-1786,5555) pitch=128 yaw=0 -> C:\Users\USER\Documents\2004scape-LostCityRS\2004scape C Rewrite\client-c\verification\completion\runs\2026-10-22-phaseB-replay\live-record\live.bmp.frame-000330.bmp.terrain.bmp
+[VERIFY] player tile=(54,50) sequence=808 frame=0
+[NAV] frame=329 player_world=(3094,3106) destination_local=(0,0) yaw=0
+[STATE] live=1 plane=0 npcs=6 players=0 appearance_weapon=0 hash=318601272360960
+[ENTITY] npc slot=4388 type=945 name=RuneScape Guide world=(3095,3108) minimap=1
+[ENTITY] npc slot=4392 type=952 name=Fishing spot world=(3103,3092) minimap=0
+[ENTITY] npc slot=4391 type=952 name=Fishing spot world=(3101,3092) minimap=0
+[ENTITY] npc slot=4393 type=943 name=Survival Expert world=(3101,3094) minimap=1
+[ENTITY] npc slot=4385 type=949 name=Quest Guide world=(3087,3120) minimap=1
+[ENTITY] npc slot=4395 type=153 name=Butterfly world=(3108,3100) minimap=0
+[ANIM] draw local primary=-1 frame=0 delay=0 transform=1555 game_cycle=520
+[CAPTURE] SDL renderer -> C:\Users\USER\Documents\2004scape-LostCityRS\2004scape C Rewrite\client-c\verification\completion\runs\2026-10-22-phaseB-replay\live-record\live.bmp.frame-000330.bmp
+[INPUT] frame=330 event=left
+[ACTION] sent type=3 op=1 target=0 component=2458 slot=0
+[STATE] server logout packet
+[STATE] logout -> title state=0
+[CAPTURE] SDL renderer -> C:\Users\USER\Documents\2004scape-LostCityRS\2004scape C Rewrite\client-c\verification\completion\runs\2026-10-22-phaseB-replay\live-record\live.bmp
+[Lost City 2004 C] Shutting down...
+[Lost City 2004 C] Shutdown complete.

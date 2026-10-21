@@ -44,7 +44,7 @@ static void type(TitleScreen *t, const char *text) {
 }
 
 static void test_update_title(void) {
-    TitleScreen t; title_screen_init(&t, 1);
+    TitleScreen t; title_screen_init(&t);
     // updateTitle state 0: "New user" (314,306) and "Existing User" (474,306), 75x20 half extents.
     click(&t, 314 - 76, 306); assert(t.state == 0);
     click(&t, 314 + 75, 306 + 20); assert(t.state == 3);
@@ -69,7 +69,7 @@ static void test_update_title(void) {
     click(&t, 700, 266); assert(t.login_field == 0);
     click(&t, 700, 295); assert(t.login_field == 1);
     // Keys queued before an update in another state are discarded with that update.
-    TitleScreen q; title_screen_init(&q, 1);
+    TitleScreen q; title_screen_init(&q);
     title_screen_push_key(&q, 'x'); title_screen_update(&q, 0, 0, 0);
     click(&q, 474, 306); type(&q, ""); assert(!strcmp(q.username, ""));
     // Login (314,336) requests client.login; Cancel (474,336) clears both fields.
@@ -159,7 +159,7 @@ int main(void) {
     Jagfile *title_jag = jagfile_load_file("../engine/data/pack/client/title", &perm);
     assert(title_jag);
     PixFont b12; assert(pixfont_load(&b12, title_jag, "b12", &perm));
-    TitleScreen t; title_screen_init(&t, 7);
+    TitleScreen t; title_screen_init(&t);
     assert(title_screen_load(&t, title_jag));
     uint32_t *screen = calloc(TITLE_SCREEN_WIDTH * TITLE_SCREEN_HEIGHT, sizeof(uint32_t)); assert(screen);
 

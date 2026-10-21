@@ -1,6 +1,7 @@
 #include "ui/title_screen.h"
 #include "gfx/jpeg.h"
 #include "gfx/pix2d.h"
+#include "core/jrandom.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,12 +25,10 @@ static const int32_t title_mirror_offsets[TITLE_IMAGE_COUNT][2] = {
 static const char title_charset[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!\"\xA3$%^&*()-_=+[{]};:'@#~,<.>/?\\| ";
 
-// Math.random() stand-in: the original values are unseeded and not reproducible.
+// The flame code draws from the same shared Math.random() generator as the rest of the client.
 static double title_random(TitleScreen *title) {
-    uint64_t x = title->random_state;
-    x ^= x >> 12; x ^= x << 25; x ^= x >> 27;
-    title->random_state = x;
-    return (double)((x * 2685821657736338717ULL) >> 11) * (1.0 / 9007199254740992.0);
+    (void)title;
+    return math_random();
 }
 
 static void title_blit_opaque(TitleImage *dst, const uint32_t *src, int32_t sw, int32_t sh, int32_t x, int32_t y) {
@@ -55,9 +54,8 @@ static int32_t title_mix(int32_t src, int32_t alpha, int32_t dst) {
                                  ((((uint32_t)src & 0xFF00) * inv + ((uint32_t)dst & 0xFF00) * a) & 0xFF0000u));
 }
 
-void title_screen_init(TitleScreen *title, uint64_t random_seed) {
+void title_screen_init(TitleScreen *title) {
     memset(title, 0, sizeof(*title));
-    title->random_state = random_seed ? random_seed : 0x9E3779B97F4A7C15ULL;
 }
 
 // updateFlameBuffer: diffuse 5000 random seeds, then cut out a rune shape.

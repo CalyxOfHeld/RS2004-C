@@ -35,7 +35,6 @@ typedef struct {
     int32_t    flame_cycle0, flame_gradient_cycle0, flame_gradient_cycle1;
     bool       flame_active;
     uint64_t   flame_last_ms;
-    uint64_t   random_state;
 
     int        state;          // titleScreenState: 0 welcome, 2 login box, 3 new user
     int        login_field;    // titleLoginField: 0 username, 1 password
@@ -47,7 +46,7 @@ typedef struct {
     int        key_read, key_write;
 } TitleScreen;
 
-void        title_screen_init(TitleScreen *title, uint64_t random_seed);
+void        title_screen_init(TitleScreen *title);
 bool        title_screen_load(TitleScreen *title, Jagfile *title_jag);
 void        title_screen_unload(TitleScreen *title);
 void        title_screen_push_key(TitleScreen *title, int key);

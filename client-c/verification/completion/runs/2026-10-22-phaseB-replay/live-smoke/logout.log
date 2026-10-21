@@ -1,0 +1,67 @@
+[Lost City 2004 C] Starting RS2 Revision 225 Client...
+[INFO] Loading 2004scape cache...
+[Textures] Loaded 50 cache textures
+[PASS] Audio synthesizer online (sounds.dat unpacked)
+[PASS] 229 Animation Bases & 7783 Frames loaded from models cache
+[INFO] Cache loaded: 78 flo, 1027 seq, 3387 loc, 1017 npc, 2886 obj, 82 idk
+[PASS] 2004scape Bitmap Fonts loaded (p11, p12, b12, q8)
+[PASS] 2004scape Media artwork loaded (frames, tabs, compass, icons)
+[PASS] 7386 UI Components unpacked from interface.jag
+[INFO] Building Lumbridge 3D scene (m50_50 / l50_50)...
+[LOCANIM] start id=196 tile=(0,5,19) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,5,24) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,7,12) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,9,11) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,11,11) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,11,26) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,12,19) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,12,22) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,13,23) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,14,12) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,14,25) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,16,12) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,40,6) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,40,12) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,47,6) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(0,47,12) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,8,13) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,8,15) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,8,21) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,8,23) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,9,17) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,9,18) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,9,25) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,12,12) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,12,17) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,12,18) layer=1 seq=481 random=1
+[LOCANIM] start id=196 tile=(1,12,25) layer=1 seq=481 random=1
+[LOCANIM] start id=724 tile=(0,43,48) layer=2 seq=473 random=1
+[LOCANIM] start id=724 tile=(0,45,43) layer=2 seq=473 random=1
+[LOCANIM] start id=724 tile=(0,47,43) layer=2 seq=473 random=1
+[LOCANIM] start id=724 tile=(0,48,48) layer=2 seq=473 random=1
+[LOCANIM] start id=869 tile=(1,16,17) layer=2 seq=471 random=1
+[LOCANIM] start id=869 tile=(1,16,20) layer=2 seq=471 random=1
+[LOCANIM] start id=869 tile=(2,10,18) layer=2 seq=471 random=1
+[LOCANIM] start id=869 tile=(2,10,20) layer=2 seq=471 random=1
+[LOCANIM] start id=869 tile=(2,30,13) layer=2 seq=471 random=1
+[LOCANIM] start id=2724 tile=(0,14,49) layer=2 seq=477 random=1
+[LOCANIM] start id=2725 tile=(0,5,20) layer=2 seq=478 random=1
+[LOCANIM] start id=2727 tile=(0,32,38) layer=2 seq=477 random=1
+[LOCANIM] start id=2732 tile=(0,45,46) layer=2 seq=475 random=1
+[PASS] 3D Scene built successfully!
+[PASS] Minimap radar & compass needle initialized
+[INFO] Entering main render loop. Controls:
+       [Arrow Keys] Rotate camera Pitch & Yaw
+       [W, A, S, D] Move only in explicit offline preview
+       [Left Click] Walk to tile / Interact / Select tab
+       [Right Click] Open available target operations
+       [ESC] Close active interface/menu, otherwise exit
+[STATE] title screen state=0
+[LOGIN] login reply=5
+[STATE] login message0="Your account is already logged in." message1="Try again in 60 secs..."
+[INPUT] frame=300 event=key
+[INPUT] frame=320 event=move
+[INPUT] frame=330 event=left
+[CAPTURE] SDL renderer -> C:\Users\USER\Documents\2004scape-LostCityRS\2004scape C Rewrite\client-c\verification\completion\runs\2026-10-22-phaseB-replay\live-smoke\title-after-logout.bmp
+[Lost City 2004 C] Shutting down...
+[Lost City 2004 C] Shutdown complete.

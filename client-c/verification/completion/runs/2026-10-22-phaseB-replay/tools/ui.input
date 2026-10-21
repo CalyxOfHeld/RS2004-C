@@ -1,0 +1,13 @@
+10 move 256 180
+20 left 256 180
+40 right 300 200
+50 key Escape
+60 key F2
+70 left 560 210
+80 key F4
+90 text ::bank
+95 key Return
+110 key Escape
+120 move 600 300
+130 right 600 300
+140 key Escape

@@ -17,6 +17,9 @@ static unsigned s_file_serial;
 static char s_music_path[160], s_jingle_path[160];
 static uint32_t s_current_crc, s_current_size;
 static uint16_t s_jingle_delay;
+static bool s_silent;   // no playback device: headless replay
+
+void midi_set_silent(bool silent) { s_silent = silent; }
 
 static void midi_close_jingle(void) {
 #ifdef _WIN32
@@ -140,6 +143,7 @@ static bool midi_save_start(const uint8_t *data, size_t size, const char *alias,
 
 bool midi_play(const char *name, uint32_t crc, uint32_t size) {
     if (!s_midi_inited) midi_init();
+    if (s_silent && name && name[0]) return false;
     if (!name || name[0] == '\0') {
         midi_stop();
         return true;
@@ -213,6 +217,7 @@ bool midi_play(const char *name, uint32_t crc, uint32_t size) {
 }
 
 bool midi_play_jingle(const uint8_t *bzip_data, int compressed_len, int uncompressed_len, uint16_t delay) {
+    if (s_silent) return false;
     if (compressed_len <= 0 || uncompressed_len < 4) return false;
     uint8_t *decompressed;
     if (!midi_decode_stream(bzip_data,(size_t)compressed_len,(size_t)uncompressed_len,&decompressed)) return false;
@@ -257,10 +262,12 @@ void midi_tick(void) {
 
 void midi_stop(void) {
 #ifdef _WIN32
-    mciSendStringA("stop rs2midi", NULL, 0, NULL);
-    mciSendStringA("close rs2midi", NULL, 0, NULL);
-    mciSendStringA("stop rs2jingle", NULL, 0, NULL);
-    mciSendStringA("close rs2jingle", NULL, 0, NULL);
+    if (!s_silent) {
+        mciSendStringA("stop rs2midi", NULL, 0, NULL);
+        mciSendStringA("close rs2midi", NULL, 0, NULL);
+        mciSendStringA("stop rs2jingle", NULL, 0, NULL);
+        mciSendStringA("close rs2jingle", NULL, 0, NULL);
+    }
 #endif
     s_is_playing = false;
     s_current_song[0] = '\0';

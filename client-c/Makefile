@@ -3,7 +3,7 @@ CFLAGS = -std=c99 -Wall -Wextra -O2 -Iinclude -Ilib/SDL2/x86_64-w64-mingw32/incl
 LDFLAGS = -Llib/SDL2/x86_64-w64-mingw32/lib -lmingw32 -lSDL2main -lSDL2 -lws2_32 -lwinmm -lm -Wl,--stack,16777216
 TEST_LDFLAGS = -Llib/SDL2/x86_64-w64-mingw32/lib -lSDL2 -lws2_32 -lwinmm -lm -Wl,--stack,16777216
 
-CORE_SRCS   = src/core/arena.c src/core/packet.c src/core/isaac.c src/core/bzip2.c src/core/jagfile.c src/core/jstring.c src/core/jrandom.c
+CORE_SRCS   = src/core/arena.c src/core/packet.c src/core/isaac.c src/core/bzip2.c src/core/jagfile.c src/core/jstring.c src/core/jrandom.c src/core/session_log.c
 GFX_SRCS    = src/gfx/pix2d.c src/gfx/pix8.c src/gfx/pix32.c src/gfx/pix3d.c src/gfx/model.c src/gfx/pixfont.c src/gfx/media.c src/gfx/anim.c src/gfx/jpeg.c
 CONFIG_SRCS = src/config/flo.c src/config/seq.c src/config/loc.c src/config/npc.c src/config/obj.c src/config/idk.c src/config/spotanim.c src/config/varp_type.c
 ENTITY_SRCS = src/entity/pathing_entity.c src/entity/player_entity.c src/entity/npc_entity.c
@@ -15,32 +15,41 @@ AUDIO_SRCS  = src/audio/wave.c src/audio/midi.c
 DASH3D_SRCS += src/dash3d/location_anim.c
 DASH3D_SRCS += src/dash3d/location_merge.c
 DASH3D_SRCS += src/dash3d/scene_lighting.c
-HEADERS = $(wildcard include/*/*.h) platform/verification_input.h
+HEADERS = $(wildcard include/*/*.h)
 ALL_SRCS    = $(CORE_SRCS) $(GFX_SRCS) $(CONFIG_SRCS) $(ENTITY_SRCS) $(NET_SRCS) $(DASH3D_SRCS) $(UI_SRCS) $(AUDIO_SRCS)
 
 TARGET        = bin/rs2client.exe
+REPLAY_TARGET = bin/rs2replay.exe
 VIEWER_TARGET = bin/model_viewer.exe
 
 .PHONY: all test clean
 
-all: $(TARGET) $(VIEWER_TARGET)
+all: $(TARGET) $(REPLAY_TARGET) $(VIEWER_TARGET)
 
 ALL_OBJS = $(ALL_SRCS:%.c=build/%.o)
-.SECONDARY: $(ALL_OBJS)
+# The client loop (client.java load/updateGame/draw), linked by the platforms.
+CLIENT_OBJS = build/src/client/client.o build/src/client/client_log.o
+.SECONDARY: $(ALL_OBJS) $(CLIENT_OBJS)
 
 build/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
--include $(ALL_OBJS:.o=.d)
+-include $(ALL_OBJS:.o=.d) $(CLIENT_OBJS:.o=.d)
 
 bin/test_%.exe: tests/test_%.c $(ALL_OBJS) $(HEADERS)
 	@mkdir -p bin
 	$(CC) $(CFLAGS) $< $(ALL_OBJS) $(TEST_LDFLAGS) -o $@
 
-$(TARGET): $(ALL_OBJS) $(HEADERS) platform/sdl2_main.c
+$(TARGET): $(ALL_OBJS) $(CLIENT_OBJS) $(HEADERS) platform/sdl2_main.c
 	@mkdir -p bin
-	$(CC) $(CFLAGS) platform/sdl2_main.c $(ALL_OBJS) $(LDFLAGS) -o $@
+	$(CC) $(CFLAGS) platform/sdl2_main.c $(CLIENT_OBJS) $(ALL_OBJS) $(LDFLAGS) -o $@
+	@cp -u lib/SDL2/x86_64-w64-mingw32/bin/SDL2.dll bin/
+
+# Headless session-log replay: console program, no window or audio device.
+$(REPLAY_TARGET): $(ALL_OBJS) $(CLIENT_OBJS) $(HEADERS) platform/replay_main.c
+	@mkdir -p bin
+	$(CC) $(CFLAGS) platform/replay_main.c $(CLIENT_OBJS) $(ALL_OBJS) $(TEST_LDFLAGS) -o $@
 	@cp -u lib/SDL2/x86_64-w64-mingw32/bin/SDL2.dll bin/
 
 $(VIEWER_TARGET): $(ALL_OBJS) $(HEADERS) platform/model_viewer.c

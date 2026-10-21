@@ -1,0 +1,44 @@
+[REPLAY] input script C:\Users\USER\AppData\Local\Temp\claude\C--Users-USER-Documents-2004scape-LostCityRS\4debec23-127e-474d-b0cb-b3ef13ad8a36\scratchpad\phaseB\ui.input (must be unchanged since recording)
+[Lost City 2004 C] Starting RS2 Revision 225 Client...
+[INFO] Loading 2004scape cache...
+[Textures] Loaded 50 cache textures
+[PASS] Audio synthesizer online (sounds.dat unpacked)
+[PASS] 229 Animation Bases & 7783 Frames loaded from models cache
+[INFO] Cache loaded: 78 flo, 1027 seq, 3387 loc, 1017 npc, 2886 obj, 82 idk
+[PASS] 2004scape Bitmap Fonts loaded (p11, p12, b12, q8)
+[PASS] 2004scape Media artwork loaded (frames, tabs, compass, icons)
+[PASS] 7386 UI Components unpacked from interface.jag
+[INFO] Building Lumbridge 3D scene (m50_50 / l50_50)...
+[PASS] 3D Scene built successfully!
+[PASS] Minimap radar & compass needle initialized
+[INFO] Entering main render loop. Controls:
+       [Arrow Keys] Rotate camera Pitch & Yaw
+       [W, A, S, D] Move only in explicit offline preview
+       [Left Click] Walk to tile / Interact / Select tab
+       [Right Click] Open available target operations
+       [ESC] Close active interface/menu, otherwise exit
+[MODE] Explicit offline demonstration; inventory/entities are fixtures, no gameplay verification.
+[INPUT] frame=10 event=move
+[INPUT] frame=20 event=left
+[INPUT] frame=40 event=right
+[CAPTURE] camera=(4160,-618,3277) pitch=128 yaw=0 -> C:\Users\USER\AppData\Local\Temp\claude\C--Users-USER-Documents-2004scape-LostCityRS\4debec23-127e-474d-b0cb-b3ef13ad8a36\scratchpad\phaseB\rep1/ui.bmp.frame-000050.bmp.terrain.bmp
+[VERIFY] player tile=(32,32) sequence=819 frame=0
+[CAPTURE] replay -> C:\Users\USER\AppData\Local\Temp\claude\C--Users-USER-Documents-2004scape-LostCityRS\4debec23-127e-474d-b0cb-b3ef13ad8a36\scratchpad\phaseB\rep1/ui.bmp.frame-000050.bmp
+[INPUT] frame=50 event=key
+[INPUT] frame=60 event=key
+[INPUT] frame=70 event=left
+[INPUT] frame=80 event=key
+[INPUT] frame=90 event=text
+[INPUT] frame=95 event=key
+[CAPTURE] camera=(4160,-612,3364) pitch=128 yaw=0 -> C:\Users\USER\AppData\Local\Temp\claude\C--Users-USER-Documents-2004scape-LostCityRS\4debec23-127e-474d-b0cb-b3ef13ad8a36\scratchpad\phaseB\rep1/ui.bmp.frame-000100.bmp.terrain.bmp
+[VERIFY] player tile=(32,33) sequence=808 frame=1
+[CAPTURE] replay -> C:\Users\USER\AppData\Local\Temp\claude\C--Users-USER-Documents-2004scape-LostCityRS\4debec23-127e-474d-b0cb-b3ef13ad8a36\scratchpad\phaseB\rep1/ui.bmp.frame-000100.bmp
+[INPUT] frame=110 event=key
+[INPUT] frame=120 event=move
+[INPUT] frame=130 event=right
+[INPUT] frame=140 event=key
+[CAPTURE] camera=(4160,-612,3364) pitch=128 yaw=0 -> C:\Users\USER\AppData\Local\Temp\claude\C--Users-USER-Documents-2004scape-LostCityRS\4debec23-127e-474d-b0cb-b3ef13ad8a36\scratchpad\phaseB\rep1/ui.bmp.terrain.bmp
+[VERIFY] player tile=(32,33) sequence=808 frame=3
+[CAPTURE] replay -> C:\Users\USER\AppData\Local\Temp\claude\C--Users-USER-Documents-2004scape-LostCityRS\4debec23-127e-474d-b0cb-b3ef13ad8a36\scratchpad\phaseB\rep1/ui.bmp
+[Lost City 2004 C] Shutting down...
+PASS REPLAY: 150 frames reproduced (467 log lines), final hash 4480ae224b91c858

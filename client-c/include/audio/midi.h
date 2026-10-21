@@ -23,5 +23,7 @@ void midi_set_volume(int vol_0_to_255);
 bool midi_is_playing(void);
 const char* midi_current_song(void);
 void midi_close(void);
+// Headless replay: every play request reports unavailable and MCI is never used.
+void midi_set_silent(bool silent);
 
 #endif // RS2_MIDI_H

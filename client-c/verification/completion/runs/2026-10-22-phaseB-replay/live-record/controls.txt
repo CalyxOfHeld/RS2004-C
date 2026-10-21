@@ -1,0 +1,14 @@
+﻿flipped inbound byte on line 227 of 3188
+truncated at line 1912
+positive                     exit=0 expected=0 OK
+    PASS REPLAY: 440 frames reproduced (3187 log lines), final hash 1f81526b65f42ea2
+flipped-inbound              exit=1 expected=1 OK
+    FAIL REPLAY: diverged after 2 frames at log line 415
+    [REPLAY] desync at log line 415: frame 1 framebuffer hash c07e67f6375f195d, recorded 64a3c3d6d0cdb3e7
+truncated                    exit=1 expected=1 OK
+    FAIL REPLAY: diverged after 200 frames at log line 1912
+    [REPLAY] desync at log line 1912: log ended, client wanted NR
+wrong-password-same-length   exit=1 expected=1 OK
+    FAIL REPLAY: diverged after 1 frames at log line 24
+    [REPLAY] desync at log line 24: outgoing bytes differ (client wrote 105, recorded 105)
+controls ALL AS EXPECTED
