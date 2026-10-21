@@ -642,7 +642,7 @@ public class client extends GameShell {
 	public int field1525 = -676;
 
 	@ObfuscatedName("client.F")
-	public static String CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!\"Â£$%^&*()-_=+[{]};:'@#~,<.>/?\\| ";
+	public static String CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!\"£$%^&*()-_=+[{]};:'@#~,<.>/?\\| ";
 
 	@ObfuscatedName("client.od")
 	public static int[] levelExperience = new int[99];

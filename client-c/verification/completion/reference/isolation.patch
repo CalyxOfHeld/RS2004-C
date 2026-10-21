@@ -8,15 +8,6 @@
  
  	@ObfuscatedName("client.ab")
  	public int hintTileZ;
-@@ -641,7 +642,7 @@
- 	public int field1525 = -676;
- 
- 	@ObfuscatedName("client.F")
--	public static String CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!\"£$%^&*()-_=+[{]};:'@#~,<.>/?\\| ";
-+	public static String CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!\"Â£$%^&*()-_=+[{]};:'@#~,<.>/?\\| ";
- 
- 	@ObfuscatedName("client.od")
- 	public static int[] levelExperience = new int[99];
 @@ -7969,7 +7970,7 @@
  		}
  		try {
