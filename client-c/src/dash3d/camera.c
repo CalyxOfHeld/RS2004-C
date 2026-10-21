@@ -41,6 +41,11 @@ void camera_update(Camera *cam, int target_x, int target_z, int current_level,
                    int heightmap[4][105][105], uint8_t tile_flags[4][104][104],
                    bool key_left, bool key_right, bool key_up, bool key_down) {
     if (!cam) return;
+    // client.updateOrbitCamera tracks the player plus the anticheat offset; the
+    // drawScene orbit height still samples the player position.
+    int player_x = target_x, player_z = target_z;
+    target_x += cam->anticheat_x;
+    target_z += cam->anticheat_z;
 
     // 1. Smoothly track camera target (client.java:6658-6670)
     if (cam->orbit_x - target_x < -500 || cam->orbit_x - target_x > 500 ||
@@ -118,9 +123,9 @@ void camera_update(Camera *cam, int target_x, int target_z, int current_level,
     if (cam->pitch_clamp / 256 > pitch) {
         pitch = cam->pitch_clamp / 256;
     }
-    int yaw = cam->orbit_yaw;
+    int yaw = (cam->orbit_yaw + cam->anticheat_yaw) & 0x7FF;   // client.java:2184
     int dist = pitch * 3 + 600;
-    int target_y = camera_get_height(current_level, target_x, target_z, heightmap, tile_flags) - 50;
+    int target_y = camera_get_height(current_level, player_x, player_z, heightmap, tile_flags) - 50;
 
     // 5. Orbit Math (client.java:3326-3357)
     int var8_ang = (2048 - pitch) & 0x7FF;

@@ -169,7 +169,19 @@ static bool capture_clicks;
 static int last_captured_cross = -1, last_cross_cycle = 400;
 static int capture_frame, capture_interval, server_port, capture_yaw;
 static int rendered_frames;
-static uint64_t last_keepalive;
+// client.updateGame's closing packets: heartbeatTimer (instance) and the static cyclelogic4.
+static int heartbeat_timer, cyclelogic4;
+// client.java anticheat state. Login rerolls the offsets and zoom; the modifiers and
+// offset cycles are never reset, and the cyclelogic counters are static.
+static int camera_offset_cycle, minimap_offset_cycle, camera_moved_write;
+static int camera_offset_x_modifier = 2, camera_offset_z_modifier = 2, camera_offset_yaw_modifier = 1;
+static int minimap_anticheat_angle, minimap_zoom, minimap_angle_modifier = 2, minimap_zoom_modifier = 1;
+static int cyclelogic1, cyclelogic2, cyclelogic3, cyclelogic5, cyclelogic6;
+// GameShell.idleCycles and mouseClickButton (held until the next game cycle consumes it).
+static int idle_cycles, cycle_click_button;
+// REBUILD_NORMAL sets sceneState 1; the next PLAYER_INFO builds the scene.
+static bool scene_build_pending;
+static int build_old_base_x, build_old_base_z;
 
 static Arena arena_perm, arena_frame;
 static uint32_t *pixels;
@@ -283,7 +295,12 @@ void client_queue_event(const ClientEvent *event) {
     event_write = next;
 }
 
-void client_set_held_keys(const ClientHeldKeys *keys) { held = *keys; }
+void client_set_held_keys(const ClientHeldKeys *keys) {
+    // A held-key change is a GameShell keyPressed/keyReleased, which resets idleCycles.
+    if (keys->left != held.left || keys->right != held.right || keys->up != held.up || keys->down != held.down ||
+        keys->w != held.w || keys->a != held.a || keys->s != held.s || keys->d != held.d || keys->ctrl != held.ctrl) idle_cycles = 0;
+    held = *keys;
+}
 
 static int client_name_compare(const char *a, const char *b) {
     for (;; a++, b++) {
@@ -465,7 +482,6 @@ bool client_init(const ClientOptions *options, const ClientPlatform *platform) {
     verification_follow_input = options->follow_input;
     bool autologin = options->login_username && *options->login_username && options->login_password && *options->login_password;
     rendered_frames = 0;
-    last_keepalive = plat.now_ms();
     ingame = offline;
 
     if(options->input_path && (!capture_path || !verification_load_input(options->input_path))) {
@@ -830,6 +846,10 @@ void client_begin_frame(void) {
 }
 
 static void client_handle_event(const ClientEvent *event) {
+// GameShell listeners: every mouse and key event resets idleCycles; a press sets mouseClickButton.
+if (event->type == CLIENT_EVENT_MOUSE_MOVE || event->type == CLIENT_EVENT_MOUSE_DOWN || event->type == CLIENT_EVENT_MOUSE_UP ||
+    event->type == CLIENT_EVENT_KEY_DOWN || event->type == CLIENT_EVENT_TEXT) idle_cycles = 0;
+if (event->type == CLIENT_EVENT_MOUSE_DOWN) cycle_click_button = event->button == CLIENT_BUTTON_RIGHT ? 2 : 1;
 if (!ingame && event->type != CLIENT_EVENT_QUIT) {
     if (event->type == CLIENT_EVENT_MOUSE_MOVE) {
         mouse_x = event->x; mouse_y = event->y;
@@ -858,32 +878,9 @@ if (event->type == CLIENT_EVENT_QUIT) {
         chatbox_key_press(&chatbox, event->text[i]);
     }
 } else if (event->type == CLIENT_EVENT_KEY_DOWN) {
-    if (event->key == CLIENT_KEY_ESCAPE) {
-        if (chatbox.count_dialog_open) {
-            chatbox_close_count_dialog(&chatbox);
-        } else if (interfaces.viewport != -1 || interfaces.sidebar != -1) {
-            if (live_server) protocol_send_close_modal(&session);
-            interface_state_init(&interfaces);
-        } else if (interfaces.chat != -1) {
-            interfaces.chat = -1;
-        } else if (menu.visible) {
-            menu.visible = false;
-        } else {
-            selected_tab = 3; // Authentic RS2: Esc toggles to inventory
-        }
-    } else if (event->key == CLIENT_KEY_F1)  selected_tab = 0;
-    else if (event->key == CLIENT_KEY_F2)  selected_tab = 1;
-    else if (event->key == CLIENT_KEY_F3)  selected_tab = 2;
-    else if (event->key == CLIENT_KEY_F4)  selected_tab = 3;
-    else if (event->key == CLIENT_KEY_F5)  selected_tab = 4;
-    else if (event->key == CLIENT_KEY_F6)  selected_tab = 5;
-    else if (event->key == CLIENT_KEY_F7)  selected_tab = 6;
-    else if (event->key == CLIENT_KEY_F8)  selected_tab = 8;
-    else if (event->key == CLIENT_KEY_F9)  selected_tab = 9;
-    else if (event->key == CLIENT_KEY_F10) selected_tab = 10;
-    else if (event->key == CLIENT_KEY_F11) selected_tab = 11;
-    else if (event->key == CLIENT_KEY_F12) selected_tab = 12;
-    else if (event->key == CLIENT_KEY_BACKSPACE) {
+    // GameShell.keyPressed has no Escape mapping, and client.java never reads the
+    // F1-F12 key codes (1008+), so neither closes interfaces nor switches tabs in Rev 225.
+    if (event->key == CLIENT_KEY_BACKSPACE) {
         chatbox_backspace(&chatbox);
     } else if (event->key == CLIENT_KEY_RETURN || event->key == CLIENT_KEY_KP_ENTER) {
         if (chatbox.count_dialog_open) {
@@ -1029,10 +1026,10 @@ if (event->type == CLIENT_EVENT_QUIT) {
         // Consume this click before stale scene/context-menu actions.
         if (!menu.visible && has_minimap && mx >= 582 && mx < 728 && my >= 14 && my < 165) {
             if (interfaces.viewport == -1 && !comp_cfg.drag.active && live_server) {
-                int yaw=cam.render_yaw&2047;
+                int yaw=cam.orbit_yaw&2047;
                 MinimapClick click;
                 PathResult route;
-                if(minimap_click_target(mx,my,player.base.x,player.base.z,yaw,&click) &&
+                if(minimap_click_target(mx,my,player.base.x,player.base.z,yaw+minimap_anticheat_angle,minimap_zoom,&click) &&
                     pathfinder_find_path(&pathfinder,&collision_maps[sync_ctx.current_plane],
                     player.base.path_tile_x[0],player.base.path_tile_z[0],click.tile_x,click.tile_z,true,&route) && route.step_count>0) {
                     if(trace) printf("[NAV] click=(%d,%d) yaw=%d source=(%d,%d) target=(%d,%d) nearest=%d steps=%d\n",
@@ -1041,7 +1038,7 @@ if (event->type == CLIENT_EVENT_QUIT) {
                     bool ctrl=held.ctrl;
                     bool sent=protocol_send_minimap_route(&session,streamer.base_tile_x,streamer.base_tile_z,
                         player.base.path_tile_x[0],player.base.path_tile_z[0],route.steps_x,route.steps_z,route.step_count,
-                        ctrl,click.click_x,click.click_y,yaw,player.base.x,player.base.z,route.reached_nearest);
+                        ctrl,click.click_x,click.click_y,yaw,minimap_anticheat_angle,minimap_zoom,player.base.x,player.base.z,route.reached_nearest);
                     if(sent) {
                         minimap.flag_scene_tile_x=route.steps_x[route.step_count-1];
                         minimap.flag_scene_tile_z=route.steps_z[route.step_count-1];
@@ -1235,6 +1232,33 @@ void client_process_events(void) {
 }
 
 // One client cycle: updateTitle, or updateGame with the packet reads (client.java:7665).
+static const char *client_maps_dir(void) {
+    FILE *probe = fopen("../engine/data/pack/client/maps/m50_50", "rb");
+    if (probe) { fclose(probe); return "../engine/data/pack/client/maps"; }
+    return "engine/data/pack/client/maps";
+}
+
+// client.buildScene for the region announced by the last REBUILD_NORMAL. False only
+// when ground items cannot be retained (out of memory).
+static bool client_build_scene(void) {
+    effects_clear(&effects);
+    zone_sync_reset(&zones);
+    GroundItem **saved_items=ground_items_detach(world3d);
+    if(!saved_items) {fprintf(stderr,"Cannot retain ground items during rebuild\n");return false;}
+    bool rebuilt=map_streamer_rebuild(&streamer, world, world3d, collision_maps, &flo_cfg, &loc_cfg, client_maps_dir());
+    loc_clear_model_cache(false);
+    ground_items_restore(world3d,saved_items,streamer.base_tile_x-build_old_base_x,streamer.base_tile_z-build_old_base_z);
+    if (!rebuilt) { fprintf(stderr, "Live map rebuild failed\n"); return true; }
+    // client.buildScene sends NO_TIMEOUT four times while building (client.java:8961-8990).
+    for (int i = 0; i < 4; i++) if (!protocol_send_keepalive(&session)) reconnecting = true;
+    if (has_minimap) minimap_build(&minimap, world, world3d, &media, sync_ctx.current_plane);
+    printf("[VERIFY] Live REBUILD_NORMAL: %d mapsquares, base=(%d,%d)\n",
+        streamer.region_count, streamer.base_tile_x, streamer.base_tile_z);
+    cam.orbit_x = player.base.x;
+    cam.orbit_z = player.base.z;
+    return true;
+}
+
 bool client_update(void) {
     game_ticks++;
     if (!ingame) {
@@ -1264,15 +1288,13 @@ bool client_update(void) {
     }
     // A. Poll incoming network packets from live server (client.java:7665)
     if (live_server) {
-        if(plat.now_ms()-last_keepalive>=1000) {
-            if(!protocol_send_keepalive(&session)) reconnecting=true;   // IOException -> tryReconnect
-            last_keepalive=plat.now_ms();
-        }
         int opcode = 0;
         uint8_t payload[65536];
         size_t pkt_len = 0;
-        int receive_status;
-        while ((receive_status=protocol_poll_packet(&session, &opcode, payload, sizeof(payload), &pkt_len)) > 0) {
+        int receive_status = 0;
+        // client.updateGame: at most five packets per cycle (client.java:7665).
+        for (int packets_read = 0; packets_read < 5 &&
+             (receive_status=protocol_poll_packet(&session, &opcode, payload, sizeof(payload), &pkt_len)) > 0; packets_read++) {
             int zone_result=zone_sync_apply(&zones,world,world3d,&loc_cfg,collision_maps,sync_ctx.current_plane,opcode,payload,pkt_len);
             if(zone_result<0) {fprintf(stderr,"Malformed zone packet %d\n",opcode);logout_now=true;break;}
             if(zone_result>0) {
@@ -1463,6 +1485,10 @@ bool client_update(void) {
                 if(!entity_sync_player_info(&sync_ctx,&pinfo,pkt_len)) {
                     fprintf(stderr,"[Protocol] Invalid PLAYER_INFO\n");logout_now=true;break;
                 }
+                if (scene_build_pending) {   // sceneState 1 -> 2, buildScene
+                    scene_build_pending = false;
+                    if (!client_build_scene()) { running = false; break; }
+                }
                 if(previous_plane!=sync_ctx.current_plane && has_minimap) {
                     minimap_build(&minimap,world,world3d,&media,sync_ctx.current_plane);
                     if(trace) printf("[STATE] plane=%d minimap rebuilt\n",sync_ctx.current_plane);
@@ -1477,6 +1503,10 @@ bool client_update(void) {
                     fprintf(stderr,"[Protocol] Invalid NPC_INFO\n");logout_now=true;break;
                 }
             } else if (opcode == 237) { // REBUILD_NORMAL
+                // client.java:9912-9917: the same centre zone with a scene already begun is ignored.
+                if (pkt_len >= 4 && streamer.scene_state != 0 &&
+                    ((payload[0] << 8) | payload[1]) == streamer.center_zone_x &&
+                    ((payload[2] << 8) | payload[3]) == streamer.center_zone_z) continue;
                 int old_base_x=streamer.base_tile_x,old_base_z=streamer.base_tile_z;
                 Packet rebuild_pkt = packet_wrap(payload, pkt_len);
                 if (map_streamer_parse_rebuild_packet(&streamer, &rebuild_pkt)) {
@@ -1487,26 +1517,14 @@ bool client_update(void) {
                         if(trace) printf("[NAV] rebased destination world=(%d,%d)\n",
                             streamer.base_tile_x+minimap.flag_scene_tile_x,streamer.base_tile_z+minimap.flag_scene_tile_z);
                     }
-                    const char *m_dir = "../engine/data/pack/client/maps";
-                    FILE *tf = fopen("../engine/data/pack/client/maps/m50_50", "rb");
-                    if (tf) { fclose(tf); } else { m_dir = "engine/data/pack/client/maps"; }
-                    effects_clear(&effects);
-                    zone_sync_reset(&zones);
-                    GroundItem **saved_items=ground_items_detach(world3d);
-                    if(!saved_items) {fprintf(stderr,"Cannot retain ground items during rebuild\n");running=false;break;}
-                    bool rebuilt=map_streamer_rebuild(&streamer, world, world3d, collision_maps, &flo_cfg, &loc_cfg, m_dir);
-                    loc_clear_model_cache(false);
-                    ground_items_restore(world3d,saved_items,streamer.base_tile_x-old_base_x,streamer.base_tile_z-old_base_z);
-                    if (!rebuilt) {
-                        fprintf(stderr, "Live map rebuild failed\n");
-                        continue;
-                    }
-                    if (has_minimap) minimap_build(&minimap, world, world3d, &media, sync_ctx.current_plane);
-                    printf("[VERIFY] Live REBUILD_NORMAL: %d mapsquares, base=(%d,%d)\n",
-                        streamer.region_count, streamer.base_tile_x, streamer.base_tile_z);
-                    cam.orbit_x = player.base.x;
-                    cam.orbit_z = player.base.z;
-                    chatbox_add_message(&chatbox, 0, NULL, "Loaded new map region.");
+                    uint8_t missing[255];
+                    int missing_length = map_streamer_missing_files(&streamer, client_maps_dir(), missing, (int)sizeof(missing));
+                    if (!protocol_send_map_request(&session, missing, missing_length)) reconnecting = true;   // IOException -> tryReconnect
+                    // TODO: map data packets are not handled, so a missing file stays missing.
+                    if (missing_length) fprintf(stderr, "[Protocol] %d map files missing locally; requested from the server\n", missing_length / 3);
+                    // sceneState = 1: the scene is built on the next PLAYER_INFO (client.java:10801-10806).
+                    if (!scene_build_pending) { build_old_base_x = old_base_x; build_old_base_z = old_base_z; }
+                    scene_build_pending = true;
                 }
             }
         }
@@ -1525,6 +1543,25 @@ bool client_update(void) {
             }
         }
         if(logout_now) {logout_now=false;client_logout();return true;}
+    }
+    int click_button = cycle_click_button;
+    cycle_click_button = 0;
+
+    if (live_server) {
+        // client.updatePlayers (CYCLELOGIC6), updateMergeLocs (CYCLELOGIC5 once the scene is
+        // built), the camera position while an arrow is held, then CYCLELOGIC3, and
+        // handleTabInput's CYCLELOGIC1 on a left click (client.java:7731-7826).
+        // TODO: C handles clicks when the event arrives, so their packets precede these;
+        // Java sends them from handleMouseInput between CYCLELOGIC3 and CYCLELOGIC1.
+        // TODO: modal message dismissal and objDrag release also consume the click in Java.
+        if (++cyclelogic6 > 1406) { cyclelogic6 = 0; protocol_send_cyclelogic6(&session); }
+        if (streamer.scene_state == 2 && ++cyclelogic5 > 85) { cyclelogic5 = 0; protocol_send_cyclelogic5(&session); }
+        if ((held.left || held.right || held.up || held.down) && camera_moved_write++ > 5) {
+            camera_moved_write = 0;
+            protocol_send_camera_position(&session, cam.orbit_pitch, cam.orbit_yaw, minimap_anticheat_angle, minimap_zoom);
+        }
+        if (++cyclelogic3 > 127) { cyclelogic3 = 0; protocol_send_cyclelogic3(&session); }
+        if (click_button == 1 && ++cyclelogic1 > 150) { cyclelogic1 = 0; protocol_send_cyclelogic1(&session); }
     }
 
     // B. Camera & Player Movement Controls (client.java:6671-6684)
@@ -1604,6 +1641,46 @@ bool client_update(void) {
     if(zones.dirty && has_minimap) minimap_build(&minimap,world,world3d,&media,sync_ctx.current_plane);
     zones.dirty=false;
 
+    // client.java:7902-7917, the end of updateGame: ANTICHEAT_CYCLELOGIC4 every 111
+    // cycles, NO_TIMEOUT after 50 cycles without output, and heartbeatTimer reset
+    // whenever the cycle sent anything.
+    if (live_server && !reconnecting) {
+        // client.java:7841-7900: IDLE_TIMER after 4500 idle cycles, then the anticheat drift.
+        if (++idle_cycles > 4500) { idle_timeout = 250; idle_cycles -= 500; protocol_send_idle(&session); }
+        if (++camera_offset_cycle > 500) {
+            camera_offset_cycle = 0;
+            int bits = (int)(math_random() * 8.0);
+            if ((bits & 1) == 1) cam.anticheat_x += camera_offset_x_modifier;
+            if ((bits & 2) == 2) cam.anticheat_z += camera_offset_z_modifier;
+            if ((bits & 4) == 4) cam.anticheat_yaw += camera_offset_yaw_modifier;
+        }
+        if (cam.anticheat_x < -50) camera_offset_x_modifier = 2;
+        if (cam.anticheat_x > 50) camera_offset_x_modifier = -2;
+        if (cam.anticheat_z < -55) camera_offset_z_modifier = 2;
+        if (cam.anticheat_z > 55) camera_offset_z_modifier = -2;
+        if (cam.anticheat_yaw < -40) camera_offset_yaw_modifier = 1;
+        if (cam.anticheat_yaw > 40) camera_offset_yaw_modifier = -1;
+        if (++minimap_offset_cycle > 500) {
+            minimap_offset_cycle = 0;
+            int bits = (int)(math_random() * 8.0);
+            if ((bits & 1) == 1) minimap_anticheat_angle += minimap_angle_modifier;
+            if ((bits & 2) == 2) minimap_zoom += minimap_zoom_modifier;
+        }
+        if (minimap_anticheat_angle < -60) minimap_angle_modifier = 2;
+        if (minimap_anticheat_angle > 60) minimap_angle_modifier = -2;
+        if (minimap_zoom < -20) minimap_zoom_modifier = 1;
+        if (minimap_zoom > 10) minimap_zoom_modifier = -1;
+
+        if (++cyclelogic4 > 110) { cyclelogic4 = 0; protocol_send_cyclelogic4(&session); }
+        if (++heartbeat_timer > 50) protocol_send_keepalive(&session);
+        // Write the cycle's packets; an overflowed or failed write is an IOException.
+        if (session.stream.out_overflow) reconnecting = true;
+        if (client_stream_pending(&session.stream)) {
+            if (!client_stream_flush(&session.stream)) reconnecting = true;
+            heartbeat_timer = 0;
+        }
+    }
+
     return true;
 }
 
@@ -1640,6 +1717,8 @@ bool client_draw(void) {
         return true;
     }
     pix2d_cls();
+    // client.drawScene: CYCLELOGIC2, buffered until the next updateGame (client.java:2186).
+    if (live_server && streamer.scene_state == 2 && ++cyclelogic2 > 1802) { cyclelogic2 = 0; protocol_send_cyclelogic2(&session); }
 
     // 1. Render 3D Viewport (0..512, 0..334)
     pix2d_set_clip(VIEWPORT_X, VIEWPORT_Y, VIEWPORT_X + VIEWPORT_W, VIEWPORT_Y + VIEWPORT_H);
@@ -1999,20 +2078,21 @@ bool client_draw(void) {
     if (has_media) {
         media_draw_shell(&media);
         if (has_minimap) {
-            minimap_draw(&minimap, &media, player.base.x, player.base.z, camera_yaw, 561, 5);
+            int map_yaw = (cam.orbit_yaw + minimap_anticheat_angle) & 0x7FF;
+            minimap_draw(&minimap, &media, player.base.x, player.base.z, cam.orbit_yaw, minimap_anticheat_angle, minimap_zoom, 561, 5);
             for(int x=0;x<world3d->max_tile_x;x++) for(int z=0;z<world3d->max_tile_z;z++)
                 if(world3d->tiles[sync_ctx.current_plane][x][z].items)
-                    minimap_draw_dot(player.base.x,player.base.z,x*128+64,z*128+64,camera_yaw,561,5,media.mapdots[0],media.mapback);
+                    minimap_draw_dot(player.base.x,player.base.z,x*128+64,z*128+64,map_yaw,minimap_zoom,561,5,media.mapdots[0],media.mapback);
             if(live_server) for(int i=0;i<sync_ctx.npc_count;i++) {
                 NpcEntity *npc=sync_ctx.npcs[sync_ctx.npc_indices[i]];
-                minimap_draw_npc_dot(player.base.x,player.base.z,npc,camera_yaw,561,5,media.mapdots[1],media.mapback);
+                minimap_draw_npc_dot(player.base.x,player.base.z,npc,map_yaw,minimap_zoom,561,5,media.mapdots[1],media.mapback);
             }
-            if(offline) minimap_draw_npc_dot(player.base.x,player.base.z,&hans,camera_yaw,561,5,media.mapdots[1],media.mapback);
+            if(offline) minimap_draw_npc_dot(player.base.x,player.base.z,&hans,map_yaw,minimap_zoom,561,5,media.mapdots[1],media.mapback);
             if(live_server) for(int i=0;i<sync_ctx.player_count;i++) {
                 PlayerEntity *other=sync_ctx.players[sync_ctx.player_indices[i]];
-                minimap_draw_player_dot(player.base.x,player.base.z,other,camera_yaw,561,5,media.mapdots[2],media.mapback);
+                minimap_draw_player_dot(player.base.x,player.base.z,other,map_yaw,minimap_zoom,561,5,media.mapdots[2],media.mapback);
             }
-            minimap_draw_destination(&minimap,&media,player.base.x,player.base.z,camera_yaw,561,5);
+            minimap_draw_destination(&minimap,&media,player.base.x,player.base.z,map_yaw,minimap_zoom,561,5);
             // Original minimap draws the local centre marker last.
             pix2d_fill_rect(561+93,5+82,3,3,0xFFFFFF);
         }
@@ -2112,6 +2192,7 @@ void client_end_frame(void) {
         // client.login(username, password, reconnect) after the frame that shows it.
         bool reconnect = reconnecting;
         login_pending = false; reconnecting = false;
+        if (trace) printf("[PARITY] login frame=%d random_state=%llu\n", rendered_frames, (unsigned long long)math_random_state());
         LoginResponse reply = protocol_login_ex(&session, "127.0.0.1", server_port, title.username, title.password, false, reconnect);
         printf("[LOGIN] %s reply=%d\n", reconnect ? "reconnect" : "login", (int)reply);
         if (reply == LOGIN_SUCCESS || reply == LOGIN_MOD_SUCCESS) {
@@ -2120,8 +2201,16 @@ void client_end_frame(void) {
             context_menu_clear(&menu); menu.visible = false;
             chatbox_free(&chatbox); chatbox_init(&chatbox, "Player");
             selection.item_selected = false; selection.spell_selected = false;
-            streamer.scene_state = 0;
-            cam.orbit_yaw = capture_yaw;
+            streamer.scene_state = 0; scene_build_pending = false;
+            idle_cycles = 0;
+            // client.java:7182-7187.
+            cam.anticheat_x = (int)(math_random() * 100.0) - 50;
+            cam.anticheat_z = (int)(math_random() * 110.0) - 55;
+            cam.anticheat_yaw = (int)(math_random() * 80.0) - 40;
+            minimap_anticheat_angle = (int)(math_random() * 120.0) - 60;
+            minimap_zoom = (int)(math_random() * 30.0) - 20;
+            cam.orbit_yaw = ((int)(math_random() * 20.0) - 10) & 0x7FF;
+            if (capture_yaw) cam.orbit_yaw = capture_yaw;   // --camera-yaw debug override
             if (has_minimap) { minimap.flag_scene_tile_x = 0; minimap.flag_scene_tile_z = 0; }
             entity_sync_cleanup(&sync_ctx);
             entity_sync_init(&sync_ctx, &npc_cfg);
@@ -2136,13 +2225,13 @@ void client_end_frame(void) {
             flashing_tab = -1;
             design = (ClientDesign){0};
             comp_cfg.drag.active = false; pending_click = false;
-            last_keepalive = plat.now_ms();
+            session.stream.buffered = true;   // out.pos = 0
             title_screen_unload(&title);
             ingame = true; live_server = true; actions.live = true;
             printf("[PASS] Connected to LIVE SERVER! (is_mod=%d)\n", session.is_mod);
         } else if (reply == LOGIN_RECONNECT_SUCCESS) {
             context_menu_clear(&menu); menu.visible = false;
-            last_keepalive = plat.now_ms();
+            session.stream.buffered = true;   // out.pos = 0
             ingame = true; live_server = true; actions.live = true;
             printf("[STATE] reconnected\n");
         } else if (reconnect || ingame) {

@@ -29,7 +29,7 @@ int main(void) {
         memset(actual,0,(size_t)w*h*sizeof(*actual)); memset(expected,0,(size_t)w*h*sizeof(*expected));
         for(int i=0;i<painted;i++) {int index=read_int(f); assert(index>=0 && index<w*h); expected[index]=(uint32_t)read_int(f);}
         Pix32 *sprite=kind==3?media.mapflag:media.mapdots[kind]; assert(sprite);
-        minimap_draw_dot(px,pz,tx,tz,yaw,0,0,sprite,media.mapback);
+        minimap_draw_dot(px,pz,tx,tz,yaw,0,0,0,sprite,media.mapback);
         for(int i=0;i<w*h;i++) if(actual[i]!=expected[i]) {
             fprintf(stderr,"Java minimap mismatch case=%d sprite=%d yaw=%d pixel=(%d,%d) expected=%06x actual=%06x\n",
                 n,kind,yaw,i%w,i/w,expected[i],actual[i]); return 1;

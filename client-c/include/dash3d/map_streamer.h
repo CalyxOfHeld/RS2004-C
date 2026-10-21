@@ -39,6 +39,14 @@ void map_streamer_init(MapStreamer *ms);
 bool map_streamer_parse_rebuild_packet(MapStreamer *ms, Packet *pkt);
 
 /**
+ * REBUILD_NORMAL's cache check (client.java:9935-9980): for each mapsquare in
+ * packet order, a land file (type 0) then a loc file (type 1) whose CRC is
+ * nonzero and which is absent from maps_dir or fails the CRC is listed as
+ * (type, x, z). Returns the number of bytes written to entries (3 per file).
+ */
+int map_streamer_missing_files(const MapStreamer *ms, const char *maps_dir, uint8_t *entries, int capacity);
+
+/**
  * Unpacks and stitches map chunks into active 104x104 scene graph.
  */
 bool map_streamer_rebuild(MapStreamer *ms,

@@ -1,3 +1,28 @@
+# Phase B (B3/B4): Java parity oracle, protocol parity — October 22, 2026 (Claude)
+
+**Native build.** `A03BE286C5DCE86FB5949D7EC7079E7C0D5B2F1B4770823529966746AED44CF8` is installed as `client-c/bin/rs2client.exe`. It is also `rs2client.lastgood.exe`, `rs2client_bridge.exe` and `rs2client_decor.exe`.
+- The Phase A build is now `bin/rs2client.lastgood-phaseA.exe`.
+- `rs2replay.exe` is `80A1D02D…F231`.
+
+**Oracle.** `ParityOracle.java` runs the unchanged jar on a recorded C session. Use `make parity` with `RS2_PASSWORD` set.
+- **Live session `live-record6`** (login, logout tab, logout button, logout): every outgoing byte matches Java across all 346 in-game frames.
+- **2D areas still differ:** the minimap on every frame, plus a few chat, sidebar and backbase frames. The viewport is deferred to Phase C.
+
+**C fixes found by the oracle:**
+- Java's heartbeat, CYCLELOGIC1–6, the camera-position packet and IDLE_TIMER.
+- Buffered output, flushed per cycle.
+- Five packets per cycle.
+- REBUILD_GETMAPS, and the scene built on PLAYER_INFO.
+- Camera and minimap anticheat offsets.
+- Removal of the invented F-key tabs and Escape handling.
+
+**Checks:**
+- `make test` passes with 0 warnings.
+- The offline scenarios are bit-identical except the `ui` scenario's F-key and Escape frames.
+- Only the disposable `claudesm22.sav` changed.
+
+**Evidence:** `client-c/verification/completion/runs/2026-10-22-phaseB-replay/README.md` (section B3/B4).
+
 # Phase B (B1/B2): client loop extraction, session record/replay — October 22, 2026 (Claude)
 
 **Native build.** SHA-256 `341AB6F2BF27D4FBF7CDBB991C695C224E2D4EAA3679DF7ED8AC5ABE8B4D6C2D` is installed as `client-c/bin/rs2client.exe`, and `rs2client_bridge.exe` and `rs2client_decor.exe` match it.

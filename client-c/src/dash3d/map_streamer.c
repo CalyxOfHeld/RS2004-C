@@ -35,6 +35,40 @@ bool map_streamer_parse_rebuild_packet(MapStreamer *ms, Packet *pkt) {
     return true;
 }
 
+// True when maps_dir/name exists and its bytes have this CRC32 (signlink.cacheload + crc32).
+static bool map_file_cached(const char *maps_dir, const char *name, uint32_t crc) {
+    char path[512];
+    snprintf(path, sizeof(path), "%s/%s", maps_dir, name);
+    FILE *f = fopen(path, "rb");
+    if (!f) return false;
+    uint8_t *data = NULL;
+    long size = -1;
+    if (fseek(f, 0, SEEK_END) == 0) size = ftell(f);
+    if (size >= 0 && fseek(f, 0, SEEK_SET) == 0) data = (uint8_t *)malloc(size > 0 ? (size_t)size : 1);
+    bool ok = data && fread(data, 1, (size_t)size, f) == (size_t)size && packet_crc32(data, (size_t)size) == crc;
+    free(data);
+    fclose(f);
+    return ok;
+}
+
+int map_streamer_missing_files(const MapStreamer *ms, const char *maps_dir, uint8_t *entries, int capacity) {
+    int length = 0;
+    for (int i = 0; i < ms->region_count; i++) {
+        const MapRegionDescriptor *r = &ms->regions[i];
+        for (int type = 0; type < 2; type++) {
+            uint32_t crc = type == 0 ? r->land_crc : r->loc_crc;
+            if (crc == 0) continue;
+            char name[32];
+            snprintf(name, sizeof(name), "%c%d_%d", type == 0 ? 'm' : 'l', r->rx, r->rz);
+            if (map_file_cached(maps_dir, name, crc) || length + 3 > capacity) continue;
+            entries[length++] = (uint8_t)type;
+            entries[length++] = (uint8_t)r->rx;
+            entries[length++] = (uint8_t)r->rz;
+        }
+    }
+    return length;
+}
+
 static uint8_t* decompress_map_file(const char *path, size_t *out_len) {
     FILE *f = fopen(path, "rb");
     if (!f) {

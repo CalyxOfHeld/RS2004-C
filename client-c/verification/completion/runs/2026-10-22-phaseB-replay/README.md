@@ -61,18 +61,68 @@ The login password is RSA-encrypted before it is written (`protocol.c`), and a s
 
 `live-smoke/` is the earlier smoke of the extracted loop. Its second run got reply 5 because the previous session was still logged in.
 
+## B3/B4: the Java parity oracle and `make parity`
+
+**What it does.** `reference/src/ParityOracle.java` runs the unchanged `javaclient/build/libs/rs2client.jar` on a recorded C session:
+- It drives `update(437)` once per logged `U` and `draw()` once per `F`, synchronously. There is no GameShell thread, and the flame thread is suppressed with `flameActive`.
+- It emulates signlink, serving `pack/client/maps`, and runs a local HTTP server for `crc` and the archives, as engine `web.ts` does.
+- **Login:** it uses a local ServerSocket. Math.random is synced from the C `[PARITY] login ... random_state=` line, so the ISAAC seeds and the anticheat rolls match.
+- **After login,** the inbound stream is released cycle by cycle, exactly as C read it, and the outgoing stream is captured.
+- **Every frame,** the outgoing bytes are compared exactly. A mismatch is reported with the decoded opcodes, using the ISAAC seeds and the sizes in `ClientGameProt.ts`.
+- **The composited PixMap areas** are hashed (FNV-1a 64 over the RGB). `rs2replay --regions --region-hashes` hashes the same rectangles from the C framebuffer.
+
+**Tools.**
+- `tools/record_live.ps1 -OutDir D -InputScript S` records a live session. It snapshots the saves and reports which changed, and reads `RS2_USERNAME`/`RS2_PASSWORD` from the environment.
+- `tools/parity.ps1 -Log L -OutDir D [-DumpFrame N]` runs the whole comparison. `tools/parity_compare.py` writes the summary.
+- `make parity` (in `client-c`) runs it on `live-record6/session.rec` and needs `RS2_PASSWORD`.
+
+### Results: `live-record6` (login, logout tab click, logout button, logout)
+
+- **Protocol: MATCH.** The login packet is identical (105 bytes), and every outgoing byte matches Java across all 346 in-game frames.
+- **2D areas: still differ.**
+  - `areaMapback` differs on every frame.
+  - `areaChatback` differs on 15 frames, `areaBackbase2`/`areaBackhmid1` on 13, and `areaSidebar` on 27 from frame 320 (the logout tab).
+  - The `imageTitle2-8` names that appear on in-game frames are unexplained; they may be a reflection naming artifact in `regionName`.
+- **`areaViewport`** differs on every frame, as expected until Phase C.
+
+### C changes that parity found (all from `client.java`, Rev 225)
+
+1. **Wall-clock keepalive removed.**
+   - C now sends ANTICHEAT_CYCLELOGIC4 (236) every 111 cycles.
+   - It sends NO_TIMEOUT after 50 cycles with no output, and four NO_TIMEOUTs during buildScene.
+   - **Output is buffered** like Java's `out` (5000 bytes) and written once at the end of each in-game update. `ClientStream.buffered`, `client_stream_flush` and `client_stream_pending` were added.
+2. **At most five packets are read per cycle** (client.java:7665).
+3. **REBUILD_NORMAL:**
+   - The same centre zone is ignored while a scene exists.
+   - REBUILD_GETMAPS (150) lists missing or CRC-mismatched map files and is always sent.
+   - The scene is built on the next PLAYER_INFO (sceneState 1→2).
+   - TODO: the map data packets that answer 150 are not handled.
+4. **Anticheat:**
+   - CYCLELOGIC1, 2 (draw time), 3, 5 and 6, plus EVENT_CAMERA_POSITION (189) while an arrow key is held.
+   - The login rolls of the camera and minimap offsets, angle and zoom, and the orbit yaw.
+   - The 500-cycle drift, and IDLE_TIMER (70) after 4500 idle cycles. Mouse and key events reset the idle count.
+5. **Camera and minimap now apply the offsets.**
+   - The camera orbit tracks the player plus the offset, and the scene yaw adds the angle.
+   - The minimap rotation and dots use yaw plus angle and zoom; the compass uses the plain yaw.
+   - The minimap click and the MOVE_MINIMAPCLICK trailer carry the angle and zoom.
+6. **Invented mechanics removed.** C switched tabs on F1–F12 and closed interfaces and menus on Escape. Rev 225 has neither: GameShell maps F-keys to 1008+, which `client.java` never reads, and drops Escape.
+
+**Offline equivalence (`scenarios.ps1`).** The scene, walk and rebuild captures are bit-identical to the previous build. Only the `ui` scenario changed, from frame 60, which is where its F2, F4 and Escape presses now do nothing.
+
+**Known ordering gap (TODO in `client.c`).** C acts on clicks when the event arrives. Java acts in `handleMouseInput`, after CYCLELOGIC6, 5 and 3 and the camera packet. A click on the same cycle one of those fires would reorder bytes.
+
+### Pitfalls found while building it
+- **Replays need `RS2_PASSWORD` even for the title frames,** because the masked password is drawn. `parity.ps1` now refuses to run without it.
+- **Run the C client from `client-c`,** since the cache path is relative. Both scripts pin the working directory.
+- **After logout, the Java flame thread draws concurrently.** The oracle snapshots its PixMap map under a lock.
+
 ## Builds
 
 | File | SHA-256 |
 |---|---|
-| `bin/rs2client.exe` (also `rs2client_bridge.exe`, `rs2client_decor.exe`) | `341AB6F2BF27D4FBF7CDBB991C695C224E2D4EAA3679DF7ED8AC5ABE8B4D6C2D` |
-| `bin/rs2replay.exe` | `30D915ACDC8CA13448190BFC0F4B0F62203EDC79F0E4DF881C17C3E65938F3DF` |
-| `bin/rs2client.lastgood.exe` (Phase A) | `E931CB6C…FEBE` |
+| `bin/rs2client.exe` (also `rs2client.lastgood.exe`, `rs2client_bridge.exe`, `rs2client_decor.exe`) | `A03BE286C5DCE86FB5949D7EC7079E7C0D5B2F1B4770823529966746AED44CF8` |
+| `bin/rs2replay.exe` | `80A1D02D3703175DDA857F68578A1331AB7E75D794FD9574E77ED1984B6DF231` |
+| `bin/rs2client.lastgood-phaseA.exe` (Phase A) | `E931CB6C…FEBE` |
 | `bin/rs2client.lastgood-0510.exe` (earlier lastgood) | `0510EADD…97E4` |
 
-## Not yet done (B3/B4)
-
-- **Java oracle:** feed the same recorded inbound stream to the unchanged `client` under `reference/src`, with seeded Math.random and ISAAC from the logged seed. Compare outgoing packets and the composited areas per tick.
-- **`make parity`.**
-
-Replay so far proves the C client is deterministic given its inputs. It does not yet prove the C client matches Java.
+The B1/B2 build `341AB6F2…6C2D` was superseded by this checkpoint.

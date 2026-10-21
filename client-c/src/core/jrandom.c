@@ -29,10 +29,17 @@ void math_random_seed(int64_t seed) {
     math_rng_ready = true;
 }
 
+static void math_random_ready(void) {
+    // Java seeds Math's generator from System.nanoTime(); any clock value is equivalent.
+    if (!math_rng_ready) math_random_seed((int64_t)time(NULL) * 1000003LL + (int64_t)clock());
+}
+
 double math_random(void) {
-    if (!math_rng_ready) {
-        // Java seeds Math's generator from System.nanoTime(); any clock value is equivalent.
-        math_random_seed((int64_t)time(NULL) * 1000003LL + (int64_t)clock());
-    }
+    math_random_ready();
     return jrandom_next_double(&math_rng);
+}
+
+uint64_t math_random_state(void) {
+    math_random_ready();
+    return math_rng.seed;
 }

@@ -46,6 +46,18 @@ int protocol_poll_packet(GameSession *session, int *out_opcode, uint8_t *out_pay
 
 bool protocol_send_idle(GameSession *session);
 bool protocol_send_keepalive(GameSession *session);
+/* The ANTICHEAT_CYCLELOGIC packets (ClientGameProt.ts). 2 and 6 draw Math.random. */
+bool protocol_send_cyclelogic1(GameSession *session);
+bool protocol_send_cyclelogic2(GameSession *session);
+bool protocol_send_cyclelogic3(GameSession *session);
+bool protocol_send_cyclelogic4(GameSession *session);
+bool protocol_send_cyclelogic5(GameSession *session);
+bool protocol_send_cyclelogic6(GameSession *session);
+/* EVENT_CAMERA_POSITION (189): client.updateGame while an arrow key is held. */
+bool protocol_send_camera_position(GameSession *session, int pitch, int yaw, int minimap_angle, int minimap_zoom);
+/* REBUILD_NORMAL's map request (opcode 150, var-byte): (type, x, z) per missing file;
+   sent even when nothing is missing. */
+bool protocol_send_map_request(GameSession *session, const uint8_t *entries, int length);
 bool protocol_send_button(GameSession *session, int button_id);
 bool protocol_send_close_modal(GameSession *session);
 bool protocol_send_resume_pausebutton(GameSession *session, int component_id);
@@ -57,7 +69,8 @@ bool protocol_send_item_on_item(GameSession *session,int item,int slot,int compo
 bool protocol_send_route(GameSession *session,int base_x,int base_z,int source_x,int source_z,const int *x,const int *z,int count,bool ctrl);
 bool protocol_send_operation_route(GameSession *session,int base_x,int base_z,int source_x,int source_z,const int *x,const int *z,int count,bool ctrl);
 bool protocol_send_minimap_route(GameSession *session,int base_x,int base_z,int source_x,int source_z,
-    const int *x,const int *z,int count,bool ctrl,int click_x,int click_y,int yaw,int player_x,int player_z,bool nearest);
+    const int *x,const int *z,int count,bool ctrl,int click_x,int click_y,int yaw,int minimap_angle,int minimap_zoom,
+    int player_x,int player_z,bool nearest);
 bool protocol_send_opplayer(GameSession *session,int op,int slot);
 bool protocol_send_inv_button(GameSession *session, int op, int item_id, int slot, int component_id);
 bool protocol_send_inv_buttond(GameSession *session, int component_id, int from_slot, int to_slot);

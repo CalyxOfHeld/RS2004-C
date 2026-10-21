@@ -267,7 +267,7 @@ int client_stream_read_byte(ClientStream *stream) {
     return -1;
 }
 
-bool client_stream_write(ClientStream *stream, const uint8_t *src, size_t len) {
+static bool write_now(ClientStream *stream, const uint8_t *src, size_t len) {
     if (replaying()) {
         long long ok = 0;
         size_t length = 0;
@@ -294,12 +294,31 @@ bool client_stream_write(ClientStream *stream, const uint8_t *src, size_t len) {
     return ok;
 }
 
+bool client_stream_write(ClientStream *stream, const uint8_t *src, size_t len) {
+    if (!stream || !stream->buffered) return write_now(stream, src, len);
+    if (len > sizeof(stream->out_buf) - stream->out_len) { stream->out_overflow = true; return false; }
+    memcpy(stream->out_buf + stream->out_len, src, len);
+    stream->out_len += len;
+    return true;
+}
+
+bool client_stream_flush(ClientStream *stream) {
+    if (!stream || !stream->out_len) return true;
+    size_t len = stream->out_len;
+    stream->out_len = 0;
+    return write_now(stream, stream->out_buf, len);
+}
+
+size_t client_stream_pending(const ClientStream *stream) { return stream ? stream->out_len : 0; }
+
 void client_stream_close(ClientStream *stream) {
     if (replaying()) {
         if (!stream) return;
         if (session_log_take("NZ")) { stream->sock = INVALID_SOCKET_VAL; stream->connected = false; }
+        stream->buffered = false; stream->out_len = 0;
         return;
     }
     if (recording() && stream) { session_log_begin("NZ"); session_log_end(); }
+    if (stream) { stream->buffered = false; stream->out_len = 0; }
     raw_close(stream);
 }

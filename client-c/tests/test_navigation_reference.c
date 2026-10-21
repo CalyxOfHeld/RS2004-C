@@ -43,7 +43,7 @@ int main(void) {
         uint32_t seed[]={17,31,57,99}; isaac_init(&session.out_cipher,seed,4);
         MinimapClick click={0}; bool eligible=true;
         if(type==1) {
-            eligible=minimap_click_target(mx,my,sx*128+64,sz*128+64,yaw,&click);
+            eligible=minimap_click_target(mx,my,sx*128+64,sz*128+64,yaw,0,&click);
             dx=click.tile_x; dz=click.tile_z;
         }
         bool found=eligible && pathfinder_find_path(&pf,&map,sx,sz,dx,dz,nearest,&path);
@@ -58,7 +58,7 @@ int main(void) {
                 px=path.steps_x[i]; pz=path.steps_z[i];
             }
             if(type==1) sent=protocol_send_minimap_route(&session,3184,3184,sx,sz,path.steps_x,path.steps_z,
-                path.step_count,ctrl,click.click_x,click.click_y,yaw,sx*128+64,sz*128+64,path.reached_nearest);
+                path.step_count,ctrl,click.click_x,click.click_y,yaw,0,0,sx*128+64,sz*128+64,path.reached_nearest);
             else if(type==2) sent=protocol_send_operation_route(&session,3184,3184,sx,sz,path.steps_x,path.steps_z,path.step_count,ctrl);
             else sent=protocol_send_route(&session,3184,3184,sx,sz,path.steps_x,path.steps_z,path.step_count,ctrl);
         }

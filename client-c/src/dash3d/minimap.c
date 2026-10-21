@@ -128,10 +128,13 @@ void minimap_draw(
     int player_x,
     int player_z,
     int camera_yaw,
+    int anticheat_angle,
+    int zoom,
     int mapback_x,
     int mapback_y
 ) {
     if (!m || !media) return;
+    int map_yaw = (camera_yaw + anticheat_angle) & 0x7FF;   // client.java:3494
 
     int cx = player_x / 32 + 48;
     int cy = 464 - player_z / 32;
@@ -140,12 +143,12 @@ void minimap_draw(
     if (m->image_minimap) {
         pix32_draw_rotated_masked(
             m->image_minimap,
-            camera_yaw,
+            map_yaw,
             146,
             m->minimap_mask_offsets,
             151,
             cy,
-            256,
+            zoom + 256,
             cx,
             mapback_x + 21,
             mapback_y + 9,
@@ -177,7 +180,7 @@ void minimap_draw(
         if(loc->level!=m->level || loc->shape!=22 || loc->mapfunction<0 || loc->mapfunction>=50) continue;
         Pix32 *sprite=media->mapfunction[loc->mapfunction];if(!sprite) continue;
         minimap_draw_dot(player_x,player_z,loc->x*128+64,loc->z*128+64,
-            camera_yaw,mapback_x,mapback_y,sprite,media->mapback);
+            map_yaw,zoom,mapback_x,mapback_y,sprite,media->mapback);
     }
 
     // Draw local player center white dot (3x3 pixels at center)
@@ -189,7 +192,8 @@ void minimap_draw_dot(
     int player_z,
     int target_x,
     int target_z,
-    int camera_yaw,
+    int yaw,
+    int zoom,
     int mapback_x,
     int mapback_y,
     Pix32 *dot_sprite,
@@ -204,9 +208,10 @@ void minimap_draw_dot(
     int dist_sq = dx * dx + dz * dz;
     if (dist_sq > 6400) return; // Outside minimap circle
 
-    int angle = camera_yaw & 2047;
-    int sin_val = pix3d_sin_table[angle];
-    int cos_val = pix3d_cos_table[angle];
+    // client.drawOnMinimap (client.java:6770-6782).
+    int angle = yaw & 2047;
+    int sin_val = pix3d_sin_table[angle] * 256 / (zoom + 256);
+    int cos_val = pix3d_cos_table[angle] * 256 / (zoom + 256);
 
     int rx = (dz * sin_val + dx * cos_val) >> 16;
     int rz = (dz * cos_val - dx * sin_val) >> 16;
@@ -232,34 +237,34 @@ void minimap_draw_dot(
 }
 
 void minimap_draw_npc_dot(int player_x, int player_z, const NpcEntity *npc,
-    int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite, const Pix8 *mask) {
+    int yaw, int zoom, int mapback_x, int mapback_y, Pix32 *dot_sprite, const Pix8 *mask) {
     // Revision-225 client.drawMinimap: isVisible(false) means type != null.
     if (!npc || !npc->has_type || !npc->type.minimap) return;
     minimap_draw_dot(player_x, player_z, npc->base.x, npc->base.z,
-        camera_yaw, mapback_x, mapback_y, dot_sprite, mask);
+        yaw, zoom, mapback_x, mapback_y, dot_sprite, mask);
 }
 
 void minimap_draw_player_dot(int player_x, int player_z, const PlayerEntity *other,
-    int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite, const Pix8 *mask) {
+    int yaw, int zoom, int mapback_x, int mapback_y, Pix32 *dot_sprite, const Pix8 *mask) {
     // Revision-225 PlayerEntity.isVisible and client.drawMinimap.
     if (!other || !other->visible) return;
     minimap_draw_dot(player_x, player_z, other->base.x, other->base.z,
-        camera_yaw, mapback_x, mapback_y, dot_sprite, mask);
+        yaw, zoom, mapback_x, mapback_y, dot_sprite, mask);
 }
 
 void minimap_draw_destination(Minimap *m, Media *media, int player_x, int player_z,
-    int camera_yaw, int mapback_x, int mapback_y) {
+    int yaw, int zoom, int mapback_x, int mapback_y) {
     if (!m || !media || !media->mapflag || m->flag_scene_tile_x == 0) return;
     minimap_draw_dot(player_x,player_z,m->flag_scene_tile_x*128+64,m->flag_scene_tile_z*128+64,
-        camera_yaw,mapback_x,mapback_y,media->mapflag,media->mapback);
+        yaw,zoom,mapback_x,mapback_y,media->mapflag,media->mapback);
 }
 
 bool minimap_click_target(int mouse_x, int mouse_y, int player_x, int player_z,
-    int camera_yaw, MinimapClick *click) {
+    int yaw_in, int zoom, MinimapClick *click) {
     if (!click || mouse_x < 582 || mouse_x >= 728 || mouse_y < 14 || mouse_y >= 165) return false;
     int x = mouse_x - 582 - 73, y = mouse_y - 14 - 75;
-    int yaw = camera_yaw & 2047;
-    int sin = pix3d_sin_table[yaw], cos = pix3d_cos_table[yaw];
+    int yaw = yaw_in & 2047;
+    int sin = pix3d_sin_table[yaw] * (zoom + 256) >> 8, cos = pix3d_cos_table[yaw] * (zoom + 256) >> 8;
     int dx = (y * sin + x * cos) >> 11;
     int dz = (y * cos - x * sin) >> 11;
     *click = (MinimapClick){x, y, (player_x + dx) >> 7, (player_z - dz) >> 7};

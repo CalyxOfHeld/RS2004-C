@@ -1,0 +1,3 @@
+OK login packet identical (105 bytes)
+STOP the client left the game at frame 346; 346 in-game frames compared
+RESULT MATCH

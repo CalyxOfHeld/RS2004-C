@@ -1,46 +1,41 @@
 # Claude handoff — 2004scape C Rewrite
 
-Date: 2026-10-22  
+Date: 2026-10-22 (B3/B4 checkpoint)  
 Workspace: `C:\Users\USER\Documents\2004scape-LostCityRS\2004scape C Rewrite`
 
 ## Current state
 
-The native client is at a verified checkpoint. Phase A of `CLAUDE-PLAN.md` is complete, and so are Phase B checkpoints B1/B2: loop extraction and session record/replay. The installed executable is:
+Phase A and Phase B checkpoints B1–B4 are done. The C client's outgoing protocol now matches the unchanged Java client byte for byte on a recorded live session.
 
-`client-c/bin/rs2client.exe`
+The installed executable is `client-c/bin/rs2client.exe`:
 
-SHA-256: `341AB6F2BF27D4FBF7CDBB991C695C224E2D4EAA3679DF7ED8AC5ABE8B4D6C2D`
+SHA-256: `A03BE286C5DCE86FB5949D7EC7079E7C0D5B2F1B4770823529966746AED44CF8`
 
-- `rs2client_bridge.exe` and `rs2client_decor.exe` match this hash. Use `play_client.bat` to launch it.
-- The Phase A build (`E931…FEBE`) is `client-c/bin/rs2client.lastgood.exe`. The older `0510…97E4` is `rs2client.lastgood-0510.exe`.
-- The headless replayer is `client-c/bin/rs2replay.exe`.
+- `rs2client.lastgood.exe`, `rs2client_bridge.exe` and `rs2client_decor.exe` match this hash.
+- The Phase A build is `rs2client.lastgood-phaseA.exe`.
+- `rs2replay.exe` is `80A1D02D…F231`.
 
-## Phase B so far (B1/B2)
+## Phase B status
 
-- **The client is in `src/client/client.c`,** with its API in `include/client/client.h`. `platform/sdl2_main.c` is only the SDL layer and GameShell pacing. The before/after builds are byte-identical on 54 frames across 4 scenarios.
-- **Recording:** `rs2client --record PATH` (with `--seed N` optional, plus `--fixed-step` for tests) writes a session log.
-- **Replay:** `rs2replay LOG [--out DIR]` reproduces it headlessly. It checks every outgoing byte and every frame hash, and takes `RS2_PASSWORD` from the environment.
-- **Live 440-frame login/logout session:** replay PASS. The negative controls fail as expected.
-- Evidence and tools (`scenarios.ps1`, `controls.ps1`, `tamper.py`, `cmplogs.py`) are in `client-c/verification/completion/runs/2026-10-22-phaseB-replay/`.
-- **Next (B3/B4):** a Java oracle over the recorded inbound stream, compared per tick, then `make parity`.
+- **B1/B2 (loop extraction, record/replay):** see `runs/2026-10-22-phaseB-replay/README.md`.
+- **B3/B4 (parity oracle, `make parity`):** the same README, section "B3/B4", covers the design, the results, every C change and the pitfalls.
+- **Workflow:**
+  1. Set `RS2_USERNAME`/`RS2_PASSWORD`, using the disposable account `claudesm22`. Never write the password to disk.
+  2. Record with `verification/completion/tools/record_live.ps1 -OutDir <dir> -InputScript <script>`. It snapshots the saves and reports changes.
+  3. Run `verification/completion/tools/parity.ps1 -Log <dir>\session.rec -OutDir <dir>\parity`, or `make parity` for the checked-in log.
+  4. Read `parity/java/java-report.txt` (the first protocol divergence, with decoded opcodes) and `parity/parity-summary.txt` (per-region frame counts).
+  5. Add `-DumpFrame N` to get the Java PNG and C BMP of a frame.
 
-## B3 design notes (not started; written for the next session)
+## Next steps (in order)
 
-1. **The oracle is a new `reference/src/ParityOracle.java`** on the unchanged jar (`javaclient/build/libs/rs2client.jar` first on the classpath).
-   - Do not use the `referenceTask` hook in `reference/isolation.patch`. It exists only in the patched overlay; the unchanged jar does not have it.
-   - **Drive it synchronously** instead of with `GameShell.run`: call `update()` once per logged `U` and `draw()` once per `F`, from the oracle thread, through reflection (see `TitleOracle.java` for the field and method helpers).
-   - Avoid starting the flame thread: set `flameActive=true` before `loadTitle`, as TitleOracle does. Its Math.random use is timing-dependent and cannot match C.
-2. **Network feed.** Use a localhost `ServerSocket` that serves the log's inbound bytes.
-   - **Before each cycle,** deliver bytes up to what C saw: the delivered count is the cycle's first `NA` plus the bytes consumed so far. Then poll the client's `stream.available()` until it matches, so the result is deterministic.
-   - **Flag any cycle where C saw new bytes arrive mid-cycle** (`NA` grew). That cycle cannot be reproduced exactly.
-3. **Login.** Call `client.login(user, pass, false)` at the frame where C logged `NC`. C autologs in from `client_end_frame`; Java has no autologin.
-   - Java's ISAAC seeds come from Math.random, so they differ from C's. After login, replace Java's in/out `Isaac` objects with ones built from C's seeds. To get them, have the C replay print the seeds and its `jrandom` 48-bit state at login, and set Java's `Math$RandomNumberGeneratorHolder` Random seed to that state.
-   - Compare the login packet as plaintext (the RSA block holds the seeds). Compare all later outgoing bytes exactly.
-4. **Comparison.** For each tick, compare outgoing packets and the composited PixMap areas (offsets as in `ReferenceHarness.java`) against the C framebuffer. Dump the first difference.
-   - **Expect differences in the 3D viewport.** Finding F2 says the C renderer is not a port of the Java one; that is Phase C. Gate on the 2D areas and on packets first.
-5. **`make parity`** runs `rs2replay` plus the oracle on a checked-in session log, such as `runs/2026-10-22-phaseB-replay/live-record/session.rec`, with `RS2_PASSWORD` from the environment.
-
-The user's server runs on ports 43595, 8889 and 8899 under PID 2352. The user has authorized Claude to start and stop the local server (snapshot saves around live runs). Never stop processes Claude did not start.
+1. **Make the 2D areas match.** Start with `areaMapback`, which differs on every frame.
+   - The minimap now applies Java's anticheat angle and zoom, so compare the frame dumps for the remaining cause: the mapfunction jitter TODO in `minimap.c`, or `drawRotatedMasked` with zoom ≠ 256.
+   - Then `areaChatback`, `areaBackbase2`/`areaBackhmid1`, and `areaSidebar` from frame 320 (the logout tab).
+   - Explain the `imageTitle2-8` region names seen on in-game frames. Check `regionName` in the oracle first.
+2. **Fix the event-time click order.** C runs click handlers when the event arrives; Java runs them in `handleMouseInput`, after CYCLELOGIC6/5/3 and the camera packet. Process queued clicks inside `client_update` in Java's order. A TODO marks the spot in `client.c`.
+3. **Handle the map data packets** that answer REBUILD_GETMAPS (TODO in `client.c`).
+4. **Record richer sessions:** walking, a minimap click, arrow-key camera movement (camera packet 189), chat, and an interface. Run the oracle on each.
+5. **Then Phase C** (the viewport renderer port), **Phase D** (N1–N3, F3–F5) and **Phase E**, per `CLAUDE-PLAN.md`.
 
 ## Completed in the latest checkpoint (Phase A)
 
@@ -87,15 +82,10 @@ Use only the bundled revision-225 Java client, the TypeScript port and the engin
 
 Local commits are authorized: one per verified checkpoint, with `git -c safe.directory=*`, using scoped adds. Never push and never rewrite history.
 
-## Next task — Phase B (differential replay)
-
-1. Extract the client loop from `main()` into a module with receive/tick/draw entry points (F6).
-2. Record decrypted server→client packets and input per tick.
-3. Replay headlessly into the Java client and into C, with fixed ISAAC seeds and `Math.random` seeded on both sides. Native uses `math_random_seed`; Java uses `Math$RandomNumberGeneratorHolder.randomNumberGenerator.setSeed`, as `DataOracle` does.
-4. Compare framebuffer, state and outgoing packets per tick, then add `make parity`.
-
 ## Operational notes
 
+- Write any script containing backslashes with the Write tool. Git Bash heredocs collapse `\\` to `\`.
+- Parity tooling needs `javac`/`java` and `python` on PATH. Run the PowerShell scripts with `$ErrorActionPreference = "Continue"`, because native stderr would otherwise be fatal.
 - Native builds from Git Bash fail with "unable to make temporary file". Build from PowerShell with `C:\llvm-mingw\bin` on PATH and `TMP=$env:TEMP`.
 - `make` overwrites `bin/rs2client.exe`. Keep `rs2client.lastgood.exe` until a new build is verified.
 - **Git Bash quoted heredocs collapse `\\` to `\`.** This has corrupted escapes twice. Write scripts with the Write tool into the scratchpad and run them from there.

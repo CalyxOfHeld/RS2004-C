@@ -22,7 +22,7 @@ TARGET        = bin/rs2client.exe
 REPLAY_TARGET = bin/rs2replay.exe
 VIEWER_TARGET = bin/model_viewer.exe
 
-.PHONY: all test clean
+.PHONY: all test clean parity
 
 all: $(TARGET) $(REPLAY_TARGET) $(VIEWER_TARGET)
 
@@ -134,6 +134,13 @@ test: $(TEST_BINS)
 	@./bin/test_bank_interface.exe
 	@./bin/test_data_reference.exe --check ../engine/data/pack/client tests/fixtures/data-reference.digest
 	@echo "================ ALL TESTS PASSED ================"
+
+# Differential parity against the unchanged Java client on a recorded session.
+# Needs javac/java, python and the session's password in RS2_PASSWORD.
+PARITY_LOG ?= verification/completion/runs/2026-10-22-phaseB-replay/live-record6/session.rec
+PARITY_OUT ?= build/parity
+parity: all
+	powershell -NoProfile -ExecutionPolicy Bypass -File verification/completion/tools/parity.ps1 -Log $(PARITY_LOG) -OutDir $(PARITY_OUT)
 
 clean:
 	rm -rf build bin/rs2client.exe bin/model_viewer.exe bin/test_*.exe

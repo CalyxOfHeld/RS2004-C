@@ -1,0 +1,38 @@
+﻿== oracle report
+  OK login packet identical (105 bytes)
+  STOP the client left the game at frame 346; 346 in-game frames compared
+  RESULT MATCH
+== regions from frame 1 (first in-game frame)
+  areaBackbase1     346 frames,    0 differ
+  areaBackbase2     346 frames,   13 differ, first at frame 1
+  areaBackhmid1     346 frames,   13 differ, first at frame 1
+  areaBackhmid2     346 frames,    0 differ
+  areaBackleft1     346 frames,    1 differ, first at frame 346
+  areaBackleft2     346 frames,    0 differ
+  areaBackright1    346 frames,    1 differ, first at frame 346
+  areaBackright2    346 frames,    1 differ, first at frame 346
+  areaBacktop1      346 frames,    1 differ, first at frame 346
+  areaBacktop2      346 frames,    1 differ, first at frame 346
+  areaBackvmid1     346 frames,    0 differ
+  areaBackvmid2     346 frames,    0 differ
+  areaBackvmid3     346 frames,    0 differ
+  areaChatback      346 frames,   15 differ, first at frame 1
+  areaMapback       346 frames,  346 differ, first at frame 1
+  areaSidebar       346 frames,   27 differ, first at frame 320
+  areaViewport      346 frames,  346 differ, first at frame 1
+  imageTitle2       346 frames,  345 differ, first at frame 1
+  imageTitle3       346 frames,   15 differ, first at frame 1
+  imageTitle4       346 frames,  344 differ, first at frame 1
+  imageTitle5       346 frames,  344 differ, first at frame 1
+  imageTitle6       346 frames,   39 differ, first at frame 1
+  imageTitle7       346 frames,  329 differ, first at frame 17
+  imageTitle8       346 frames,   12 differ, first at frame 1
+  screen            346 frames,  346 differ, first at frame 1
+  imageTitle2_        1 frames,    0 differ
+  imageTitle3_        1 frames,    0 differ
+  imageTitle4_        1 frames,    0 differ
+  imageTitle5_        1 frames,    0 differ
+  imageTitle6_        1 frames,    0 differ
+  imageTitle7_        1 frames,    0 differ
+  imageTitle8_        1 frames,    0 differ
+== PARITY DIFFERS

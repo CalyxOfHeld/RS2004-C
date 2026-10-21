@@ -288,6 +288,75 @@ bool protocol_send_keepalive(GameSession *session) {
     return client_stream_write(&session->stream, &opcode, 1);
 }
 
+static bool send_fixed(GameSession *session, int opcode, const uint8_t *body, size_t len) {
+    if (!session || !session->in_game) return false;
+    uint8_t buf[8];
+    buf[0] = (uint8_t)((opcode + isaac_next(&session->out_cipher)) & 0xFF);
+    if (len) memcpy(buf + 1, body, len);
+    return client_stream_write(&session->stream, buf, 1 + len);
+}
+
+// client.handleTabInput (client.java:8702-8708).
+bool protocol_send_cyclelogic1(GameSession *session) { static const uint8_t b[1] = { 43 }; return send_fixed(session, 233, b, 1); }
+
+// client.drawScene (client.java:2186-2207).
+bool protocol_send_cyclelogic2(GameSession *session) {
+    if (!session || !session->in_game) return false;
+    uint8_t buf[2 + 16];
+    Packet p = packet_wrap(buf, sizeof(buf));
+    p1(&p, 146 + isaac_next(&session->out_cipher)); p1(&p, 0);
+    size_t start = p.pos;
+    p2(&p, 29711); p1(&p, 70); p1(&p, (int)(math_random() * 256.0)); p1(&p, 242); p1(&p, 186); p1(&p, 39); p1(&p, 61);
+    if ((int)(math_random() * 2.0) == 0) p1(&p, 13);
+    if ((int)(math_random() * 2.0) == 0) p2(&p, 57856);
+    p2(&p, (int)(math_random() * 65536.0));
+    psize1(&p, p.pos - start);
+    return client_stream_write(&session->stream, buf, p.pos);
+}
+
+// client.updateGame (client.java:7801-7805).
+bool protocol_send_cyclelogic3(GameSession *session) { static const uint8_t b[3] = { 0x4C, 0x2B, 0x2C }; return send_fixed(session, 215, b, 3); }   // p3(4991788)
+
+// client.updateGame (client.java:7902-7906).
+bool protocol_send_cyclelogic4(GameSession *session) { static const uint8_t b[4] = { 0, 0, 0, 0 }; return send_fixed(session, 236, b, 4); }
+
+// client.updateMergeLocs (client.java:3578-3582).
+bool protocol_send_cyclelogic5(GameSession *session) { return send_fixed(session, 85, NULL, 0); }
+
+// client.updatePlayers (client.java:9572-9596).
+bool protocol_send_cyclelogic6(GameSession *session) {
+    if (!session || !session->in_game) return false;
+    uint8_t buf[2 + 16];
+    Packet p = packet_wrap(buf, sizeof(buf));
+    p1(&p, 219 + isaac_next(&session->out_cipher)); p1(&p, 0);
+    size_t start = p.pos;
+    p1(&p, 162); p1(&p, 22);
+    if ((int)(math_random() * 2.0) == 0) p1(&p, 84);
+    p2(&p, 31824); p2(&p, 13490);
+    if ((int)(math_random() * 2.0) == 0) p1(&p, 123);
+    if ((int)(math_random() * 2.0) == 0) p1(&p, 134);
+    p1(&p, 100); p1(&p, 94); p2(&p, 35521);
+    psize1(&p, p.pos - start);
+    return client_stream_write(&session->stream, buf, p.pos);
+}
+
+// client.updateGame (client.java:7735-7742).
+bool protocol_send_camera_position(GameSession *session, int pitch, int yaw, int minimap_angle, int minimap_zoom) {
+    uint8_t b[6];
+    Packet p = packet_wrap(b, sizeof(b));
+    p2(&p, pitch); p2(&p, yaw); p1(&p, minimap_angle); p1(&p, minimap_zoom);
+    return send_fixed(session, 189, b, sizeof(b));
+}
+
+bool protocol_send_map_request(GameSession *session, const uint8_t *entries, int length) {
+    if (!session || !session->in_game || length < 0 || length > 255) return false;
+    uint8_t buf[2 + 255];
+    buf[0] = (uint8_t)((150 + isaac_next(&session->out_cipher)) & 0xFF);
+    buf[1] = (uint8_t)length;
+    if (length) memcpy(buf + 2, entries, (size_t)length);
+    return client_stream_write(&session->stream, buf, (size_t)length + 2);
+}
+
 bool protocol_send_idle(GameSession *session) {
     if (!session || !session->in_game) return false;
     uint8_t op = (uint8_t)((70 + isaac_next(&session->out_cipher)) & 0xFF);
@@ -434,13 +503,14 @@ bool protocol_send_route(GameSession *session,int bx,int bz,int sx,int sz,const 
 bool protocol_send_operation_route(GameSession *session,int bx,int bz,int sx,int sz,const int *x,const int *z,int count,bool ctrl) {return send_route(session,93,bx,bz,sx,sz,x,z,count,ctrl,NULL);}
 
 bool protocol_send_minimap_route(GameSession *session,int bx,int bz,int sx,int sz,
-    const int *x,const int *z,int count,bool ctrl,int click_x,int click_y,int yaw,int player_x,int player_z,bool nearest) {
+    const int *x,const int *z,int count,bool ctrl,int click_x,int click_y,int yaw,int minimap_angle,int minimap_zoom,
+    int player_x,int player_z,bool nearest) {
     if(click_x < -73 || click_x > 72 || click_y < -75 || click_y > 75 ||
         yaw < 0 || yaw > 2047 || player_x < 0 || player_x > 65535 || player_z < 0 || player_z > 65535) return false;
-    // Original handleMinimapInput trailer; current minimap angle/zoom are zero.
+    // Original handleMinimapInput trailer (client.java:8392-8403).
     uint8_t extra[14];Packet p=packet_wrap(extra,sizeof(extra));
     p1(&p,click_x);p1(&p,click_y);p2(&p,yaw);p1(&p,57);
-    p1(&p,0);p1(&p,0);p1(&p,89);p2(&p,player_x);p2(&p,player_z);
+    p1(&p,minimap_angle);p1(&p,minimap_zoom);p1(&p,89);p2(&p,player_x);p2(&p,player_z);
     p1(&p,nearest ? 1 : 0);p1(&p,63);
     return send_route(session,165,bx,bz,sx,sz,x,z,count,ctrl,extra);
 }

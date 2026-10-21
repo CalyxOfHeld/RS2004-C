@@ -12,6 +12,10 @@ typedef struct {
     int yaw_velocity;
     int pitch_velocity;
     int pitch_clamp;
+    // client.cameraAnticheatOffsetX/Z and cameraAnticheatAngle (0 unless logged in).
+    int anticheat_x;
+    int anticheat_z;
+    int anticheat_yaw;
 
     // Computed eye position & orientation for 3D rasterizer
     int eye_x;

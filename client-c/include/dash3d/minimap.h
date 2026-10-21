@@ -23,9 +23,9 @@ typedef struct {
 } Minimap;
 
 typedef struct { int click_x, click_y, tile_x, tile_z; } MinimapClick;
-// Original handleMinimapInput, matching the current zero angle/zoom renderer.
+// Original handleMinimapInput. yaw is orbitCameraYaw + minimapAnticheatAngle, zoom minimapZoom.
 bool minimap_click_target(int mouse_x, int mouse_y, int player_x, int player_z,
-    int camera_yaw, MinimapClick *click);
+    int yaw, int zoom, MinimapClick *click);
 
 void minimap_init(Minimap *m, Media *media, Arena *arena);
 void minimap_draw_tile(uint32_t *pixels,int offset,int stride,const GroundTile *tile);
@@ -35,7 +35,9 @@ void minimap_draw(
     Media *media,
     int player_x,
     int player_z,
-    int camera_yaw,
+    int camera_yaw,       // orbitCameraYaw (compass)
+    int anticheat_angle,  // minimapAnticheatAngle, added for the map
+    int zoom,             // minimapZoom
     int mapback_x,
     int mapback_y
 );
@@ -44,7 +46,8 @@ void minimap_draw_dot(
     int player_z,
     int target_x,
     int target_z,
-    int camera_yaw,
+    int yaw,              // orbitCameraYaw + minimapAnticheatAngle
+    int zoom,
     int mapback_x,
     int mapback_y,
     Pix32 *dot_sprite,
@@ -52,10 +55,10 @@ void minimap_draw_dot(
 );
 void minimap_free(Minimap *m);
 void minimap_draw_npc_dot(int player_x, int player_z, const NpcEntity *npc,
-    int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite, const Pix8 *mask);
+    int yaw, int zoom, int mapback_x, int mapback_y, Pix32 *dot_sprite, const Pix8 *mask);
 void minimap_draw_player_dot(int player_x, int player_z, const PlayerEntity *other,
-    int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite, const Pix8 *mask);
+    int yaw, int zoom, int mapback_x, int mapback_y, Pix32 *dot_sprite, const Pix8 *mask);
 void minimap_draw_destination(Minimap *m, Media *media, int player_x, int player_z,
-    int camera_yaw, int mapback_x, int mapback_y);
+    int yaw, int zoom, int mapback_x, int mapback_y);
 
 #endif // RS2_MINIMAP_H

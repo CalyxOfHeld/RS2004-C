@@ -16,5 +16,7 @@ double jrandom_next_double(JRandom *r);
 // Math.random(): seeded from the clock on first use unless math_random_seed ran first.
 void math_random_seed(int64_t seed);
 double math_random(void);
+// The generator's internal 48-bit state, for syncing an oracle's Math.random.
+uint64_t math_random_state(void);
 
 #endif // RS2_JRANDOM_H

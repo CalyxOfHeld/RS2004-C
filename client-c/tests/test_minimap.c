@@ -139,7 +139,7 @@ int main(void) {
     int player_z = 50 * 128;
     int camera_yaw = 512; // 90 degree camera rotation
 
-    minimap_draw(&minimap, &media, player_x, player_z, camera_yaw, mapback_x, mapback_y);
+    minimap_draw(&minimap, &media, player_x, player_z, camera_yaw, 0, 0, mapback_x, mapback_y);
 
     int fb_after = 0;
     for (int i = 0; i < 765 * 503; i++) {
@@ -160,13 +160,13 @@ int main(void) {
         // Nearby NPC at tile (53, 52)
         int npc_x = 53 * 128;
         int npc_z = 52 * 128;
-        minimap_draw_dot(player_x, player_z, npc_x, npc_z, camera_yaw, mapback_x, mapback_y, media.mapdots[1],media.mapback);
+        minimap_draw_dot(player_x, player_z, npc_x, npc_z, camera_yaw, 0, mapback_x, mapback_y, media.mapdots[1],media.mapback);
         printf("[PASS] Nearby NPC radar dot rendered within minimap radius!\n");
 
         // Distant NPC at tile (99, 99) - should be clipped by radius check
         int far_x = 99 * 128;
         int far_z = 99 * 128;
-        minimap_draw_dot(player_x, player_z, far_x, far_z, camera_yaw, mapback_x, mapback_y, media.mapdots[1],media.mapback);
+        minimap_draw_dot(player_x, player_z, far_x, far_z, camera_yaw, 0, mapback_x, mapback_y, media.mapdots[1],media.mapback);
         printf("[PASS] Distant entity correctly clipped outside minimap circle!\n");
     }
 
@@ -184,7 +184,7 @@ int main(void) {
         npc.base.x = player_x + 3 * 128;
         npc.base.z = player_z + 2 * 128;
         memset(fb, 0, 765 * 503 * sizeof(*fb));
-        minimap_draw_npc_dot(player_x, player_z, &npc, 0, 561, 5, media.mapdots[1],media.mapback);
+        minimap_draw_npc_dot(player_x, player_z, &npc, 0, 0, 561, 5, media.mapdots[1],media.mapback);
         bool painted = false;
         for (int pixel = 0; pixel < 765 * 503; pixel++) if (fb[pixel]) painted = true;
         assert(painted == npc.type.minimap);
@@ -195,8 +195,8 @@ int main(void) {
     NpcEntity missing_type;
     npc_entity_init(&missing_type);
     memset(fb, 0, 765 * 503 * sizeof(*fb));
-    minimap_draw_npc_dot(player_x, player_z, &missing_type, 0, 561, 5, media.mapdots[1],media.mapback);
-    minimap_draw_npc_dot(player_x, player_z, NULL, 0, 561, 5, media.mapdots[1],media.mapback);
+    minimap_draw_npc_dot(player_x, player_z, &missing_type, 0, 0, 561, 5, media.mapdots[1],media.mapback);
+    minimap_draw_npc_dot(player_x, player_z, NULL, 0, 0, 561, 5, media.mapdots[1],media.mapback);
     for (int pixel = 0; pixel < 765 * 503; pixel++) assert(fb[pixel] == 0);
     printf("[PASS] All %d actual-cache NPC minimap flags: %d shown, %d hidden; untyped/null omitted\n",
         npc_cfg.count, shown, hidden);
