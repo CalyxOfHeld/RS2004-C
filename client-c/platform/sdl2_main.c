@@ -1746,6 +1746,10 @@ int main(int argc, char *argv[]) {
                     minimap_draw_npc_dot(player.base.x,player.base.z,npc,camera_yaw,561,5,media.mapdots[1]);
                 }
                 if(offline) minimap_draw_npc_dot(player.base.x,player.base.z,&hans,camera_yaw,561,5,media.mapdots[1]);
+                if(live_server) for(int i=0;i<sync_ctx.player_count;i++) {
+                    PlayerEntity *other=sync_ctx.players[sync_ctx.player_indices[i]];
+                    minimap_draw_player_dot(player.base.x,player.base.z,other,camera_yaw,561,5,media.mapdots[2]);
+                }
             }
             media_draw_tabs_flashing(&media, selected_tab, dev_tabs_unlocked ? NULL : tab_interface_id, flashing_tab, game_ticks);
 

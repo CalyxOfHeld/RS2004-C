@@ -236,6 +236,14 @@ void minimap_draw_npc_dot(int player_x, int player_z, const NpcEntity *npc,
         camera_yaw, mapback_x, mapback_y, dot_sprite);
 }
 
+void minimap_draw_player_dot(int player_x, int player_z, const PlayerEntity *other,
+    int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite) {
+    // Revision-225 PlayerEntity.isVisible and client.drawMinimap.
+    if (!other || !other->visible) return;
+    minimap_draw_dot(player_x, player_z, other->base.x, other->base.z,
+        camera_yaw, mapback_x, mapback_y, dot_sprite);
+}
+
 void minimap_free(Minimap *m) {
     if (m && m->image_minimap) {
         pix32_free(m->image_minimap);

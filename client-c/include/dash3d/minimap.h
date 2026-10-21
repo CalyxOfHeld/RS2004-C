@@ -9,6 +9,7 @@
 #include "dash3d/world.h"
 #include "config/flo.h"
 #include "entity/npc_entity.h"
+#include "entity/player_entity.h"
 
 typedef struct {
     const World3D *scene;
@@ -44,6 +45,8 @@ void minimap_draw_dot(
 );
 void minimap_free(Minimap *m);
 void minimap_draw_npc_dot(int player_x, int player_z, const NpcEntity *npc,
+    int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite);
+void minimap_draw_player_dot(int player_x, int player_z, const PlayerEntity *other,
     int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite);
 
 #endif // RS2_MINIMAP_H

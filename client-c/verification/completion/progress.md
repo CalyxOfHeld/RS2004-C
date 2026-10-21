@@ -19,3 +19,7 @@ Completed the bounded MIDI status fix. Installed executable SHA-256: `773E06C0D5
 ## Small task: minimap dot offsets
 
 Matched revision225 division-before-subtraction for NPC/ground-item minimap dot offsets on both axes. Built exit0 with zero warnings; no tests/live visual checks run. Latest executable SHA-256: `39CEFC6F09C3A7557081D8FE41211E58D2E56A7E7619EC9DBB090AA6C5ACB88B`. See runs/2026-10-21-minimap-offset/README.md and source-review.diff. Latest update ZIP: minimap-offset-client-update.zip (also includes MIDI fix). Full minimap navigation/destination flags remain open.
+
+## Small task: ordinary player minimap dots
+
+Draw active received players using original mapdots index2, gated on non-null/visible. Friend colouring still awaits synchronized social state. Build exit0/zero warnings; no tests or live two-client visual check run. Latest native SHA-256: `61DEF5023541E50CF56E22CAF6D8D30FD04EFBA34E664E37A8FAECA4B2B864FF`. See runs/2026-10-21-player-dots/README.md and source-review.diff. Latest cumulative update: player-dots-client-update.zip. Usage78%; full handoff at95% as requested.

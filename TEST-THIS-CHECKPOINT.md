@@ -1,5 +1,7 @@
 # Windows client checkpoint — October 21, 2026
 
+**Latest update:** ordinary visible-player minimap dots are implemented. Latest cumulative ZIP: player-dots-client-update.zip (includes MIDI/offset fixes). Build passed with zero warnings; tests and two-client visual checks were not run. Friend colouring remains open.
+
 **Latest small update:** the installed executable also corrects minimap dot quantization to match revision225. Build passed with zero warnings; tests/live visual checks were not rerun. Latest update: minimap-offset-client-update.zip.
 
 **Subsequent small update:** the installed executable now includes MIDI failure reporting. It built with zero warnings but has not had tests or audible/live checks rerun. The 37-program/live results below apply to the prior binary retained in world-loops-test-checkpoint.zip. See client-c/verification/completion/runs/2026-10-21-midi-status/README.md.
