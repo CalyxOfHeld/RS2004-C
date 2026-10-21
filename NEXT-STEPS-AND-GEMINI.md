@@ -1,6 +1,6 @@
 # Current next move and external-agent work
 
-Updated October 21, 2026. After the test checkpoint, the user authorized one small task at a time. Six small changes are complete; no new implementation task is running during this documentation update. The server was left available for manual testing. Last account usage check:81% of the five-hour window used,13% weekly. Write the next full runnable handoff at95% used/5% remaining, as requested. Current progress and run notes supersede the older paused handoff where they differ.
+Updated October 21, 2026. After the test checkpoint, the user authorized one small task at a time. Seven small changes are complete; no new implementation task is running during this documentation update. The server was left available for manual testing. Last account usage check:81% of the five-hour window used,13% weekly. Write the next full runnable handoff at95% used/5% remaining, as requested. Current progress and run notes supersede the older paused handoff where they differ.
 
 ## Resume order
 
@@ -25,7 +25,7 @@ Searching for Cursor/Grok's partial output is deferred at the user's request. Re
 
 ## Checkpoint boundaries
 
-Latest installed native SHA-256: `2BB6B9E47EBA7C008A89B759429AB17ADE7979586296D9351812A9D881DAF104`. Latest cumulative update: `song-packet-client-update.zip`, with matching .sha256 sidecar. It includes MIDI failure reporting, dot rounding, ordinary player dots the scene-click flag operation-approach flag integration and MIDI song packet framing. All six built with zero warnings; tests/live checks were not rerun for these updates.
+Latest installed native SHA-256: `20D9AD3D709FB183649B509D3AA1F3BF8D99F0B1081361545A091C94339B8C23`. Latest cumulative update: `packet-integers-client-update.zip`, with matching .sha256 sidecar. It includes MIDI failure reporting, dot rounding, ordinary player dots the scene-click flag operation-approach flag integration MIDI song packet framing and defined signed packet reads. All seven built with zero warnings; tests/live checks were not rerun for these updates.
 
 The earlier world-loops-test-checkpoint.zip preserves SHA-256 `3035DF94DAFA31A55C038CB1F25DEC795118BD7513EBA85AA463B3ACF0077919`, the executable used for the accepted live scenarios. Its37-program suite and the later Makefile shared-object suite passed. Those results do not certify the newer binary. Read the latest task instructions from the workspace; copies in older ZIPs are historical snapshots.
 Existing server PID 3128 owned ports 43595/8889/8899 at packaging. Verify ownership again before starting any server. New test saves stack211a, stack211b, bank211 and bank212 are persistent and must be preserved too.

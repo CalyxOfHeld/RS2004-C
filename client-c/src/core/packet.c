@@ -130,16 +130,20 @@ int32_t g3(Packet *pkt) {
 int32_t g4(Packet *pkt) {
     if(!packet_require(pkt,4)) return 0;
     pkt->pos += 4;
-    return ((pkt->data[pkt->pos - 4] & 0xFF) << 24) |
-           ((pkt->data[pkt->pos - 3] & 0xFF) << 16) |
-           ((pkt->data[pkt->pos - 2] & 0xFF) << 8) |
-           (pkt->data[pkt->pos - 1] & 0xFF);
+    uint32_t value = ((uint32_t)pkt->data[pkt->pos - 4] << 24) |
+                     ((uint32_t)pkt->data[pkt->pos - 3] << 16) |
+                     ((uint32_t)pkt->data[pkt->pos - 2] << 8) |
+                     (uint32_t)pkt->data[pkt->pos - 1];
+    // Java's signed bit pattern, without signed shift overflow or an
+    // implementation-defined out-of-range unsigned-to-signed conversion.
+    return value <= INT32_MAX ? (int32_t)value : -1 - (int32_t)(UINT32_MAX - value);
 }
 
 int64_t g8(Packet *pkt) {
-    int64_t high = (uint32_t)g4(pkt);
-    int64_t low = (uint32_t)g4(pkt);
-    return (high << 32) | low;
+    uint64_t high = (uint32_t)g4(pkt);
+    uint64_t low = (uint32_t)g4(pkt);
+    uint64_t value = (high << 32) | low;
+    return value <= INT64_MAX ? (int64_t)value : -1 - (int64_t)(UINT64_MAX - value);
 }
 
 void gjstr(Packet *pkt, char *dst, size_t max_len) {

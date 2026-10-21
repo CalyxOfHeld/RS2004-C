@@ -1,5 +1,7 @@
 # Windows client checkpoint — October 21, 2026
 
+**Latest update:** shared32/64-bit packet readers now avoid signed-shift overflow. Latest cumulative package: packet-integers-client-update.zip. Build passed with zero warnings; tests/live checks were not run.
+
 **Latest update:** server song packets now use the original byte10 delimiter with checked metadata framing. Latest cumulative package: song-packet-client-update.zip. Build passed with zero warnings; tests/live audio checks were not run.
 
 **Latest update:** operation approaches now update the shared minimap destination flag after a successful route send. Latest cumulative package: approach-flag-client-update.zip. Build passed with zero warnings; tests/live checks were not run.

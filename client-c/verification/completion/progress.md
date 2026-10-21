@@ -39,3 +39,7 @@ Shared approach helper now updates optional pointers to the same destination aft
 ## Small task: MIDI_SONG delimiter and layout
 
 Fixed byte10 name termination, exact metadata length, native name bounds and unsigned metadata assembly. Build exit0/zero warnings; no tests/live audio checks run. Latest native SHA-256: `2BB6B9E47EBA7C008A89B759429AB17ADE7979586296D9351812A9D881DAF104`. Latest cumulative update: song-packet-client-update.zip. See runs/2026-10-21-song-packet. Follow-up: network-driven music still uses a decompressor without output-capacity bounds/error recovery. Full handoff at95% as requested.
+
+## Small task: defined signed packet integer reads
+
+g4/g8 now assemble unsigned values and map to signed Java values without undefined signed shifts or out-of-range casts. Build exit0/zero warnings; no tests/live checks run. Latest native SHA-256: `20D9AD3D709FB183649B509D3AA1F3BF8D99F0B1081361545A091C94339B8C23`. Latest cumulative update: packet-integers-client-update.zip. See runs/2026-10-21-packet-integers. Full handoff at95% as requested.
