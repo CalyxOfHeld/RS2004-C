@@ -264,6 +264,11 @@ void world_build(World *w, World3D *world3d, FloConfig *flo_cfg, CollisionMap *c
         if(collision_level>=0) collision_map_block_ground(&cm[collision_level],x,z,true);
     }
     memcpy(world3d->heightmap, w->heightmap, sizeof(w->heightmap));
+    // Revision-225 World.getDrawLevel / World3D.draw: logical visibility is
+    // independent of the source height/model plane (bridges and flag-8 tiles).
+    for(int l=0;l<WORLD_LEVELS;l++) for(int x=0;x<w->max_tile_x;x++) for(int z=0;z<w->max_tile_z;z++)
+        world3d->tiles[l][x][z].draw_level=(w->tile_flags[l][x][z]&8) ? 0:
+            l>0 && (w->tile_flags[1][x][z]&2) ? l-1:l;
     if (!flo_cfg || !flo_cfg->instances) return;
     // Port of bundled ClientBuild.finishBuild: height normals/shadows and
     // sliding weighted underlay blend. C FloType.chroma is underlayHue;

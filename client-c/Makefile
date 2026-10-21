@@ -61,6 +61,7 @@ TEST_BINS += bin/test_exact_movement.exe
 TEST_BINS += bin/test_actor_models.exe
 TEST_BINS += bin/test_actor_clock.exe
 TEST_BINS += bin/test_facing.exe
+TEST_BINS += bin/test_bridge_levels.exe
 
 test: $(TEST_BINS)
 	@echo "================ RUNNING TESTS ================"
@@ -102,6 +103,7 @@ test: $(TEST_BINS)
 	@./bin/test_actor_models.exe
 	@./bin/test_actor_clock.exe
 	@./bin/test_facing.exe
+	@./bin/test_bridge_levels.exe
 	@./bin/test_chatbox.exe
 	@./bin/test_mouse_picking.exe
 	@./bin/test_pathfinding.exe

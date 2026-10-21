@@ -81,6 +81,7 @@ void world3d_reset(World3D *w) {
                 GroundTile *t = &w->tiles[l][x][z];
                 ground_items_clear(t);
                 t->level = l;
+                t->draw_level = l;
                 t->x = x;
                 t->z = z;
                 t->has_underlay = false;
@@ -308,9 +309,10 @@ void world3d_render(World3D *w,int eyeX,int eyeY,int eyeZ,int pitch,int yaw,int 
     if(minz<0) minz=0;
     if(maxx>=w->max_tile_x) maxx=w->max_tile_x-1;
     if(maxz>=w->max_tile_z) maxz=w->max_tile_z-1;
-    for(int l=0;l<=plane && l<w->max_level;l++) {
+    for(int l=0;l<w->max_level;l++) {
         for(int x=minx;x<=maxx;x++) for(int z=minz;z<=maxz;z++) {
             GroundTile *tile=&w->tiles[l][x][z];
+            if(tile->draw_level>plane) continue;
             if(tile->has_underlay) {
                 TileUnderlay *u=&tile->underlay;
                 Pix3DVertex v[4];
@@ -338,6 +340,7 @@ void world3d_render(World3D *w,int eyeX,int eyeY,int eyeZ,int pitch,int yaw,int 
         }
         for(int x=minx;x<=maxx;x++) for(int z=minz;z<=maxz;z++) {
             GroundTile *tile=&w->tiles[l][x][z];GroundItem *models[3];
+            if(tile->draw_level>plane) continue;
             int count=ground_items_models(tile,models);
             int y=(w->heightmap[l][x][z]+w->heightmap[l][x+1][z]+w->heightmap[l][x][z+1]+w->heightmap[l][x+1][z+1])/4;
             int raise=0;
@@ -360,6 +363,7 @@ void world3d_render(World3D *w,int eyeX,int eyeY,int eyeZ,int pitch,int yaw,int 
         // even when its anchor tile lies outside it. Each location is drawn once.
         for(int x=0;x<w->max_tile_x;x++) for(int z=0;z<w->max_tile_z;z++) {
             GroundTile *tile=&w->tiles[l][x][z];
+            if(tile->draw_level>plane) continue;
             for(int i=0;i<tile->loc_count;i++) {
                 WorldLocation *loc=&tile->locs[i];
                 if(loc->max_tile_x<minx || loc->min_tile_x>maxx || loc->max_tile_z<minz || loc->min_tile_z>maxz) continue;
