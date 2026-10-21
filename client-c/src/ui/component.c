@@ -565,8 +565,6 @@ bool component_build_menu(ComponentConfig *cfg, Component *com, int mx, int my, 
 
                             char opt_buf[128];
                             MenuAction action={.type=MENU_ITEM_EXAMINE,.target=obj_id,.component=child->id,.slot=slot};
-                            snprintf(opt_buf,sizeof(opt_buf),"Examine @lre@%s",name);
-                            context_menu_add_action(menu,opt_buf,action);
                             MenuSelection *selected=cfg->selection;
                             if(selected && selected->item_selected && child->interactable) {
                                 if(selected->component!=child->id || selected->slot!=slot) {
@@ -574,7 +572,15 @@ bool component_build_menu(ComponentConfig *cfg, Component *com, int mx, int my, 
                                     snprintf(opt_buf,sizeof(opt_buf),"Use %.40s with @lre@%.40s",selected->name,name);
                                     context_menu_add_action(menu,opt_buf,action);
                                 }
+                            } else if(selected && selected->spell_selected && child->interactable) {
+                                if(selected->spell_flags & 16) {
+                                    action.type=MENU_SPELL_ON_ITEM;
+                                    snprintf(opt_buf,sizeof(opt_buf),"%.76s @lre@%.40s",selected->spell_caption,name);
+                                    context_menu_add_action(menu,opt_buf,action);
+                                }
                             } else {
+                                snprintf(opt_buf,sizeof(opt_buf),"Examine @lre@%s",name);
+                                context_menu_add_action(menu,opt_buf,action);
                                 if(child->interactable) for(int o=4;o>=3;o--) {
                                     const char *op=has_obj && obj.iop[o][0] ? obj.iop[o] : o==4 ? "Drop" : NULL;
                                     if(op) {
@@ -611,7 +617,8 @@ bool component_build_menu(ComponentConfig *cfg, Component *com, int mx, int my, 
             found = true;
             if (child->button_type == 1 && child->option) {
                 context_menu_add_action(menu,child->option,(MenuAction){.type=MENU_IF_BUTTON,.operation=1,.component=child->id});
-            } else if (child->button_type == 2 && child->action_verb && child->action) {
+            } else if (child->button_type == 2 && child->action_verb && child->action &&
+                (!cfg->selection || !cfg->selection->spell_selected)) {
                 char opt[128];
                 snprintf(opt, sizeof(opt), "%s @gre@%s", child->action_verb, child->action);
                 context_menu_add_action(menu,opt,(MenuAction){.type=MENU_SPELL_SELECT,.operation=2,.component=child->id});

@@ -4,6 +4,7 @@
 #include <limits.h>
 #include <setjmp.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,6 +67,11 @@ typedef struct {
 
 extern char BZIP_HEADER[];
 extern char *bunzip_errors[];
+
+// Headerless BZh1 cache stream. Returns false on corruption, truncated input,
+// trailing data or a decoded size different from dst_size. Never exits; writes
+// at most dst_size bytes. Output must be discarded when false is returned.
+bool bzip_decompress_exact(uint8_t *dst, size_t dst_size, const uint8_t *src, size_t src_size);
 
 void bzip_decompress(int8_t *file_data, int8_t *archive_data, int archive_size,
                      int offset);

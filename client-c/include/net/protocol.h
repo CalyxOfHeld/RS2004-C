@@ -63,4 +63,10 @@ bool protocol_send_command(GameSession *session, const char *cmd);
 
 void protocol_close_session(GameSession *session);
 
+typedef enum { WORLD_NPC, WORLD_LOC, WORLD_OBJ, WORLD_PLAYER } WorldTargetKind;
+bool protocol_send_target_item(GameSession *session, WorldTargetKind kind, int target, int x, int z,
+    int use_item, int use_slot, int use_component);
+bool protocol_send_target_spell(GameSession *session, WorldTargetKind kind, int target, int x, int z, int spell_component);
+bool protocol_send_spell_on_item(GameSession *session, int item, int slot, int component, int spell_component);
+
 #endif // RS2_PROTOCOL_H

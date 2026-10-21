@@ -171,6 +171,7 @@ static int get_next_block(bunzip_data *bd) {
                 return RETVAL_DATA_ERROR;
             }
         }
+        if (j >= groupCount) return RETVAL_DATA_ERROR;
 
         /* Decode MTF to get the next selector */
         uc = mtfSymbol[j];
@@ -353,14 +354,13 @@ static int get_next_block(bunzip_data *bd) {
             ++i;
         }
 
-        bd->inbufBitCount += (hufGroup->maxLen - i);
-
         /* Huffman decode value to get nextSym (with bounds checking) */
         if ((i > hufGroup->maxLen) ||
             (((unsigned)(j = (j >> (hufGroup->maxLen - i)) - base[i])) >=
-             MAX_SYMBOLS)) {
+             symTotal + 2)) {
             return RETVAL_DATA_ERROR;
         }
+        bd->inbufBitCount += (hufGroup->maxLen - i);
 
         nextSym = hufGroup->permute[j];
 
@@ -382,6 +382,8 @@ static int get_next_block(bunzip_data *bd) {
                the basic or 0/1 method (except all bits 0, which would use no
                symbols, but a run of length 0 doesn't mean anything in this
                context).  Thus space is saved. */
+            if (runPos > dbufSize || (runPos << nextSym) > dbufSize - dbufCount - t)
+                return RETVAL_DATA_ERROR;
             t += (runPos << nextSym); /* +runPos if RUNA; +2*runPos if RUNB */
             runPos <<= 1;
             continue;
@@ -394,7 +396,7 @@ static int get_next_block(bunzip_data *bd) {
         if (runPos) {
             runPos = 0;
 
-            if (dbufCount + t >= dbufSize) {
+            if (t > dbufSize - dbufCount) {
                 return RETVAL_DATA_ERROR;
             }
 
@@ -662,6 +664,38 @@ static int start_bunzip(bunzip_data **bdp, int in_fd, uint8_t *inbuf, int len) {
     }
 
     return RETVAL_OK;
+}
+
+bool bzip_decompress_exact(uint8_t *dst, size_t dst_size, const uint8_t *src, size_t src_size) {
+    if ((!dst && dst_size) || !src || src_size == 0 || src_size > INT_MAX - 4) return false;
+    uint8_t *headered = malloc(src_size + 4);
+    if (!headered) return false;
+    memcpy(headered, BZIP_HEADER, 4);
+    memcpy(headered + 4, src, src_size);
+    bunzip_data *bd = NULL;
+    int result = start_bunzip(&bd, -1, headered, (int)src_size + 4);
+    bool ok = false;
+    size_t written = 0;
+    if (result == RETVAL_OK) {
+        int8_t chunk[IOBUF_SIZE];
+        for (;;) {
+            result = read_bunzip(bd, chunk, sizeof(chunk));
+            if (result < 0 && result != RETVAL_LAST_BLOCK) break;
+            if (result > 0) {
+                if ((size_t)result > dst_size - written) break;
+                memcpy(dst + written, chunk, (size_t)result);
+                written += (size_t)result;
+            }
+            if (bd->writeCount == RETVAL_LAST_BLOCK) {
+                ok = written == dst_size && bd->totalCRC == bd->headerCRC && bd->inbufPos == bd->inbufCount;
+                break;
+            }
+            if (result <= 0) break;
+        }
+    }
+    if (bd) { free(bd->dbuf); free(bd); }
+    free(headered);
+    return ok;
 }
 
 static void bzip_fatal(int retval) {

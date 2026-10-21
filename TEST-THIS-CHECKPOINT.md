@@ -1,16 +1,10 @@
-# Test the current Windows navigation checkpoint — October 21, 2026
+# Test the current Windows MIDI/action checkpoint — October 21, 2026
 
-Launch play_client.bat in this folder. It uses the configured local server on43595 and preserves account progress. If no server is running, start_local_server.bat checks for port conflicts before starting one. Reuse the existing server when it is already available. Close/reopen the client to load the new executable.
+Launch play_client.bat and reopen the client to load the new executable. It uses the existing local server on port 43595 and preserves account progress. Reuse the running server. Current native SHA-256: `8D430F47FC59403DB7513A7A1F6F84435CFD8A13BE692DA9EA4298790DB302EF`. The cumulative overlay is midi-actions-checkpoint.zip with a .sha256 sidecar; it requires this checkout's existing engine/cache/content and dependencies. No saves or .env files are packaged.
 
-Installed native SHA-256: `487B85739750A5456CD5D0DB1BBCAC4ACC8360FA9BA9C7610377FA3197F94F9E`. Current cumulative overlay: navigation-verified-checkpoint.zip and its .sha256 sidecar. Extract into this existing rewrite checkout; existing engine/cache/content and build dependencies are required. No player saves or .env files are packaged. Preserve old packages and never restore the withdrawn save-purge launcher.
+1. Walk on reachable ground: the original yellow cross animates at the click. Minimap clicks retain the original destination flag behavior.
+2. Click a world operation such as Talk-to, Take or an item/spell target: the original red X animates at the click when the action is dispatched.
+3. Select an inventory item's Use option, then click a valid item/world target. Cancel clears selection. Spell menus follow the original spell's allowed target types.
+4. Listen to server-selected songs and level jingles. Songs now reject malformed metadata/data safely; jingles interrupt ambient music and use the original server delay before restarting it. Automated device commands succeeded, but listening quality and timing need manual assessment.
 
-## Visible changes
-
-1. Click reachable ground on the minimap, rotate with arrow keys and click again. The flag and route use the displayed camera direction. Movement comes from the server.
-2. Click near the player centre to interrupt a route. Same-tile clicks now send the original movement packet instead of being discarded.
-3. Longer winding routes retain their starting path before the original25-turn packet compression.
-4. Distant entity dots respect the minimap border. Rotation uses the original integer trigonometry tables.
-
-Modal interfaces, open menus and active item drags gate minimap input. Friend colouring, nonzero minimap zoom/anticheat offsets, full gameplay and broader original rendering parity remain incomplete. See MANUAL-TESTING.md for optional account selection and controls; preserve all accounts.
-
-All39 programs pass with zero compiler warnings. Original Java comparisons cover20 route cases,4096 trigonometry entries and160 complete sprite framebuffers. The final executable also completed live region-crossing/cancellation checks. The separate optional login program skips without explicit opt-in; actual live sessions are documented independently. Exact evidence and remaining gaps: client-c/verification/completion/runs/2026-10-21-navigation-sol/README.md and HANDOFF.md.
+All 42 programs pass warning-free. Original-Java data/pixel/packet comparisons and live banker/firemaking evidence are recorded in client-c/verification/completion/runs/2026-10-21-midi-actions-sol/README.md. Combat effects, hitmarks/health bars, social/exchange flows and broader visual/gameplay parity remain incomplete. See HANDOFF.md for current details; preserve all existing accounts and old packages.

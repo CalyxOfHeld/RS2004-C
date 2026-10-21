@@ -86,14 +86,19 @@ int main(void) {
     EntitySyncContext *entities=calloc(1,sizeof(*entities));assert(entities);entity_sync_init(entities,NULL);
     entities->local_player.base.path_tile_x[0]=48;entities->local_player.base.path_tile_z[0]=50;
     Pathfinder pathfinder;pathfinder_init(&pathfinder);MapStreamer map={.base_tile_x=3200,.base_tile_z=3200};
+    ClickFeedback cross={0};
     MenuSelection selection={0};ClientActions actions={.session=&session,.entities=entities,.scene=scene,.map=&map,
-        .pathfinder=&pathfinder,.collision=collision,.selection=&selection,.live=true};
+        .pathfinder=&pathfinder,.collision=collision,.selection=&selection,.live=true,
+        .click_feedback=&cross,.click_x=px,.click_y=py};
     assert(client_action_dispatch(&actions,take)==ACTION_SENT);
+    assert(cross.mode==CLICK_ACTION && cross.x==px && cross.y==py && cross.cycle==0);
     uint8_t wire[32];receive(peer,wire,2);assert((uint8_t)(wire[0]-isaac_next(&decoder))==93);
     int length=wire[1];assert(length<20);receive(peer,wire,length);receive(peer,wire,7);
     assert((uint8_t)(wire[0]-isaac_next(&decoder))==200);
     assert(((wire[1]<<8)|wire[2])==3250 && ((wire[3]<<8)|wire[4])==3250 && ((wire[5]<<8)|wire[6])==1205);
+    cross.mode=CLICK_NONE;
     item(49,1205,0,0);assert(client_action_dispatch(&actions,take)==ACTION_FAILED);
+    assert(cross.mode==CLICK_NONE);
     puts("PASS: picked Take sends approach 93 then OPOBJ3 200 with world coordinates/id; removed target rejected");
     protocol_close_session(&session);
 #ifdef _WIN32

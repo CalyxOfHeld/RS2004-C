@@ -337,6 +337,42 @@ bool protocol_send_item_on_item(GameSession *session,int item,int slot,int compo
     return client_stream_write(&session->stream,bytes,p.pos);
 }
 
+static bool send_short_fields(GameSession *session, int opcode, const int *fields, int count) {
+    if (!session || !session->in_game || count < 1 || count > 6) return false;
+    for (int i=0;i<count;i++) if (fields[i]<0 || fields[i]>65535) return false;
+    uint8_t data[13]; Packet p=packet_wrap(data,sizeof(data));
+    p1(&p,opcode+isaac_next(&session->out_cipher));
+    for (int i=0;i<count;i++) p2(&p,fields[i]);
+    return client_stream_write(&session->stream,data,p.pos);
+}
+bool protocol_send_target_item(GameSession *session, WorldTargetKind kind, int target, int x, int z,
+    int use_item, int use_slot, int use_component) {
+    if (kind==WORLD_NPC || kind==WORLD_PLAYER) {
+        int fields[]={target,use_item,use_slot,use_component};
+        return send_short_fields(session,kind==WORLD_NPC?202:248,fields,4);
+    }
+    if (kind==WORLD_LOC || kind==WORLD_OBJ) {
+        int fields[]={x,z,target,use_item,use_slot,use_component};
+        return send_short_fields(session,kind==WORLD_LOC?75:239,fields,6);
+    }
+    return false;
+}
+bool protocol_send_target_spell(GameSession *session, WorldTargetKind kind, int target, int x, int z, int spell_component) {
+    if (kind==WORLD_NPC || kind==WORLD_PLAYER) {
+        int fields[]={target,spell_component};
+        return send_short_fields(session,kind==WORLD_NPC?134:177,fields,2);
+    }
+    if (kind==WORLD_LOC || kind==WORLD_OBJ) {
+        int fields[]={x,z,target,spell_component};
+        return send_short_fields(session,kind==WORLD_LOC?9:138,fields,4);
+    }
+    return false;
+}
+bool protocol_send_spell_on_item(GameSession *session, int item, int slot, int component, int spell_component) {
+    int fields[]={item,slot,component,spell_component};
+    return send_short_fields(session,48,fields,4);
+}
+
 static bool send_walk_opcode(GameSession *session,int opcode,int start_x,int start_z,int count,const int8_t *rel_x,const int8_t *rel_z,bool ctrl,const uint8_t *minimap_extra);
 static bool send_route(GameSession *session,int opcode,int base_x,int base_z,int source_x,int source_z,const int *x,const int *z,int count,bool ctrl,const uint8_t *minimap_extra) {
     if(!x || !z || count<=0 || count>MAX_PATH_STEPS) return false;

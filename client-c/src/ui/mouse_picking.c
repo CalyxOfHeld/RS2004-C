@@ -8,6 +8,7 @@ void mouse_picker_init(MousePicker *picker) {
     picker->mouse_x = -1;
     picker->mouse_y = -1;
     picker->picked_count = 0;
+    picker->selection = NULL;
 }
 
 void mouse_picker_reset(MousePicker *picker, int mouse_x, int mouse_y) {
@@ -47,6 +48,25 @@ static const char* get_combat_level_color(int player_combat, int npc_combat) {
     return "@yel@";
 }
 
+static bool selected_target_menu(ContextMenu *menu, const MenuSelection *selection, int kind,
+    const char *name, const char *colour, int id, int x, int z) {
+    if (!selection || (!selection->item_selected && !selection->spell_selected)) return false;
+    static const MenuActionType item_types[]={MENU_ITEM_ON_PLAYER,MENU_ITEM_ON_NPC,MENU_ITEM_ON_LOC,MENU_ITEM_ON_OBJ};
+    static const MenuActionType spell_types[]={MENU_SPELL_ON_PLAYER,MENU_SPELL_ON_NPC,MENU_SPELL_ON_LOC,MENU_SPELL_ON_OBJ};
+    static const int flags[]={8,2,4,1};
+    char label[192];MenuAction action={.target=id,.x=x,.z=z};
+    if (selection->item_selected) {
+        action.type=item_types[kind];
+        snprintf(label,sizeof(label),"Use %.48s with %s%.80s",selection->name,colour,name);
+    } else {
+        if (!(selection->spell_flags & flags[kind])) return true;
+        action.type=spell_types[kind];
+        snprintf(label,sizeof(label),"%.96s %s%.80s",selection->spell_caption,colour,name);
+    }
+    context_menu_add_action(menu,label,action);
+    return true;
+}
+
 static void build_menu(MousePicker *picker,
                              ContextMenu *menu,
                              NpcConfig *npc_cfg,
@@ -62,7 +82,9 @@ static void build_menu(MousePicker *picker,
     context_menu_add_action(menu,"Cancel",(MenuAction){.type=MENU_CANCEL});
 
     // "Walk here" is the base world action (index 1)
-    context_menu_add_action(menu,"Walk here",(MenuAction){.type=MENU_WALK});
+    const MenuSelection *selection=picker?picker->selection:NULL;
+    if (!selection || (!selection->item_selected && !selection->spell_selected))
+        context_menu_add_action(menu,"Walk here",(MenuAction){.type=MENU_WALK});
 
     // If no picker or no entities picked, we're done
     if (!picker || picker->picked_count == 0) {
@@ -97,6 +119,8 @@ static void build_menu(MousePicker *picker,
                     snprintf(full_name, sizeof(full_name), "%s", npc_type.name);
                 }
 
+                if(selected_target_menu(menu,selection,1,full_name,"@yel@",id,(int)(bitset&127),(int)((bitset>>7)&127))) continue;
+
                 // Examine option
                 char examine_str[160];
                 snprintf(examine_str, sizeof(examine_str), "Examine @yel@%s", full_name);
@@ -118,6 +142,9 @@ static void build_menu(MousePicker *picker,
                 LocType lt;
                 if (loc_get(loc_cfg, id, &lt)) {
                     if (lt.name[0] != '\0') {
+                        if(selected_target_menu(menu,selection,2,lt.name,"@cya@",id,(int)(bitset&127),(int)((bitset>>7)&127))) {
+                            loc_free_entry(&lt);continue;
+                        }
                         char examine_str[160];
                         snprintf(examine_str, sizeof(examine_str), "Examine @cya@%s", lt.name);
                         context_menu_add_action(menu,examine_str,(MenuAction){.type=MENU_LOC_EXAMINE,.target=id});
@@ -144,6 +171,7 @@ static void build_menu(MousePicker *picker,
                          target->combat_level);
 
                 char ex_str[160];
+                if(selected_target_menu(menu,selection,0,p_name,"@whi@",id,(int)(bitset&127),(int)((bitset>>7)&127))) continue;
                 snprintf(ex_str, sizeof(ex_str), "Follow @whi@%s", p_name);
                 context_menu_add_action(menu,ex_str,(MenuAction){.type=MENU_PLAYER_OP,.operation=3,.target=id});
 
@@ -155,6 +183,9 @@ static void build_menu(MousePicker *picker,
                 ObjType ot;
                 if (obj_get(obj_cfg, id, &ot)) {
                     if (ot.name[0] != '\0') {
+                        if(selected_target_menu(menu,selection,3,ot.name,"@lre@",id,(int)(bitset&127),(int)((bitset>>7)&127))) {
+                            obj_free_entry(&ot);continue;
+                        }
                         char ex_str[160];
                         snprintf(ex_str, sizeof(ex_str), "Examine @lre@%s", ot.name);
                         context_menu_add_action(menu,ex_str,(MenuAction){.type=MENU_OBJ_EXAMINE,.target=id});

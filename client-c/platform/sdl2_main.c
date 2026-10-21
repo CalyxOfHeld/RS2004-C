@@ -166,6 +166,8 @@ int main(int argc, char *argv[]) {
     bool trace=false;
     const char *input_path=NULL;
     bool capture_rebuild = false;
+    bool capture_clicks = false;
+    int last_captured_cross = -1, last_cross_cycle = 400;
     int capture_frame = 10;
     int capture_interval = 0;
     int server_port = 43594;
@@ -177,6 +179,7 @@ int main(int argc, char *argv[]) {
         else if (strcmp(argv[i], "--input-script") == 0 && i+1<argc) input_path=argv[++i];
         else if (strcmp(argv[i], "--input-follow") == 0) verification_follow_input=true;
         else if (strcmp(argv[i], "--rebuild") == 0) capture_rebuild = true;
+        else if (strcmp(argv[i], "--capture-clicks") == 0) capture_clicks = true;
         else if (strcmp(argv[i], "--capture") == 0 && i + 1 < argc) capture_path = argv[++i];
         else if (strcmp(argv[i], "--capture-frame") == 0 && i + 1 < argc) capture_frame = atoi(argv[++i]);
         else if (strcmp(argv[i], "--capture-interval") == 0 && i + 1 < argc) capture_interval = atoi(argv[++i]);
@@ -186,7 +189,7 @@ int main(int argc, char *argv[]) {
         else if (strcmp(argv[i], "--camera-pitch") == 0 && i + 1 < argc) capture_pitch = atoi(argv[++i]);
         else { fprintf(stderr, "Unknown or incomplete option: %s\n", argv[i]); return 1; }
     }
-    if (capture_interval < 0 || (capture_interval && !capture_path) || capture_frame < 1 || capture_pitch < 128 || capture_pitch > 383 || server_port < 1 || server_port > 65535) {
+    if (capture_interval < 0 || ((capture_interval || capture_clicks) && !capture_path) || capture_frame < 1 || capture_pitch < 128 || capture_pitch > 383 || server_port < 1 || server_port > 65535) {
         fprintf(stderr, "Invalid capture frame, camera pitch (128..383), or server port (1..65535)\n"); return 1;
     }
     if ((capture_rebuild || walk_x >= 0 || walk_z >= 0) && (!capture_path || !offline)) {
@@ -621,12 +624,9 @@ int main(int argc, char *argv[]) {
     comp_cfg.varp_ctx = &varp_ctx;
     uint64_t last_player_appearance_hash = player.appearance_hashcode;
     int mouse_x = 0, mouse_y = 0;
-    int cross_x = -1, cross_y = -1;
-    int cross_mode = 0;  // 1 = yellow (ground), 2 = red (interact)
-    int cross_cycle = 0;
+    ClickFeedback click_feedback = {0};
     bool pending_click = false;
     int pending_click_x = 0, pending_click_y = 0;
-    int pending_click_mode = 1;
 
     bool running = true;
     SDL_Event event;
@@ -687,13 +687,15 @@ int main(int argc, char *argv[]) {
         chatbox_add_message(&chatbox,0,NULL,"Offline scene preview. Gameplay requires a server.");
     }
     MenuSelection selection={0};comp_cfg.selection=&selection;
+    picker.selection=&selection;
     ClientDesign design={0};
     ClientActions actions={.session=&session,.components=&comp_cfg,.varps=&varp_ctx,.objects=&obj_cfg,
         .selection=&selection,.chatbox=&chatbox,.viewport_interface=&interfaces.viewport,
         .chat_interface=&interfaces.chat,.sidebar_interface=&interfaces.sidebar,.live=live_server,.trace=trace,.idkits=&idk_cfg,.design=&design,
         .entities=&sync_ctx,.scene=world3d,.locations=&loc_cfg,.pathfinder=&pathfinder,.collision=collision_maps,.map=&streamer,
         .destination_x=has_minimap ? &minimap.flag_scene_tile_x : NULL,
-        .destination_z=has_minimap ? &minimap.flag_scene_tile_z : NULL};
+        .destination_z=has_minimap ? &minimap.flag_scene_tile_z : NULL,
+        .click_feedback=&click_feedback,.selected_tab=&selected_tab};
     SDL_StartTextInput();
 
     // High-resolution 50Hz game loop timing (matching GameShell.java:150-210)
@@ -904,6 +906,7 @@ int main(int argc, char *argv[]) {
                 int my = event.button.y;
 
                 mouse_x = mx; mouse_y = my;
+                actions.click_x=mx; actions.click_y=my;
                 comp_cfg.mouse_x = mouse_x; comp_cfg.mouse_y = mouse_y;
                 actions.live = live_server;
                 if (event.button.button == SDL_BUTTON_RIGHT) {
@@ -945,7 +948,7 @@ int main(int argc, char *argv[]) {
                         if (chosen) {
                             ActionResult result = client_action_dispatch(&actions, action);
                             if (result == ACTION_WALK && interfaces.viewport == -1) {
-                                pending_click = true; pending_click_x = mx; pending_click_y = my; pending_click_mode = 1;
+                                pending_click = true; pending_click_x = mx; pending_click_y = my;
                             } else if (result == ACTION_UNAVAILABLE) {
                                 fprintf(stderr, "[ACTION] Unsupported action type %d; no packet sent\n", action.type);
                             }
@@ -993,6 +996,7 @@ int main(int argc, char *argv[]) {
                                 flashing_tab = -1;
                             }
                             selection.item_selected = false;
+                            selection.spell_selected = false;
                         } else if (mx < 520 && my >= 490 && my < 532) {
                             if (mx >= 8 && mx <= 108) public_chat_setting = (public_chat_setting + 1) % 4;
                             else if (mx >= 137 && mx <= 237) private_chat_setting = (private_chat_setting + 1) % 3;
@@ -1043,7 +1047,7 @@ int main(int argc, char *argv[]) {
                                 if (chosen) {
                                     ActionResult result = client_action_dispatch(&actions, action);
                                     if (result == ACTION_WALK && interfaces.viewport == -1) {
-                                        pending_click = true; pending_click_x = mx; pending_click_y = my; pending_click_mode = 1;
+                                        pending_click = true; pending_click_x = mx; pending_click_y = my;
                                     } else if (result == ACTION_UNAVAILABLE) {
                                         fprintf(stderr, "[ACTION] Unsupported action type %d; no packet sent\n", action.type);
                                     }
@@ -1103,7 +1107,7 @@ int main(int argc, char *argv[]) {
                             MenuAction action = menu.actions[menu.size - 1];
                             ActionResult result = client_action_dispatch(&actions, action);
                             if (result == ACTION_WALK && interfaces.viewport == -1) {
-                                pending_click = true; pending_click_x = up_x; pending_click_y = up_y; pending_click_mode = 1;
+                                pending_click = true; pending_click_x = up_x; pending_click_y = up_y;
                             }
                         }
                     }
@@ -1163,6 +1167,10 @@ int main(int argc, char *argv[]) {
                     if(update>0) {
                         if(trace && (opcode==150 || opcode==175)) {
                             int id=(payload[0]<<8)|payload[1];printf("[STATE] varp=%d value=%d\n",id,varp_get(&varp_ctx,id));
+                        }
+                        if(trace && opcode==44 && pkt_len==6) {
+                            int skill=payload[0];
+                            printf("[STATE] stat=%d level=%d xp_times10=%d\n",skill,varp_ctx.skill_levels[skill],varp_ctx.skill_exp[skill]);
                         }
                         if(trace && (opcode==98 || opcode==213 || opcode==15)) {
                             int id=(payload[0]<<8)|payload[1];Component *inv=component_get(&comp_cfg,id);
@@ -1296,13 +1304,19 @@ int main(int argc, char *argv[]) {
                             ((uint32_t)payload[pos+2]<<8) | payload[pos+3];
                         uint32_t size=((uint32_t)payload[pos+4]<<24) | ((uint32_t)payload[pos+5]<<16) |
                             ((uint32_t)payload[pos+6]<<8) | payload[pos+7];
-                        midi_play(song_name,(int32_t)crc,(int32_t)size);
+                        if ((song_name[0] && size == 0) || !midi_play(song_name,crc,size))
+                            fprintf(stderr,"[MIDI] Song command rejected or playback unavailable\n");
                     } else if (opcode == 212) { // MIDI_JINGLE
-                        if (pkt_len >= 6) {
-                            int uncomp_len = ((int)payload[2] << 24) | ((int)payload[3] << 16) | ((int)payload[4] << 8) | (int)payload[5];
-                            int comp_len = pkt_len - 6;
-                            midi_play_jingle(payload + 6, comp_len, uncomp_len);
+                        if (pkt_len < 6) {
+                            fprintf(stderr,"[Protocol] Malformed MIDI_JINGLE\n");
+                            protocol_close_session(&session);live_server=false;break;
                         }
+                        uint32_t uncomp_len = (uint32_t)payload[2]<<24 | (uint32_t)payload[3]<<16 |
+                            (uint32_t)payload[4]<<8 | payload[5];
+                        if (uncomp_len > MIDI_MAX_DECODED ||
+                            !midi_play_jingle(payload+6,(int)(pkt_len-6),(int)uncomp_len,
+                                (uint16_t)((uint16_t)payload[0]<<8 | payload[1])))
+                            fprintf(stderr,"[MIDI] Jingle command rejected or playback unavailable\n");
                     } else if (opcode == 243) { // P_COUNTDIALOG
                         chatbox_open_count_dialog(&chatbox);
                     } else if (opcode == 32) { // CHAT_FILTER_SETTINGS
@@ -1437,12 +1451,8 @@ int main(int argc, char *argv[]) {
             pathing_entity_update_sequences(&hans.base, &seq_cfg);
 
             // D. Cross animation progression (client.java:7744-7749)
-            if (cross_mode != 0) {
-                cross_cycle += 20;
-                if (cross_cycle >= 400) {
-                    cross_mode = 0;
-                }
-            }
+            click_feedback_tick(&click_feedback);
+            midi_tick();
 
             var6 += var4;
         }
@@ -1469,7 +1479,11 @@ int main(int argc, char *argv[]) {
         if (pending_click) {
             world3d_click(world3d, pending_click_x, pending_click_y);
         }
-        bool capture_this_frame = capture_path && (rendered_frames == capture_frame - 1 ||
+        int cross_frame=click_feedback_frame(&click_feedback);
+        bool capture_cross=capture_clicks && cross_frame>=0 &&
+            (cross_frame!=last_captured_cross || click_feedback.cycle<last_cross_cycle);
+        last_captured_cross=cross_frame; last_cross_cycle=click_feedback.cycle;
+        bool capture_this_frame = capture_path && (rendered_frames == capture_frame - 1 || capture_cross ||
             (capture_interval && (rendered_frames + 1) % capture_interval == 0));
         char interval_path[1024];
         const char *frame_capture_path = capture_path;
@@ -1479,6 +1493,32 @@ int main(int argc, char *argv[]) {
             frame_capture_path=interval_path;
         }
         world3d_render(world3d,eye_x,eye_y,eye_z,camera_pitch,camera_yaw,0,sync_ctx.current_plane);
+        // Optional replay helpers resolve pointers from actual received models;
+        // they only enqueue SDL input and never create items or outcomes.
+        if(verification_obj_id>=0) for(int x=0;x<104 && verification_obj_id>=0;x++)
+            for(int z=0;z<104 && verification_obj_id>=0;z++) {
+                GroundTile *tile=&world3d->tiles[sync_ctx.current_plane][x][z];
+                for(GroundItem *item=tile->items;item && verification_obj_id>=0;item=item->next) {
+                    if(item->id!=verification_obj_id || !item->model) continue;
+                    int y=(world3d->heightmap[sync_ctx.current_plane][x][z]+world3d->heightmap[sync_ctx.current_plane][x+1][z]+
+                        world3d->heightmap[sync_ctx.current_plane][x][z+1]+world3d->heightmap[sync_ctx.current_plane][x+1][z+1])/4;
+                    int raise=0;for(int k=0;k<tile->loc_count;k++) if(tile->locs[k].shape>=9 && tile->locs[k].shape<=21 &&
+                        tile->locs[k].model && tile->locs[k].model->obj_raise>raise) raise=tile->locs[k].model->obj_raise;
+                    y-=raise;int sx,sy;
+                    if(!project_from_point(x*128+64,y-16,z*128+64,eye_x,eye_y,eye_z,camera_pitch,camera_yaw,&sx,&sy)) continue;
+                    for(int dy=-36;dy<=36 && verification_obj_id>=0;dy+=2) for(int dx=-36;dx<=36 && verification_obj_id>=0;dx+=2) {
+                        int px=sx+dx,py=sy+dy;
+                        if(px<8 || px>=520 || py<11 || py>=345) continue;
+                        if(model_draw_pickable(item->model,0,camera_pitch,camera_yaw,x*128+64-eye_x,y-eye_y,z*128+64-eye_z,px,py)) {
+                            SDL_Event pointer;memset(&pointer,0,sizeof(pointer));pointer.type=SDL_MOUSEMOTION;
+                            pointer.motion.x=px;pointer.motion.y=py;SDL_PushEvent(&pointer);
+                            verification_cursor_x=px;verification_cursor_y=py;verification_obj_id=-1;
+                            printf("[INPUT] rendered ground item=%d world=(%d,%d) pointer=(%d,%d)\n",item->id,
+                                streamer.base_tile_x+x,streamer.base_tile_z+z,px,py);
+                        }
+                    }
+                }
+            }
         if (capture_this_frame) {
             char terrain_path[2048];
             snprintf(terrain_path, sizeof(terrain_path), "%s.terrain.bmp", frame_capture_path);
@@ -1519,6 +1559,7 @@ int main(int argc, char *argv[]) {
                             bool sent=protocol_send_route(&session,streamer.base_tile_x,streamer.base_tile_z,player.base.path_tile_x[0],player.base.path_tile_z[0],
                                 res.steps_x,res.steps_z,res.step_count,false);
                             if(!sent) fprintf(stderr,"[ACTION] Route send failed\n");
+                            if(sent) click_feedback_start(&click_feedback,CLICK_WALK,pending_click_x,pending_click_y);
                             if (sent && has_minimap && res.step_count > 0) {
                                 minimap.flag_scene_tile_x = res.steps_x[res.step_count-1];
                                 minimap.flag_scene_tile_z = res.steps_z[res.step_count-1];
@@ -1526,10 +1567,7 @@ int main(int argc, char *argv[]) {
                             if(trace && res.step_count>0) printf("[ACTION] route %s destination=(%d,%d)\n",sent?"sent":"failed",
                                 streamer.base_tile_x+res.steps_x[res.step_count-1],streamer.base_tile_z+res.steps_z[res.step_count-1]);
                         }
-                    cross_x = pending_click_x;
-                    cross_y = pending_click_y;
-                    cross_mode = pending_click_mode;
-                    cross_cycle = 0;
+                    if(!live_server) click_feedback_start(&click_feedback,CLICK_WALK,pending_click_x,pending_click_y);
                 }
             }
             world3d->taking_input = false;
@@ -1757,6 +1795,18 @@ int main(int argc, char *argv[]) {
 
         }
 
+        if(verification_inventory_slot>=0 && !menu.visible && selected_tab==3 && interfaces.sidebar==-1) {
+            int root_id=tab_interface_id[3];Component *root=component_get(&comp_cfg,root_id);
+            for(int y=233;y<491 && verification_inventory_slot>=0;y+=4)
+                for(int x=564;x<751 && verification_inventory_slot>=0;x+=4) {
+                    int slot=-1;Component *grid=root?component_find_inv_slot(&comp_cfg,root,x,y,562,231,0,&slot):NULL;
+                    if(!grid || grid->id!=3214 || slot!=verification_inventory_slot || !grid->inv_slot_obj_id || grid->inv_slot_obj_id[slot]<=0) continue;
+                    SDL_Event pointer;memset(&pointer,0,sizeof(pointer));pointer.type=SDL_MOUSEMOTION;
+                    pointer.motion.x=x;pointer.motion.y=y;SDL_PushEvent(&pointer);
+                    verification_cursor_x=x;verification_cursor_y=y;verification_inventory_slot=-1;
+                    printf("[INPUT] inventory slot=%d item=%d pointer=(%d,%d)\n",slot,grid->inv_slot_obj_id[slot]-1,x,y);
+                }
+        }
         context_menu_prioritize(&menu);
         if(verification_option[0] && menu.visible) {
             for(int index=menu.size-1;index>=0;index--) {
@@ -1770,7 +1820,11 @@ int main(int argc, char *argv[]) {
         }
         static char tooltip_buf[128];
         const char *primary_action = "";
-        if (menu.size > 0) {
+        if(menu.size<2 && (selection.item_selected || selection.spell_selected)) {
+            if(selection.item_selected) snprintf(tooltip_buf,sizeof(tooltip_buf),"Use %.64s with...",selection.name);
+            else snprintf(tooltip_buf,sizeof(tooltip_buf),"%.120s...",selection.spell_caption);
+            primary_action=tooltip_buf;
+        } else if (menu.size > 0) {
             const char *top_opt = menu.options[menu.size - 1];
             if (menu.size > 2) {
                 snprintf(tooltip_buf, sizeof(tooltip_buf), "%s @whi@/ %d more options", top_opt, menu.size - 2);
@@ -1785,6 +1839,8 @@ int main(int argc, char *argv[]) {
         pix2d_reset_clip();
         pix3d_center_x = CLIENT_WIDTH / 2;
         pix3d_center_y = CLIENT_HEIGHT / 2;
+
+        if(has_media) click_feedback_draw(&click_feedback,&media,VIEWPORT_X,VIEWPORT_Y,VIEWPORT_W,VIEWPORT_H);
 
         // 2. Draw authentic 2004scape UI Shell & Frame Artwork
         if (has_media) {
@@ -1878,14 +1934,6 @@ int main(int argc, char *argv[]) {
             pixfont_draw_string_taggable_center(&font_p12, 462, 509, 0xFFFFFF, "Report abuse", true);
         }
 
-        // 4. Draw Movement Cross Animation
-        if (has_media && cross_mode != 0) {
-            int f = cross_cycle / 100;
-            if (cross_mode == 2) f += 4;
-            if (f >= 0 && f < 8 && media.crosses[f]) {
-                pix32_draw(media.crosses[f], cross_x - 8, cross_y - 8);
-            }
-        }
 
         // 5. Draw Right-Click Context Menu (topmost layer)
         if (has_fonts && menu.visible) {

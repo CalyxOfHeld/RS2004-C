@@ -12,7 +12,10 @@ typedef enum {
     MENU_IF_CONTINUE, MENU_HELD_OP, MENU_INV_BUTTON, MENU_ITEM_SELECT,
     MENU_SPELL_SELECT, MENU_ITEM_ON_ITEM, MENU_ITEM_EXAMINE, MENU_NPC_OP,
     MENU_NPC_EXAMINE, MENU_LOC_OP, MENU_LOC_EXAMINE, MENU_OBJ_OP,
-    MENU_OBJ_EXAMINE, MENU_PLAYER_OP
+    MENU_OBJ_EXAMINE, MENU_PLAYER_OP,
+    MENU_ITEM_ON_NPC, MENU_ITEM_ON_LOC, MENU_ITEM_ON_OBJ, MENU_ITEM_ON_PLAYER,
+    MENU_SPELL_ON_NPC, MENU_SPELL_ON_LOC, MENU_SPELL_ON_OBJ, MENU_SPELL_ON_PLAYER,
+    MENU_SPELL_ON_ITEM
 } MenuActionType;
 typedef struct {
     MenuActionType type;
@@ -23,6 +26,9 @@ typedef struct MenuSelection {
     bool item_selected;
     int item, slot, component;
     char name[64];
+    bool spell_selected;
+    int spell_component, spell_flags;
+    char spell_caption[128];
 } MenuSelection;
 
 typedef struct ContextMenu {

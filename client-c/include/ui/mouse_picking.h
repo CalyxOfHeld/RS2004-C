@@ -19,6 +19,7 @@ typedef struct MousePicker {
     int mouse_y;
     int picked_count;
     uint32_t picked_bitsets[MAX_PICKED];
+    const MenuSelection *selection;
 } MousePicker;
 
 void mouse_picker_init(MousePicker *picker);

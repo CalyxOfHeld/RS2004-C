@@ -100,11 +100,27 @@ int main(void) {
         printf("[PASS] MIDI song 'adventure' successfully unpacked, verified MThd header, and scheduled!\n");
         assert(midi_current_song() != NULL && strcmp(midi_current_song(), "adventure") == 0);
         midi_set_volume(180);
+        FILE *jingle=fopen("../engine/data/pack/client/jingles/advance cooking.mid","rb");
+        assert(jingle);
+        assert(!fseek(jingle,0,SEEK_END));long packed_size=ftell(jingle);rewind(jingle);
+        assert(packed_size>4 && packed_size<(long)MIDI_MAX_PACKED);
+        uint8_t *packed=malloc((size_t)packed_size);assert(packed);
+        assert(fread(packed,1,(size_t)packed_size,jingle)==(size_t)packed_size);fclose(jingle);
+        uint32_t decoded_size=(uint32_t)packed[0]<<24 | (uint32_t)packed[1]<<16 | (uint32_t)packed[2]<<8 | packed[3];
+        bool jingle_ok=midi_play_jingle(packed+4,(int)packed_size-4,(int)decoded_size,40);
+        free(packed);
+        if(jingle_ok) {
+            assert(!midi_is_playing());
+            midi_tick();assert(!midi_is_playing());
+            midi_tick();assert(midi_is_playing());
+            assert(!strcmp(midi_current_song(),"adventure"));
+            puts("[PASS] MCI accepts jingle replacement and ambient restart after two original logic ticks (audibility unverified)");
+        } else puts("[SKIP] Jingle device playback unavailable/rejected");
         midi_stop();
         assert(midi_current_song()[0] == '\0');
         printf("[PASS] MIDI playback lifecycle, volume, and stop verified!\n");
     } else {
-        printf("[WARN] MIDI song file not accessible in test environment (allowed in headless)\n");
+        printf("[SKIP] MIDI device playback unavailable or rejected; cache decoding is tested independently\n");
     }
     midi_close();
 

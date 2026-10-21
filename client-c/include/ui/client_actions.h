@@ -4,6 +4,7 @@
 #include "ui/component.h"
 #include "ui/varp.h"
 #include "ui/chatbox.h"
+#include "ui/click_feedback.h"
 #include "config/obj.h"
 #include "net/protocol.h"
 #include "config/idk.h"
@@ -30,6 +31,9 @@ typedef struct {
     CollisionMap *collision;
     MapStreamer *map;
     int *destination_x, *destination_z; // optional shared minimap scene-tile flag
+    ClickFeedback *click_feedback;
+    int click_x, click_y;
+    int *selected_tab;
 } ClientActions;
 typedef enum { ACTION_UNAVAILABLE, ACTION_LOCAL, ACTION_SENT, ACTION_WALK, ACTION_FAILED } ActionResult;
 void client_design_init(ClientDesign *design,IdkConfig *kits);
