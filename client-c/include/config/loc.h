@@ -60,6 +60,10 @@ void loc_decode(LocType* loc, Packet* pkt);
 bool loc_get(LocConfig* config, int id, LocType* out_loc);
 void loc_free_entry(LocType* loc);
 void loc_free(LocConfig* config);
+// Original scene rebuild clears static bases; unload also clears frame models.
+void loc_clear_model_cache(bool all);
 Model* loc_get_model(const LocType* loc, int shape, int rotation, Arena* arena);
+Model* loc_get_model_frame(const LocType* loc, int shape, int rotation, int frame, Arena* arena);
+void loc_skew_model(Model *model,const LocType *loc,int sw,int se,int ne,int nw);
 
 #endif // LOC_TYPE_H

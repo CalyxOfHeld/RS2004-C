@@ -9,6 +9,7 @@ static char verification_input_path[1024];
 static long verification_input_offset;
 static int verification_npc_type=-1,verification_cursor_x=-1,verification_cursor_y=-1;
 static int verification_obj_id=-1,verification_inventory_slot=-1;
+static int verification_loc_id=-1;
 static char verification_option[64];
 static bool verification_load_input(const char *path) {
     FILE *file=fopen(path,"r"); if(!file) return false;
@@ -21,7 +22,7 @@ static bool verification_load_input(const char *path) {
         if(verification_input_count>=512) {fclose(file);return false;}
         VerificationInput *input=&verification_input[verification_input_count];
         if(sscanf(line,"%d %15s %255[^\r\n]",&input->frame,input->kind,input->value)!=3 || input->frame<previous) {fclose(file);return false;}
-        if(strcmp(input->kind,"move") && strcmp(input->kind,"npc") && strcmp(input->kind,"obj") && strcmp(input->kind,"inv") && strcmp(input->kind,"option") && strcmp(input->kind,"right_cursor") && strcmp(input->kind,"left_cursor") && strcmp(input->kind,"quit") && strcmp(input->kind,"left") && strcmp(input->kind,"release") && strcmp(input->kind,"right") && strcmp(input->kind,"text") && strcmp(input->kind,"key")) {fclose(file);return false;}
+        if(strcmp(input->kind,"move") && strcmp(input->kind,"loc") && strcmp(input->kind,"npc") && strcmp(input->kind,"obj") && strcmp(input->kind,"inv") && strcmp(input->kind,"option") && strcmp(input->kind,"right_cursor") && strcmp(input->kind,"left_cursor") && strcmp(input->kind,"quit") && strcmp(input->kind,"left") && strcmp(input->kind,"release") && strcmp(input->kind,"right") && strcmp(input->kind,"text") && strcmp(input->kind,"key")) {fclose(file);return false;}
         previous=input->frame;verification_input_count++;
     }
     verification_input_offset=ftell(file);fclose(file);return true;
@@ -38,11 +39,16 @@ static void verification_push_input(int frame) {
     while(verification_input_next<verification_input_count && verification_input[verification_input_next].frame==frame) {
         VerificationInput *input=&verification_input[verification_input_next++];SDL_Event event;memset(&event,0,sizeof(event));
         printf("[INPUT] frame=%d event=%s\n",frame,input->kind);
-        if(!strcmp(input->kind,"npc")) {
+        if(!strcmp(input->kind,"loc")) {
+            verification_loc_id=atoi(input->value);verification_obj_id=verification_inventory_slot=verification_npc_type=-1;verification_cursor_x=verification_cursor_y=-1;
+        } else if(!strcmp(input->kind,"npc")) {
+            verification_loc_id=-1;
             verification_npc_type=atoi(input->value);verification_obj_id=verification_inventory_slot=-1;verification_cursor_x=verification_cursor_y=-1;
         } else if(!strcmp(input->kind,"obj")) {
+            verification_loc_id=-1;
             verification_obj_id=atoi(input->value);verification_npc_type=verification_inventory_slot=-1;verification_cursor_x=verification_cursor_y=-1;
         } else if(!strcmp(input->kind,"inv")) {
+            verification_loc_id=-1;
             verification_inventory_slot=atoi(input->value);verification_npc_type=verification_obj_id=-1;verification_cursor_x=verification_cursor_y=-1;
         } else if(!strcmp(input->kind,"option")) {
             snprintf(verification_option,sizeof(verification_option),"%.63s",input->value);

@@ -31,6 +31,8 @@ typedef struct {
     int32_t *face_render_type;
     int32_t *face_priority;
     int32_t *face_alpha;
+    // Heap-only shared alpha, as used by original LocType's model caches.
+    int32_t *alpha_storage;
     int32_t *face_label;
     int32_t *vertex_label;
 
@@ -46,12 +48,15 @@ typedef struct {
 
 void   model_init_repo(Jagfile *models_jag, Arena *arena);
 Model *model_load(int32_t id, Arena *arena);
-// Only for an unshared, heap-owned model_load result (never an arena/copy view).
+// Heap-owned model arrays; also releases reference-counted scenery alpha.
 void model_free_unshared(Model *model);
+bool model_share_alpha(Model *destination,Model *source);
 void   model_recolor(Model *m, int32_t src_color, int32_t dst_color);
 void   model_translate(Model *m, int32_t y, int32_t x, int32_t z);
 Model *model_copy(const Model *src, Arena *arena);
 Model *model_create_composite(Model **models, int32_t count, Arena *arena);
+// Original lit two-model constructor: concatenate vertices and preserve shading.
+Model *model_combine_lit(Model **models,int count,Arena *arena);
 void   model_create_label_references(Model *m, Arena *arena);
 void   model_apply_transform(Model *m, int frame_id);
 void   model_apply_transforms(Model *m, int primary_frame, int secondary_frame, const int *mask);

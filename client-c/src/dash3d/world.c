@@ -1,4 +1,5 @@
 #include "dash3d/world.h"
+#include "dash3d/location_anim.h"
 #include "gfx/pix3d.h"
 #include "core/packet.h"
 #include <string.h>
@@ -189,11 +190,10 @@ static bool place_location(World *w,LocConfig *loc_cfg,World3D *world3d,Collisio
         if(world3d && shape==2) parts[1]=loc_get_model(&loc,2,(rotation+1)&3,NULL);
         for(int part=0;part<2;part++) {Model *m=parts[part];
         if (m) {
-            if(loc.hillskew) for(int v=0;v<m->num_points;v++) {
-                int south=y_sw+(y_se-y_sw)*(m->point_x[v]+64)/128;
-                int north=y_nw+(y_ne-y_nw)*(m->point_x[v]+64)/128;
-                m->point_y[v]+=south+(north-south)*(m->point_z[v]+64)/128-avg_y;
-            }
+            // Existing individual-lighting fallback for static scene scenery.
+            // Original cross-location normal merging remains a separate gate.
+            if(loc.sharelight) model_calculate_normals(m,64+loc.ambient,768+loc.contrast*5,-50,-10,-50);
+            loc_skew_model(m,&loc,y_sw,y_se,y_ne,y_nw);
             int bitset = 0xC0000000 | (loc_id << 14) | (tile_x << 7) | tile_z;
             bool added=world3d_add_loc(world3d,level,tile_x,tile_z,avg_y,m,bitset,w_wid,w_len);
             if(added) {GroundTile *tile=&world3d->tiles[level][tile_x][tile_z];tile->locs[tile->loc_count-1].shape=shape;tile->locs[tile->loc_count-1].owns_model=true;tile->locs[tile->loc_count-1].yaw=shape==11 ? 256:0;}
@@ -211,6 +211,8 @@ static bool place_location(World *w,LocConfig *loc_cfg,World3D *world3d,Collisio
             }
         }
         }
+        if(world3d && world3d->sequences && loc.anim>=0)
+            location_anim_add(world3d,loc_id,level,tile_x,tile_z,world_location_layer(shape),loc.anim,true);
         loc_free_entry(&loc);
         return true;
     }

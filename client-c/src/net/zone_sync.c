@@ -1,13 +1,15 @@
 #include "net/zone_sync.h"
 #include "dash3d/effects.h"
+#include "dash3d/location_anim.h"
+#include "dash3d/location_merge.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 static const int zone_opcodes[10]={23,42,49,50,59,69,76,151,191,223};
 static const int zone_lengths[10]={14,4,3,7,4,15,2,7,6,5};
 static int event_index(int opcode) {for(int i=0;i<10;i++) if(zone_opcodes[i]==opcode) return i;return -1;}
-void zone_sync_reset(ZoneSync *z) {z->base_x=z->base_z=0;z->has_base=z->dirty=false;z->change_count=0;}
-void zone_sync_dispose(ZoneSync *z) {free(z->changes);memset(z,0,sizeof(*z));}
+void zone_sync_reset(ZoneSync *z) {z->base_x=z->base_z=0;z->has_base=z->dirty=false;z->change_count=z->merge_count=0;}
+void zone_sync_dispose(ZoneSync *z) {free(z->changes);free(z->merges);memset(z,0,sizeof(*z));}
 static bool remember(ZoneSync *z,World3D *scene,int level,int x,int y,int shape) {
     int layer=world_location_layer(shape);
     for(size_t i=0;i<z->change_count;i++) if(z->changes[i].level==level && z->changes[i].x==x && z->changes[i].z==y && z->changes[i].layer==layer) return true;
@@ -30,6 +32,12 @@ static void unsupported(ZoneSync *z,int index) {
     z->unsupported|=1u<<index;
 }
 static bool apply_event(ZoneSync *z,World *world,World3D *scene,LocConfig *locs,CollisionMap *collision,int level,int opcode,const uint8_t *data) {
+    if(opcode==23) return location_merge_packet(z,world,scene,locs,level,data);
+    if(opcode==42) {
+        int x=z->base_x+((data[0]>>4)&7),y=z->base_z+(data[0]&7);
+        if(x<0 || y<0 || x>=scene->max_tile_x || y>=scene->max_tile_z) return true;
+        return location_anim_packet(scene,level,x,y,world_location_layer(data[1]>>2),(data[2]<<8)|data[3]);
+    }
     if((opcode==69 || opcode==191) && z->effects)
         return effects_add_packet(z->effects,world,scene,level,z->base_x,z->base_z,opcode,data);
     if(opcode==223 || opcode==49 || opcode==151 || opcode==50) {
@@ -72,15 +80,19 @@ int zone_sync_apply(ZoneSync *z,World *world,World3D *scene,LocConfig *locs,Coll
         if(length<2) return -1;
         while(pos<length) {
             int op=data[pos++],i=event_index(op);if(i<0 || (size_t)zone_lengths[i]>length-pos) return -1;
-            if((op==59 || op==76) && data[pos+1]>>2>22) return -1;
-            if(op==59 && ((data[pos+2]<<8)|data[pos+3])>=locs->count) return -1;
+            if((op==59 || op==76 || op==42 || op==23) && data[pos+1]>>2>22) return -1;
+            if(op==42 && (!scene->sequences || ((data[pos+2]<<8)|data[pos+3])>=scene->sequences->count)) return -1;
+            if((op==59 || op==23) && ((data[pos+2]<<8)|data[pos+3])>=locs->count) return -1;
+            if(op==23 && ((data[pos+8]<<8)|data[pos+9])>=MAX_PLAYERS) return -1;
             if(!valid_item(z,op,data+pos)) return -1;
             pos+=zone_lengths[i];
         }
     } else {
         if(length!=(size_t)zone_lengths[index] || !z->has_base) return -1;
-        if((opcode==59 || opcode==76) && data[1]>>2>22) return -1;
-        if(opcode==59 && ((data[2]<<8)|data[3])>=locs->count) return -1;
+        if((opcode==59 || opcode==76 || opcode==42 || opcode==23) && data[1]>>2>22) return -1;
+        if(opcode==42 && (!scene->sequences || ((data[2]<<8)|data[3])>=scene->sequences->count)) return -1;
+        if((opcode==59 || opcode==23) && ((data[2]<<8)|data[3])>=locs->count) return -1;
+        if(opcode==23 && ((data[8]<<8)|data[9])>=MAX_PLAYERS) return -1;
         if(!valid_item(z,opcode,data)) return -1;
     }
     if(opcode==7 || opcode==135 || opcode==162) {z->base_x=data[0];z->base_z=data[1];z->has_base=true;}

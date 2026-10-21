@@ -57,6 +57,8 @@ void world3d_dispose(World3D *w) {
     world3d_reset(w);
     free(w->map_locations);w->map_locations=NULL;
     w->map_location_count=w->map_location_capacity=0;
+    free(w->location_animations);w->location_animations=NULL;
+    w->location_animation_capacity=0;
 }
 bool world3d_add_map_location(World3D *w,WorldMapLocation loc) {
     if(w->map_location_count==w->map_location_capacity) {
@@ -69,6 +71,7 @@ bool world3d_add_map_location(World3D *w,WorldMapLocation loc) {
 }
 void world3d_reset(World3D *w) {
     w->map_location_count=0;
+    w->location_animation_count=0;
     w->taking_input = false;
     w->click_tile_x = -1;
     w->click_tile_z = -1;

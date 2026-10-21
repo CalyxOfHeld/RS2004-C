@@ -68,6 +68,8 @@ void pathing_entity_teleport(PathingEntity *e, bool clear_seq, bool queue, int t
 void pathing_entity_move_along_route(PathingEntity *e, bool run, int direction);
 void pathing_entity_queue_path(PathingEntity *e, const int *steps_x, const int *steps_z, int count, bool running);
 void pathing_entity_update_movement(PathingEntity *e);
+bool pathing_entity_update_exact(PathingEntity *e,const struct SeqConfig *sequences,int cycle);
+bool pathing_entity_set_sequence(PathingEntity *e,const struct SeqConfig *sequences,int id,int delay);
 void pathing_entity_update_facing(PathingEntity *e);
 void pathing_entity_update_sequences(PathingEntity *e, const struct SeqConfig *seq_cfg);
 

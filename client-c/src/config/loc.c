@@ -6,6 +6,27 @@
 #include <stdio.h>
 #include <strings.h>
 
+typedef struct {uint64_t key,age;Model *model;} LocModelCache;
+static LocModelCache base_cache[500],frame_cache[30];
+static uint64_t cache_age;
+static Model *cache_get(LocModelCache *cache,int count,uint64_t key) {
+    for(int i=0;i<count;i++) if(cache[i].model && cache[i].key==key) {cache[i].age=++cache_age;return cache[i].model;}
+    return NULL;
+}
+static void cache_put(LocModelCache *cache,int count,uint64_t key,Model *model) {
+    int oldest=0;
+    for(int i=0;i<count;i++) {
+        if(!cache[i].model) {oldest=i;break;}
+        if(cache[i].age<cache[oldest].age) oldest=i;
+    }
+    model_free_unshared(cache[oldest].model);
+    cache[oldest]=(LocModelCache){key,++cache_age,model};
+}
+void loc_clear_model_cache(bool all) {
+    for(int i=0;i<500;i++){model_free_unshared(base_cache[i].model);base_cache[i]=(LocModelCache){0};}
+    if(all) for(int i=0;i<30;i++){model_free_unshared(frame_cache[i].model);frame_cache[i]=(LocModelCache){0};}
+}
+
 void loc_reset(LocType* loc) {
     memset(loc, 0, sizeof(LocType));
     loc->index = -1;
@@ -37,6 +58,7 @@ void loc_reset(LocType* loc) {
 }
 
 void loc_unpack(LocConfig* config, Jagfile* jag) {
+    loc_clear_model_cache(true);
     size_t idx_len = 0;
     uint8_t* idx_data = jagfile_read(jag, "loc.idx", NULL, &idx_len, NULL);
     if (!idx_data) {
@@ -204,6 +226,7 @@ void loc_free_entry(LocType* loc) {
 }
 
 void loc_free(LocConfig* config) {
+    loc_clear_model_cache(true);
     if (!config) return;
     if (config->offsets) free(config->offsets);
     if (config->dat) free(config->dat);
@@ -213,6 +236,10 @@ void loc_free(LocConfig* config) {
 }
 
 Model* loc_get_model(const LocType* loc, int shape, int rotation, Arena* arena) {
+    return loc_get_model_frame(loc,shape,rotation,-1,arena);
+}
+
+Model* loc_get_model_frame(const LocType* loc, int shape, int rotation, int frame, Arena* arena) {
     if (!loc || !loc->models || !loc->shapes || loc->model_count <= 0) return NULL;
     int model_idx = -1;
     if (loc->shapes) {
@@ -229,14 +256,30 @@ Model* loc_get_model(const LocType* loc, int shape, int rotation, Arena* arena) 
     int m_id = loc->models[model_idx];
     if (m_id < 0) return NULL;
 
-    // model_load returns a fresh, unshared model in this port; no cached
-    // source model needs copying. The scene owns this returned allocation.
-    Model *m=model_load(m_id,arena);
-    if(!m) return NULL;
-
-    if(loc->mirror != (rotation>3)) {
-        for(int i=0;i<m->num_points;i++) m->point_z[i]=-m->point_z[i];
-        for(int i=0;i<m->num_faces;i++) {int v=m->face_vertex_a[i];m->face_vertex_a[i]=m->face_vertex_c[i];m->face_vertex_c[i]=v;}
+    uint64_t key=(uint64_t)((loc->index<<6)+(model_idx<<3)+rotation)+((uint64_t)(frame+1)<<32);
+    Model *cached=cache_get(frame_cache,30,key);
+    if(cached) {
+        Model *result=model_copy(cached,arena);
+        if(result && !arena && !loc->anim_has_alpha) model_share_alpha(result,cached);
+        return result;
+    }
+    bool mirror=loc->mirror != (rotation>3);
+    uint64_t base_key=(uint64_t)(m_id+(mirror?65536:0));
+    Model *base=cache_get(base_cache,500,base_key);
+    if(!base) {
+        base=model_load(m_id,NULL);if(!base) return NULL;
+        if(mirror) {
+            for(int i=0;i<base->num_points;i++) base->point_z[i]=-base->point_z[i];
+            for(int i=0;i<base->num_faces;i++){int v=base->face_vertex_a[i];base->face_vertex_a[i]=base->face_vertex_c[i];base->face_vertex_c[i]=v;}
+        }
+        cache_put(base_cache,500,base_key,base);
+    }
+    Model *m=model_copy(base,NULL);if(!m) return NULL;
+    if(!loc->anim_has_alpha) model_share_alpha(m,base);
+    if(loc->anim_has_alpha && !m->face_alpha) m->face_alpha=calloc(m->num_faces,sizeof(int32_t));
+    // LocType.getModel animates the mirrored base before rotating/scaling it.
+    if(frame>=0) {
+        model_apply_transform(m,frame);
     }
     for(int turn=0;turn<(rotation&3);turn++) for(int i=0;i<m->num_points;i++) {
         int x=m->point_x[i];m->point_x[i]=m->point_z[i];m->point_z[i]=-x;
@@ -248,7 +291,28 @@ Model* loc_get_model(const LocType* loc, int shape, int rotation, Arena* arena) 
         m->point_z[i]=m->point_z[i]*loc->resizez/128+loc->offsetz;
     }
     model_calculate_normals(m, 64 + loc->ambient, 768 + loc->contrast * 5, -50, -10, -50);
+    // Original sharelight models defer Gouraud face shades to scene lighting.
+    if(loc->sharelight) for(int f=0;f<m->num_faces;f++) if(!m->face_render_type || !(m->face_render_type[f]&1))
+        m->face_colour_a[f]=m->face_colour_b[f]=m->face_colour_c[f]=0;
     if(loc->blockwalk) for(int i=0;i<m->num_points;i++)
         if(-m->point_y[i]>m->obj_raise) m->obj_raise=-m->point_y[i];
-    return m;
+    // Cached geometry no longer needs animation groups. Returned models own
+    // their arrays; shared alpha keeps the original cache aliasing semantics.
+    if(m->label_vertices) for(int i=0;i<m->num_label_vertices;i++) free(m->label_vertices[i]);
+    free(m->label_vertices);free(m->label_vertex_counts);
+    m->label_vertices=NULL;m->label_vertex_counts=NULL;m->num_label_vertices=0;
+    cache_put(frame_cache,30,key,m);
+    Model *result=model_copy(m,arena);
+    if(result && !arena && !loc->anim_has_alpha) model_share_alpha(result,m);
+    return result;
+}
+
+void loc_skew_model(Model *m,const LocType *loc,int sw,int se,int ne,int nw) {
+    if(!m || !loc->hillskew) return;
+    int average=(sw+se+ne+nw)/4;
+    for(int v=0;v<m->num_points;v++) {
+        int south=sw+(se-sw)*(m->point_x[v]+64)/128;
+        int north=nw+(ne-nw)*(m->point_x[v]+64)/128;
+        m->point_y[v]+=south+(north-south)*(m->point_z[v]+64)/128-average;
+    }
 }

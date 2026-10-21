@@ -679,6 +679,7 @@ Model *model_copy(const Model *src, Arena *arena) {
     dst->priority = src->priority;
     dst->min_depth = src->min_depth;
     dst->max_depth = src->max_depth;
+    dst->obj_raise = src->obj_raise;
 
     if (src->num_points > 0) {
         dst->point_x = arena ? (int32_t*)arena_alloc(arena, src->num_points * sizeof(int32_t))
@@ -833,6 +834,40 @@ Model *model_create_composite(Model **models, int32_t count, Arena *arena) {
             m->texture_c[m->num_t]=add_composite_vertex(m,src,src->texture_c[t]);
             m->num_t++;
         }
+    }
+    return m;
+}
+
+Model *model_combine_lit(Model **models,int count,Arena *arena) {
+    if(!arena || !models || count<=0) return NULL;
+    int points=0,faces=0,textures=0;
+    for(int i=0;i<count;i++) if(models[i]) {points+=models[i]->num_points;faces+=models[i]->num_faces;textures+=models[i]->num_t;}
+    size_t need=sizeof(Model)+(size_t)points*3*sizeof(int32_t)+(size_t)faces*10*sizeof(int32_t)+(size_t)textures*3*sizeof(int32_t)+256;
+    if(need>arena->capacity-arena->offset) return NULL;
+    Model *m=arena_alloc_zero(arena,sizeof(*m));m->allocation_arena=arena;
+    m->num_points=points;m->num_faces=faces;m->num_t=textures;
+    #define ARRAY(field,n) m->field=arena_alloc_zero(arena,(size_t)(n)*sizeof(int32_t))
+    ARRAY(point_x,points);ARRAY(point_y,points);ARRAY(point_z,points);
+    ARRAY(face_vertex_a,faces);ARRAY(face_vertex_b,faces);ARRAY(face_vertex_c,faces);
+    ARRAY(face_colour,faces);ARRAY(face_colour_a,faces);ARRAY(face_colour_b,faces);ARRAY(face_colour_c,faces);
+    ARRAY(face_render_type,faces);ARRAY(face_priority,faces);ARRAY(face_alpha,faces);
+    ARRAY(texture_a,textures);ARRAY(texture_b,textures);ARRAY(texture_c,textures);
+    #undef ARRAY
+    int vertex=0,face=0,texture=0;
+    for(int i=0;i<count;i++) {Model *src=models[i];if(!src) continue;
+        memcpy(m->point_x+vertex,src->point_x,src->num_points*sizeof(int32_t));
+        memcpy(m->point_y+vertex,src->point_y,src->num_points*sizeof(int32_t));
+        memcpy(m->point_z+vertex,src->point_z,src->num_points*sizeof(int32_t));
+        for(int f=0;f<src->num_faces;f++,face++) {
+            m->face_vertex_a[face]=src->face_vertex_a[f]+vertex;m->face_vertex_b[face]=src->face_vertex_b[f]+vertex;m->face_vertex_c[face]=src->face_vertex_c[f]+vertex;
+            m->face_colour[face]=src->face_colour?src->face_colour[f]:0;
+            m->face_colour_a[face]=src->face_colour_a?src->face_colour_a[f]:0;m->face_colour_b[face]=src->face_colour_b?src->face_colour_b[f]:0;m->face_colour_c[face]=src->face_colour_c?src->face_colour_c[f]:0;
+            m->face_priority[face]=src->face_priority?src->face_priority[f]:src->priority;
+            m->face_render_type[face]=src->face_render_type?src->face_render_type[f]:0;
+            m->face_alpha[face]=src->face_alpha?src->face_alpha[f]:0;
+        }
+        for(int t=0;t<src->num_t;t++,texture++) {m->texture_a[texture]=src->texture_a[t]+vertex;m->texture_b[texture]=src->texture_b[t]+vertex;m->texture_c[texture]=src->texture_c[t]+vertex;}
+        vertex+=src->num_points;
     }
     return m;
 }
@@ -1070,8 +1105,28 @@ void model_apply_transforms(Model *m, int primary_frame, int secondary_frame, co
     }
 }
 
+bool model_share_alpha(Model *destination,Model *source) {
+    if(!source->face_alpha || destination->allocation_arena || source->allocation_arena) return false;
+    if(!source->alpha_storage) {
+        int32_t *storage=malloc((source->num_faces+1)*sizeof(int32_t));
+        if(!storage) return false;
+        storage[0]=1;memcpy(storage+1,source->face_alpha,source->num_faces*sizeof(int32_t));
+        free(source->face_alpha);source->alpha_storage=storage;source->face_alpha=storage+1;
+    }
+    if(destination->alpha_storage) {
+        if(--destination->alpha_storage[0]==0) free(destination->alpha_storage);
+    } else free(destination->face_alpha);
+    destination->alpha_storage=source->alpha_storage;destination->face_alpha=source->face_alpha;
+    destination->alpha_storage[0]++;
+    return true;
+}
+
 void model_free_unshared(Model *m) {
     if(!m || m->allocation_arena) return;
+    if(m->alpha_storage) {
+        if(--m->alpha_storage[0]==0) free(m->alpha_storage);
+        m->face_alpha=NULL;
+    }
     if(m->label_vertices) for(int i=0;i<m->num_label_vertices;i++) free(m->label_vertices[i]);
     void *owned[]={m->point_x,m->point_y,m->point_z,m->face_vertex_a,m->face_vertex_b,m->face_vertex_c,
         m->texture_a,m->texture_b,m->texture_c,m->face_colour,m->face_colour_a,m->face_colour_b,m->face_colour_c,

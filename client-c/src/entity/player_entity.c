@@ -78,6 +78,22 @@ void player_entity_read_appearance(PlayerEntity *p, Packet *pkt) {
     }
 }
 
+void player_entity_dispose(PlayerEntity *p) {
+    if(!p) return;
+    model_free_unshared(p->loc_model);p->loc_model=NULL;
+}
+
+Model *player_with_location(Model *body,PlayerEntity *p,int cycle,int ground_y,Arena *arena) {
+    if(p->loc_model && cycle>=p->loc_stop_cycle) player_entity_dispose(p);
+    if(!body || !p->loc_model || cycle<p->loc_start_cycle) return body;
+    Model *loc=model_copy(p->loc_model,arena);if(!loc) return body;
+    model_translate(loc,p->loc_offset_y-ground_y,p->loc_offset_x-p->base.x,p->loc_offset_z-p->base.z);
+    int turns=p->base.dst_yaw==512 ? 3:p->base.dst_yaw==1024 ? 2:p->base.dst_yaw==1536 ? 1:0;
+    for(int turn=0;turn<turns;turn++) for(int v=0;v<loc->num_points;v++) {int x=loc->point_x[v];loc->point_x[v]=loc->point_z[v];loc->point_z[v]=-x;}
+    Model *parts[]={body,loc};Model *merged=model_combine_lit(parts,2,arena);
+    return merged ? merged:body;
+}
+
 Model* player_entity_get_model(PlayerEntity *p, IdkConfig *idk_cfg, ObjConfig *obj_cfg, SeqConfig *seq_cfg, Arena *arena) {
     (void)seq_cfg;
     if (!p || !p->visible) return NULL;

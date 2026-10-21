@@ -11,6 +11,8 @@ NET_SRCS    = src/net/rsa.c src/net/client_stream.c src/net/protocol.c src/net/e
 DASH3D_SRCS = src/dash3d/collision_map.c src/dash3d/world3d.c src/dash3d/ground_items.c src/dash3d/world.c src/dash3d/minimap.c src/dash3d/pathfinder.c src/dash3d/map_streamer.c src/dash3d/camera.c src/dash3d/effects.c
 UI_SRCS     = src/ui/client_actions.c src/ui/component_packets.c src/ui/component.c src/ui/context_menu.c src/ui/chatbox.c src/ui/mouse_picking.c src/ui/varp.c src/ui/click_feedback.c src/ui/combat_feedback.c
 AUDIO_SRCS  = src/audio/wave.c src/audio/midi.c
+DASH3D_SRCS += src/dash3d/location_anim.c
+DASH3D_SRCS += src/dash3d/location_merge.c
 HEADERS = $(wildcard include/*/*.h) platform/verification_input.h
 ALL_SRCS    = $(CORE_SRCS) $(GFX_SRCS) $(CONFIG_SRCS) $(ENTITY_SRCS) $(NET_SRCS) $(DASH3D_SRCS) $(UI_SRCS) $(AUDIO_SRCS)
 
@@ -52,6 +54,9 @@ TEST_BINS += bin/test_midi_data.exe
 TEST_BINS += bin/test_click_feedback.exe
 TEST_BINS += bin/test_target_interactions.exe
 TEST_BINS += bin/test_effects.exe
+TEST_BINS += bin/test_location_anim.exe
+TEST_BINS += bin/test_location_merge.exe
+TEST_BINS += bin/test_exact_movement.exe
 
 test: $(TEST_BINS)
 	@echo "================ RUNNING TESTS ================"
@@ -87,6 +92,9 @@ test: $(TEST_BINS)
 	@./bin/test_click_feedback.exe
 	@./bin/test_target_interactions.exe
 	@./bin/test_effects.exe
+	@./bin/test_location_anim.exe
+	@./bin/test_location_merge.exe
+	@./bin/test_exact_movement.exe
 	@./bin/test_chatbox.exe
 	@./bin/test_mouse_picking.exe
 	@./bin/test_pathfinding.exe

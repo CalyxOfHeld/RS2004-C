@@ -50,6 +50,8 @@
 #include "entity/npc_entity.h"
 #include "net/entity_sync.h"
 #include "net/zone_sync.h"
+#include "dash3d/location_anim.h"
+#include "dash3d/location_merge.h"
 #include "net/client_stream.h"
 #include "net/protocol.h"
 #include "net/rsa.h"
@@ -483,6 +485,8 @@ int main(int argc, char *argv[]) {
 
     World3D *world3d = (World3D*)calloc(1, sizeof(World3D));
     world3d_init(world3d, 104, 104, 4);
+    world3d->sequences=&seq_cfg;
+    world3d->trace_location_animations=trace;
 
     if (l_data) {
         world_load_locations(world, l_data, l_len, &loc_cfg, world3d, collision_maps, 0, 0);
@@ -490,6 +494,7 @@ int main(int argc, char *argv[]) {
     }
 
     world_build(world, world3d, &flo_cfg, collision_maps);
+    loc_clear_model_cache(false);
     printf("[PASS] 3D Scene built successfully!\n");
 
     // Initialize Minimap Radar & Compass Needle
@@ -507,6 +512,8 @@ int main(int argc, char *argv[]) {
     ZoneSync zones={0};zones.effects=&effects;zones.trace=trace;zones.objects=&obj_cfg;zones.local_pid=-1;
     EntitySyncContext sync_ctx;
     entity_sync_init(&sync_ctx, &npc_cfg);sync_ctx.trace=trace;
+    sync_ctx.seq_cfg=&seq_cfg;
+    zones.entities=&sync_ctx;
     PlayerEntity *player_ptr = &sync_ctx.local_player;
     #define player (*player_ptr)
 
@@ -713,6 +720,7 @@ int main(int argc, char *argv[]) {
     int var5 = 1;
     int var6 = 0;
     int game_ticks = 0;
+    int location_anim_cycle = 0;
     const int deltime = 20; // 50 Hz client tick
     const int mindel = 1;
 
@@ -1373,6 +1381,7 @@ int main(int argc, char *argv[]) {
                             GroundItem **saved_items=ground_items_detach(world3d);
                             if(!saved_items) {fprintf(stderr,"Cannot retain ground items during rebuild\n");running=false;break;}
                             bool rebuilt=map_streamer_rebuild(&streamer, world, world3d, collision_maps, &flo_cfg, &loc_cfg, m_dir);
+                            loc_clear_model_cache(false);
                             ground_items_restore(world3d,saved_items,streamer.base_tile_x-old_base_x,streamer.base_tile_z-old_base_z);
                             if (!rebuilt) {
                                 fprintf(stderr, "Live map rebuild failed\n");
@@ -1434,7 +1443,7 @@ int main(int argc, char *argv[]) {
             }
 
             // C. Entity Logic Updates (authentic 50 Hz stride & frame progression)
-            pathing_entity_update_movement(&player.base);
+            if(!pathing_entity_update_exact(&player.base,&seq_cfg,game_ticks))pathing_entity_update_movement(&player.base);
             if (has_minimap && player.base.x / 128 == minimap.flag_scene_tile_x &&
                 player.base.z / 128 == minimap.flag_scene_tile_z) {
                 if(trace && minimap.flag_scene_tile_x) printf("[NAV] destination reached world=(%d,%d)\n",
@@ -1451,7 +1460,8 @@ int main(int argc, char *argv[]) {
                 }
                 for(int i=0;i<sync_ctx.player_count;i++) {
                     PlayerEntity *other=sync_ctx.players[sync_ctx.player_indices[i]];if(!other) continue;
-                    pathing_entity_update_movement(&other->base);pathing_entity_update_facing(&other->base);pathing_entity_update_sequences(&other->base,&seq_cfg);
+                    if(!pathing_entity_update_exact(&other->base,&seq_cfg,game_ticks))pathing_entity_update_movement(&other->base);
+                    pathing_entity_update_facing(&other->base);pathing_entity_update_sequences(&other->base,&seq_cfg);
                 }
             }
             pathing_entity_update_movement(&hans.base);
@@ -1465,6 +1475,9 @@ int main(int argc, char *argv[]) {
             for(int i=0;i<sync_ctx.npc_count;i++)if(sync_ctx.npcs[sync_ctx.npc_indices[i]])actor_spotanim_tick(&sync_ctx.npcs[sync_ctx.npc_indices[i]]->base,&spot_cfg,game_ticks);
             for(int i=0;i<sync_ctx.player_count;i++)if(sync_ctx.players[sync_ctx.player_indices[i]])actor_spotanim_tick(&sync_ctx.players[sync_ctx.player_indices[i]]->base,&spot_cfg,game_ticks);
             effects_tick(&effects,world,world3d,&sync_ctx,game_ticks);
+            if(!location_merge_tick(&zones,world,world3d,&loc_cfg,collision_maps,game_ticks)) {fprintf(stderr,"Cannot update merged scenery\n");running=false;break;}
+            if(zones.dirty && has_minimap) minimap_build(&minimap,world,world3d,&media,sync_ctx.current_plane);
+            zones.dirty=false;
 
             var6 += var4;
         }
@@ -1504,9 +1517,32 @@ int main(int argc, char *argv[]) {
             if(length<0 || (size_t)length>=sizeof(interval_path)) {fprintf(stderr,"Capture path too long\n");return 1;}
             frame_capture_path=interval_path;
         }
+        location_anim_tick(world3d,&loc_cfg,game_ticks-location_anim_cycle);
+        location_anim_cycle=game_ticks;
         world3d_render(world3d,eye_x,eye_y,eye_z,camera_pitch,camera_yaw,0,sync_ctx.current_plane);
         // Optional replay helpers resolve pointers from actual received models;
         // they only enqueue SDL input and never create items or outcomes.
+        if(verification_loc_id>=0)for(int x=0;x<104 && verification_loc_id>=0;x++)for(int z=0;z<104 && verification_loc_id>=0;z++) {
+            GroundTile *tile=&world3d->tiles[sync_ctx.current_plane][x][z];
+            for(int k=0;k<tile->loc_count && verification_loc_id>=0;k++) {
+                WorldLocation *loc=&tile->locs[k];if(((loc->bitset>>14)&32767)!=verification_loc_id || !loc->model)continue;
+                int min_y=0,max_y=0;
+                for(int v=0;v<loc->model->num_points;v++){if(loc->model->point_y[v]<min_y)min_y=loc->model->point_y[v];if(loc->model->point_y[v]>max_y)max_y=loc->model->point_y[v];}
+                int sx,sy;
+                if(!project_from_point(loc->x,loc->y+(min_y+max_y)/2,loc->z,eye_x,eye_y,eye_z,camera_pitch,camera_yaw,&sx,&sy))continue;
+                int best=100000,bx=-1,by=-1;
+                for(int dy=-30;dy<=30;dy+=2)for(int dx=-24;dx<=24;dx+=2) {
+                    int px=sx+dx,py=sy+dy,score=dx*dx+dy*dy;
+                    if(score>=best || px<VIEWPORT_X || px>=VIEWPORT_X+VIEWPORT_W || py<VIEWPORT_Y || py>=VIEWPORT_Y+VIEWPORT_H)continue;
+                    if(model_draw_pickable(loc->model,loc->yaw,camera_pitch,camera_yaw,loc->x-eye_x,loc->y-eye_y,loc->z-eye_z,px,py)){best=score;bx=px;by=py;}
+                }
+                if(bx>=0) {
+                    SDL_Event pointer;memset(&pointer,0,sizeof(pointer));pointer.type=SDL_MOUSEMOTION;pointer.motion.x=bx;pointer.motion.y=by;SDL_PushEvent(&pointer);
+                    verification_cursor_x=bx;verification_cursor_y=by;verification_loc_id=-1;
+                    printf("[INPUT] rendered loc=%d world=(%d,%d,%d) pointer=(%d,%d)\n",(loc->bitset>>14)&32767,sync_ctx.current_plane,streamer.base_tile_x+x,streamer.base_tile_z+z,bx,by);
+                }
+            }
+        }
         if(verification_obj_id>=0) for(int x=0;x<104 && verification_obj_id>=0;x++)
             for(int z=0;z<104 && verification_obj_id>=0;z++) {
                 GroundTile *tile=&world3d->tiles[sync_ctx.current_plane][x][z];
@@ -1675,6 +1711,7 @@ int main(int argc, char *argv[]) {
                     model_calculate_normals(model,64,850,-30,-50,-30);
                     model=actor_with_spotanim(model,&other->base,&spot_cfg,&arena_frame);
                     int y=camera_get_height(sync_ctx.current_plane,other->base.x,other->base.z,world3d->heightmap,world->tile_flags);
+                    model=player_with_location(model,other,game_ticks,y,&arena_frame);
                     if(model_draw_pickable(model,other->base.yaw,camera_pitch,camera_yaw,other->base.x-eye_x,y-eye_y,other->base.z-eye_z,mouse_x,mouse_y))
                         mouse_picker_add_picked(&picker,mouse_picker_make_bitset(0,slot,other->base.x/128,other->base.z/128));
                 }
@@ -1683,16 +1720,8 @@ int main(int argc, char *argv[]) {
         }
 
         // Render Player (authentic walk/stand animation progression)
-        int p_seq_id = player.base.secondary_seq_id;
-        if (p_seq_id <= 0) p_seq_id = 808;
-
-        int p_frame_id = -1;
-        if (has_anim && p_seq_id < seq_cfg.count) {
-            SeqType *p_seq = &seq_cfg.instances[p_seq_id];
-            if (p_seq->frame_count > 0 && player.base.secondary_seq_frame < p_seq->frame_count) {
-                p_frame_id = p_seq->frames[player.base.secondary_seq_frame];
-            }
-        }
+        int p_frame_id = has_anim ? current_entity_frame(&player.base,&seq_cfg):-1;
+        if(trace && capture_this_frame)printf("[ANIM] draw local primary=%d frame=%d delay=%d transform=%d game_cycle=%d\n",player.base.primary_seq_id,player.base.primary_seq_frame,player.base.primary_seq_delay,p_frame_id,game_ticks);
 
         if (!player_rest_model || player.appearance_hashcode != last_player_appearance_hash) {
             arena_reset(&arena_player_model);
@@ -1709,8 +1738,9 @@ int main(int argc, char *argv[]) {
                 if (p_frame_id != -1) {
                     model_apply_transform(p_model, p_frame_id);
                 }
-                model_calculate_normals(p_model, 64, 768, -50, -10, -50);
+                model_calculate_normals(p_model, 64, 850, -30, -50, -30);
                 p_model=actor_with_spotanim(p_model,&player.base,&spot_cfg,&arena_frame);
+                p_model=player_with_location(p_model,&player,game_ticks,ground_y,&arena_frame);
                 int px = player.base.x - eye_x;
                 int py = ground_y - eye_y;
                 int pz = player.base.z - eye_z;

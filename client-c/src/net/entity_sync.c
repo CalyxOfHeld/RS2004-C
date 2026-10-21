@@ -176,8 +176,8 @@ bool entity_sync_player_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_
             int seq = g2(pkt);
             if (seq == 65535) seq = -1;
             int delay = g1(pkt);
-            p->base.primary_seq_id = seq;
-            p->base.primary_seq_delay = delay;
+            if(!pathing_entity_set_sequence(&p->base,ctx->seq_cfg,seq,delay)) return false;
+            if(ctx->trace)printf("[ANIM] player=%d received=%d delay=%d active=%d frame=%d cycle=%d active_delay=%d\n",slot,seq,delay,p->base.primary_seq_id,p->base.primary_seq_frame,p->base.primary_seq_cycle,p->base.primary_seq_delay);
         }
         if (mask & 0x4) {
             p->base.target_id = g2(pkt);
@@ -215,7 +215,9 @@ bool entity_sync_player_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_
         if(mask & 0x200) {
             p->base.exact_start_x=g1(pkt);p->base.exact_start_z=g1(pkt);
             p->base.exact_end_x=g1(pkt);p->base.exact_end_z=g1(pkt);
-            p->base.exact_end_cycle=g2(pkt);p->base.exact_start_cycle=g2(pkt);p->base.exact_facing=g1(pkt);
+            p->base.exact_end_cycle=ctx->cycle+g2(pkt);p->base.exact_start_cycle=ctx->cycle+g2(pkt);p->base.exact_facing=g1(pkt);
+            p->base.path_length=0;p->base.path_tile_x[0]=p->base.exact_end_x;p->base.path_tile_z[0]=p->base.exact_end_z;
+            if(ctx->trace)printf("[EXACT] player=%d from=(%d,%d) to=(%d,%d) start=%d stop=%d direction=%d\n",slot,p->base.exact_start_x,p->base.exact_start_z,p->base.exact_end_x,p->base.exact_end_z,p->base.exact_end_cycle,p->base.exact_start_cycle,p->base.exact_facing);
         }
         if(pkt->error) return false;
     }
@@ -344,8 +346,7 @@ bool entity_sync_npc_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_siz
             int seq = g2(pkt);
             if (seq == 65535) seq = -1;
             int delay = g1(pkt);
-            npc->base.primary_seq_id = seq;
-            npc->base.primary_seq_delay = delay;
+            if(!pathing_entity_set_sequence(&npc->base,ctx->seq_cfg,seq,delay)) return false;
         }
         if (mask & 0x4) {
             npc->base.target_id = g2(pkt);
@@ -397,8 +398,10 @@ bool entity_sync_npc_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_siz
 
 void entity_sync_cleanup(EntitySyncContext *ctx) {
     if (!ctx) return;
+    player_entity_dispose(&ctx->local_player);
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (ctx->players[i]) {
+            player_entity_dispose(ctx->players[i]);
             free(ctx->players[i]);
             ctx->players[i] = NULL;
         }

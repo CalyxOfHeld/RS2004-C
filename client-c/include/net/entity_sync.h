@@ -27,6 +27,7 @@ typedef struct {
     int npc_count;
 
     NpcConfig *npc_cfg;
+    SeqConfig *seq_cfg;
 } EntitySyncContext;
 
 void entity_sync_init(EntitySyncContext *ctx, NpcConfig *npc_cfg);

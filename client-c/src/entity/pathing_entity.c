@@ -104,6 +104,40 @@ void pathing_entity_queue_path(PathingEntity *e, const int *steps_x, const int *
     }
 }
 
+bool pathing_entity_set_sequence(PathingEntity *e,const SeqConfig *sequences,int id,int delay) {
+    if(id<-1 || (id>=0 && sequences && id>=sequences->count)) return false;
+    if(id==e->primary_seq_id)e->primary_seq_loop=0;
+    if(id==-1 || e->primary_seq_id==-1 || !sequences || e->primary_seq_id>=sequences->count ||
+       sequences->instances[id].priority>sequences->instances[e->primary_seq_id].priority || sequences->instances[e->primary_seq_id].priority==0) {
+        e->primary_seq_id=id;e->primary_seq_frame=e->primary_seq_cycle=e->primary_seq_loop=0;e->primary_seq_delay=delay;
+    }
+    return true;
+}
+
+bool pathing_entity_update_exact(PathingEntity *e,const SeqConfig *sequences,int cycle) {
+    if(e->exact_start_cycle<=0 || cycle>e->exact_start_cycle) return false;
+    int sx=e->exact_start_x*128+e->size*64,sz=e->exact_start_z*128+e->size*64;
+    if(cycle<e->exact_end_cycle) {
+        int remaining=e->exact_end_cycle-cycle;
+        e->x+=(sx-e->x)/remaining;e->z+=(sz-e->z)/remaining;
+    } else {
+        bool move=cycle==e->exact_start_cycle || e->primary_seq_id<0 || e->primary_seq_delay!=0;
+        if(!move && sequences && e->primary_seq_id<sequences->count)move=e->primary_seq_cycle+1>seq_get_delay(&sequences->instances[e->primary_seq_id],e->primary_seq_frame);
+        if(move) {
+            int duration=e->exact_start_cycle-e->exact_end_cycle,elapsed=cycle-e->exact_end_cycle;
+            int ex=e->exact_end_x*128+e->size*64,ez=e->exact_end_z*128+e->size*64;
+            // Invalid coincident/reversed timings cannot divide by zero in C.
+            e->x=duration>0 ? (int)(((int64_t)sx*(duration-elapsed)+(int64_t)ex*elapsed)/duration):ex;
+            e->z=duration>0 ? (int)(((int64_t)sz*(duration-elapsed)+(int64_t)ez*elapsed)/duration):ez;
+        }
+    }
+    e->seq_trigger=0;
+    static const int directions[]={1024,1536,0,512};
+    if(e->exact_facing>=0 && e->exact_facing<4)e->dst_yaw=directions[e->exact_facing];
+    if(cycle>=e->exact_end_cycle)e->yaw=e->dst_yaw;
+    return true;
+}
+
 void pathing_entity_update_movement(PathingEntity *e) {
     if (!e) return;
     if (e->path_length == 0) {

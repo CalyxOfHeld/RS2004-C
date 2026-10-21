@@ -93,6 +93,10 @@ typedef struct {
 
     WorldMapLocation *map_locations;
     size_t map_location_count,map_location_capacity;
+    struct SeqConfig *sequences;
+    struct LocationAnimation *location_animations;
+    size_t location_animation_count,location_animation_capacity;
+    bool trace_location_animations;
 
     struct MousePicker *picker;
     bool taking_input;
