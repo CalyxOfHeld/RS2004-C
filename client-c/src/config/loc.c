@@ -290,10 +290,10 @@ Model* loc_get_model_frame(const LocType* loc, int shape, int rotation, int fram
         m->point_y[i]=m->point_y[i]*loc->resizey/128+loc->offsety;
         m->point_z[i]=m->point_z[i]*loc->resizez/128+loc->offsetz;
     }
-    model_calculate_normals(m, 64 + loc->ambient, 768 + loc->contrast * 5, -50, -10, -50);
-    // Original sharelight models defer Gouraud face shades to scene lighting.
-    if(loc->sharelight) for(int f=0;f<m->num_faces;f++) if(!m->face_render_type || !(m->face_render_type[f]&1))
-        m->face_colour_a[f]=m->face_colour_b[f]=m->face_colour_c[f]=0;
+    if(loc->sharelight) {
+        if(!model_calculate_normals_deferred(m,64+loc->ambient,768+loc->contrast*5,-50,-10,-50)) {model_free_unshared(m);return NULL;}
+    }
+    else model_calculate_normals(m,64+loc->ambient,768+loc->contrast*5,-50,-10,-50);
     if(loc->blockwalk) for(int i=0;i<m->num_points;i++)
         if(-m->point_y[i]>m->obj_raise) m->obj_raise=-m->point_y[i];
     // Cached geometry no longer needs animation groups. Returned models own

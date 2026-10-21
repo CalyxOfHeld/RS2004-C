@@ -124,5 +124,6 @@ void world3d_set_tile(World3D *w, int level, int x, int z, int shape, int rotati
 bool world3d_add_loc(World3D *w, int level, int x, int z, int y, Model *model, int bitset,
                      int width, int length);
 void world3d_render(World3D *w, int eyeX, int eyeY, int eyeZ, int pitch, int yaw, int roll, int plane);
+bool world3d_build_models(World3D *w);
 
 #endif // RS2_WORLD3D_H

@@ -7,6 +7,8 @@
 #include "core/arena.h"
 #include "core/jagfile.h"
 
+typedef struct { int32_t x,y,z,w; } ModelNormal;
+
 typedef struct {
     Arena *allocation_arena;
     int32_t num_points;
@@ -35,6 +37,9 @@ typedef struct {
     int32_t *alpha_storage;
     int32_t *face_label;
     int32_t *vertex_label;
+    // LocType.sharelight: immutable pre-skew sums and scene working sums.
+    ModelNormal *vertex_normals, *vertex_normals_original;
+    int32_t *face_render_type_original;
 
     int32_t num_label_vertices;
     int32_t *label_vertex_counts;
@@ -61,6 +66,10 @@ void   model_create_label_references(Model *m, Arena *arena);
 void   model_apply_transform(Model *m, int frame_id);
 void   model_apply_transforms(Model *m, int primary_frame, int secondary_frame, const int *mask);
 void   model_calculate_normals(Model *m, int32_t ambient, int32_t contrast, int32_t lx, int32_t ly, int32_t lz);
+bool   model_calculate_normals_deferred(Model *m,int ambient,int contrast,int lx,int ly,int lz);
+void   model_reset_scene_normals(Model *m);
+bool   model_merge_normals(Model *a,Model *b,int dx,int dy,int dz,bool hide_faces);
+void   model_apply_scene_lighting(Model *m,int ambient,int scale,int lx,int ly,int lz);
 void   model_draw(Model *m, int32_t yaw, int32_t eye_pitch, int32_t eye_yaw, int32_t dx, int32_t dy, int32_t dz);
 bool   model_draw_pickable(Model *m, int32_t yaw, int32_t eye_pitch, int32_t eye_yaw, int32_t dx, int32_t dy, int32_t dz, int mouse_x, int mouse_y);
 void   model_render_obj(Model *m, int32_t pitch, int32_t yaw, int32_t roll, int32_t eye_pitch, int32_t eye_x, int32_t eye_y, int32_t eye_z);

@@ -190,9 +190,9 @@ static bool place_location(World *w,LocConfig *loc_cfg,World3D *world3d,Collisio
         if(world3d && shape==2) parts[1]=loc_get_model(&loc,2,(rotation+1)&3,NULL);
         for(int part=0;part<2;part++) {Model *m=parts[part];
         if (m) {
-            // Existing individual-lighting fallback for static scene scenery.
-            // Original cross-location normal merging remains a separate gate.
-            if(loc.sharelight) model_calculate_normals(m,64+loc.ambient,768+loc.contrast*5,-50,-10,-50);
+            // Static locations retain pre-skew normals for World3D.buildModels.
+            // Dynamic replacement keeps the existing individual-light fallback.
+            if(loc.sharelight && !shadows) model_calculate_normals(m,64+loc.ambient,768+loc.contrast*5,-50,-10,-50);
             loc_skew_model(m,&loc,y_sw,y_se,y_ne,y_nw);
             int bitset = 0xC0000000 | (loc_id << 14) | (tile_x << 7) | tile_z;
             bool added=world3d_add_loc(world3d,level,tile_x,tile_z,avg_y,m,bitset,w_wid,w_len);
@@ -264,6 +264,7 @@ void world_build(World *w, World3D *world3d, FloConfig *flo_cfg, CollisionMap *c
         if(collision_level>=0) collision_map_block_ground(&cm[collision_level],x,z,true);
     }
     memcpy(world3d->heightmap, w->heightmap, sizeof(w->heightmap));
+    if(!world3d_build_models(world3d)) fprintf(stderr,"Unable to build shared scenery lighting\n");
     // Revision-225 World.getDrawLevel / World3D.draw: logical visibility is
     // independent of the source height/model plane (bridges and flag-8 tiles).
     for(int l=0;l<WORLD_LEVELS;l++) for(int x=0;x<w->max_tile_x;x++) for(int z=0;z<w->max_tile_z;z++)

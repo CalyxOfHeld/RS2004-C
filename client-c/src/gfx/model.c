@@ -314,19 +314,29 @@ static int32_t get_shaded_colour(int32_t hsl, int32_t scalar, int type) {
     return (hsl & 0xFF80) + scalar;
 }
 
-void model_calculate_normals(Model *m, int32_t ambient, int32_t contrast, int32_t lx, int32_t ly, int32_t lz) {
-    if (!m) return;
+static bool calculate_normals(Model *m,int32_t ambient,int32_t contrast,int32_t lx,int32_t ly,int32_t lz,bool deferred) {
+    if (!m) return false;
+    if(m->face_render_type_original) memcpy(m->face_render_type,m->face_render_type_original,m->num_faces*sizeof(int32_t));
+    if(!m->allocation_arena) {free(m->vertex_normals);free(m->vertex_normals_original);free(m->face_render_type_original);}
+    m->vertex_normals=m->vertex_normals_original=NULL;m->face_render_type_original=NULL;
 
     if(!m->face_colour_a) m->face_colour_a = m->allocation_arena ? arena_alloc(m->allocation_arena,m->num_faces*sizeof(int32_t)) : malloc(m->num_faces*sizeof(int32_t));
     if(!m->face_colour_b) m->face_colour_b = m->allocation_arena ? arena_alloc(m->allocation_arena,m->num_faces*sizeof(int32_t)) : malloc(m->num_faces*sizeof(int32_t));
     if(!m->face_colour_c) m->face_colour_c = m->allocation_arena ? arena_alloc(m->allocation_arena,m->num_faces*sizeof(int32_t)) : malloc(m->num_faces*sizeof(int32_t));
+    if(!m->face_colour_a || !m->face_colour_b || !m->face_colour_c) return false;
+    if(deferred) {
+        memset(m->face_colour_a,0,m->num_faces*sizeof(int32_t));
+        memset(m->face_colour_b,0,m->num_faces*sizeof(int32_t));
+        memset(m->face_colour_c,0,m->num_faces*sizeof(int32_t));
+    }
 
     int32_t light_mag = (int32_t)sqrt(lx * lx + ly * ly + lz * lz);
     int32_t scale = (contrast * light_mag) >> 8;
     if (scale <= 0) scale = 1;
 
-    typedef struct { int32_t x, y, z, w; } Norm;
-    Norm *norms = (Norm *)calloc(m->num_points, sizeof(Norm));
+    ModelNormal *norms=deferred && m->allocation_arena ? arena_alloc(m->allocation_arena,m->num_points*sizeof(*norms)) : calloc(m->num_points,sizeof(*norms));
+    if(!norms) return false;
+    if(deferred && m->allocation_arena) memset(norms,0,m->num_points*sizeof(*norms));
 
     for (int32_t f = 0; f < m->num_faces; f++) {
         int32_t a = m->face_vertex_a[f];
@@ -366,6 +376,24 @@ void model_calculate_normals(Model *m, int32_t ambient, int32_t contrast, int32_
         norms[c].x += nx; norms[c].y += ny; norms[c].z += nz; norms[c].w++;
     }
 
+    if(deferred) {
+        size_t ns=m->num_points*sizeof(*norms),fs=m->num_faces*sizeof(int32_t);
+        ModelNormal *original=m->allocation_arena ? arena_alloc(m->allocation_arena,ns) : malloc(ns);
+        int32_t *types=m->allocation_arena ? arena_alloc(m->allocation_arena,fs) : malloc(fs);
+        if(!m->face_render_type) {
+            m->face_render_type=m->allocation_arena ? arena_alloc(m->allocation_arena,fs) : malloc(fs);
+            if(m->face_render_type) memset(m->face_render_type,0,fs);
+        }
+        if(!original || !types || !m->face_render_type) {
+            if(!m->allocation_arena){free(norms);free(original);free(types);}
+            return false;
+        }
+        m->vertex_normals=norms;m->vertex_normals_original=original;m->face_render_type_original=types;
+        memcpy(original,norms,ns);memcpy(types,m->face_render_type,fs);
+        for(int f=0;f<m->num_faces;f++) if(!(m->face_render_type[f]&1))
+            m->face_colour_a[f]=m->face_colour_b[f]=m->face_colour_c[f]=0;
+        return true;
+    }
     for (int32_t f = 0; f < m->num_faces; f++) {
         int32_t a = m->face_vertex_a[f];
         int32_t b = m->face_vertex_b[f];
@@ -376,9 +404,9 @@ void model_calculate_normals(Model *m, int32_t ambient, int32_t contrast, int32_
             continue;
         }
 
-        Norm *na = &norms[a];
-        Norm *nb = &norms[b];
-        Norm *nc = &norms[c];
+        ModelNormal *na = &norms[a];
+        ModelNormal *nb = &norms[b];
+        ModelNormal *nc = &norms[c];
 
         int32_t lightA = ambient + ((na->w > 0) ? ((lx * na->x + ly * na->y + lz * na->z) / (scale * na->w)) : 0);
         int32_t lightB = ambient + ((nb->w > 0) ? ((lx * nb->x + ly * nb->y + lz * nb->z) / (scale * nb->w)) : 0);
@@ -390,6 +418,61 @@ void model_calculate_normals(Model *m, int32_t ambient, int32_t contrast, int32_
     }
 
     free(norms);
+    return true;
+}
+
+void model_calculate_normals(Model *m,int32_t ambient,int32_t contrast,int32_t lx,int32_t ly,int32_t lz) {
+    calculate_normals(m,ambient,contrast,lx,ly,lz,false);
+}
+bool model_calculate_normals_deferred(Model *m,int ambient,int contrast,int lx,int ly,int lz) {
+    return calculate_normals(m,ambient,contrast,lx,ly,lz,true);
+}
+
+void model_reset_scene_normals(Model *m) {
+    if(!m || !m->vertex_normals_original) return;
+    memcpy(m->vertex_normals,m->vertex_normals_original,m->num_points*sizeof(ModelNormal));
+    memcpy(m->face_render_type,m->face_render_type_original,m->num_faces*sizeof(int32_t));
+}
+
+bool model_merge_normals(Model *a,Model *b,int dx,int dy,int dz,bool hide_faces) {
+    if(!a || !b || !a->vertex_normals_original || !b->vertex_normals_original) return true;
+    unsigned char *marks=hide_faces ? calloc((size_t)a->num_points+b->num_points,1):NULL;
+    if(hide_faces && !marks) return false;
+    int matches=0;
+    for(int i=0;i<a->num_points;i++) {
+        ModelNormal *original=&a->vertex_normals_original[i];
+        if(!original->w) continue;
+        int x=a->point_x[i]-dx,y=a->point_y[i]-dy,z=a->point_z[i]-dz;
+        for(int j=0;j<b->num_points;j++) {
+            ModelNormal *other=&b->vertex_normals_original[j];
+            if(!other->w || x!=b->point_x[j] || y!=b->point_y[j] || z!=b->point_z[j]) continue;
+            ModelNormal *an=&a->vertex_normals[i],*bn=&b->vertex_normals[j];
+            an->x+=other->x;an->y+=other->y;an->z+=other->z;an->w+=other->w;
+            bn->x+=original->x;bn->y+=original->y;bn->z+=original->z;bn->w+=original->w;
+            matches++;
+            if(marks) {marks[i]=1;marks[a->num_points+j]=1;}
+        }
+    }
+    if(hide_faces && matches>=3) for(int part=0;part<2;part++) {
+        Model *m=part ? b:a;unsigned char *matched=marks+(part ? a->num_points:0);
+        for(int f=0;f<m->num_faces;f++) if(matched[m->face_vertex_a[f]] && matched[m->face_vertex_b[f]] && matched[m->face_vertex_c[f]])
+            m->face_render_type[f]=255;
+    }
+    free(marks);return true;
+}
+
+void model_apply_scene_lighting(Model *m,int ambient,int scale,int lx,int ly,int lz) {
+    if(!m || !m->vertex_normals_original) return;
+    for(int f=0;f<m->num_faces;f++) {
+        int type=m->face_render_type[f];if(type&1) continue;
+        int vertices[3]={m->face_vertex_a[f],m->face_vertex_b[f],m->face_vertex_c[f]};
+        int32_t *colours[3]={m->face_colour_a,m->face_colour_b,m->face_colour_c};
+        for(int k=0;k<3;k++) {
+            ModelNormal *n=&m->vertex_normals[vertices[k]];
+            int light=ambient+(n->w ? (lx*n->x+ly*n->y+lz*n->z)/(scale*n->w):0);
+            colours[k][f]=get_shaded_colour(m->face_colour[f],light,type);
+        }
+    }
 }
 
 /* Bundled revision-225 Model.draw: depth buckets are stable, then the 12
@@ -521,6 +604,7 @@ bool model_draw_pickable(Model *m, int32_t yaw, int32_t eye_pitch, int32_t eye_y
         int32_t b = m->face_vertex_b[f];
         int32_t c = m->face_vertex_c[f];
 
+        if (m->face_render_type && m->face_render_type[f]==255) continue;
         if (g_screen_z[a] <= 0 || g_screen_z[b] <= 0 || g_screen_z[c] <= 0) continue;
 
         int32_t xA = g_screen_x[a], xB = g_screen_x[b], xC = g_screen_x[c];
@@ -680,6 +764,16 @@ Model *model_copy(const Model *src, Arena *arena) {
     dst->min_depth = src->min_depth;
     dst->max_depth = src->max_depth;
     dst->obj_raise = src->obj_raise;
+    if(src->vertex_normals_original) {
+        size_t ns=src->num_points*sizeof(ModelNormal),fs=src->num_faces*sizeof(int32_t);
+        dst->vertex_normals=arena ? arena_alloc(arena,ns):malloc(ns);
+        dst->vertex_normals_original=arena ? arena_alloc(arena,ns):malloc(ns);
+        dst->face_render_type_original=arena ? arena_alloc(arena,fs):malloc(fs);
+        if(!dst->vertex_normals || !dst->vertex_normals_original || !dst->face_render_type_original) {model_free_unshared(dst);return NULL;}
+        memcpy(dst->vertex_normals,src->vertex_normals,ns);
+        memcpy(dst->vertex_normals_original,src->vertex_normals_original,ns);
+        memcpy(dst->face_render_type_original,src->face_render_type_original,fs);
+    }
 
     if (src->num_points > 0) {
         dst->point_x = arena ? (int32_t*)arena_alloc(arena, src->num_points * sizeof(int32_t))
@@ -1144,7 +1238,8 @@ void model_free_unshared(Model *m) {
     if(m->label_vertices) for(int i=0;i<m->num_label_vertices;i++) free(m->label_vertices[i]);
     void *owned[]={m->point_x,m->point_y,m->point_z,m->face_vertex_a,m->face_vertex_b,m->face_vertex_c,
         m->texture_a,m->texture_b,m->texture_c,m->face_colour,m->face_colour_a,m->face_colour_b,m->face_colour_c,
-        m->face_render_type,m->face_priority,m->face_alpha,m->face_label,m->vertex_label,m->label_vertices,m->label_vertex_counts};
+        m->face_render_type,m->face_priority,m->face_alpha,m->face_label,m->vertex_label,m->label_vertices,m->label_vertex_counts,
+        m->vertex_normals,m->vertex_normals_original,m->face_render_type_original};
     for(size_t i=0;i<sizeof(owned)/sizeof(owned[0]);i++) {
         bool duplicate=false;for(size_t j=0;j<i;j++) if(owned[i]==owned[j]) duplicate=true;
         if(!duplicate) free(owned[i]);

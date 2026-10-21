@@ -14,6 +14,7 @@ UI_SRCS     = src/ui/client_actions.c src/ui/component_packets.c src/ui/componen
 AUDIO_SRCS  = src/audio/wave.c src/audio/midi.c
 DASH3D_SRCS += src/dash3d/location_anim.c
 DASH3D_SRCS += src/dash3d/location_merge.c
+DASH3D_SRCS += src/dash3d/scene_lighting.c
 HEADERS = $(wildcard include/*/*.h) platform/verification_input.h
 ALL_SRCS    = $(CORE_SRCS) $(GFX_SRCS) $(CONFIG_SRCS) $(ENTITY_SRCS) $(NET_SRCS) $(DASH3D_SRCS) $(UI_SRCS) $(AUDIO_SRCS)
 
@@ -62,6 +63,7 @@ TEST_BINS += bin/test_actor_models.exe
 TEST_BINS += bin/test_actor_clock.exe
 TEST_BINS += bin/test_facing.exe
 TEST_BINS += bin/test_bridge_levels.exe
+TEST_BINS += bin/test_scene_lighting.exe
 
 test: $(TEST_BINS)
 	@echo "================ RUNNING TESTS ================"
@@ -104,6 +106,7 @@ test: $(TEST_BINS)
 	@./bin/test_actor_clock.exe
 	@./bin/test_facing.exe
 	@./bin/test_bridge_levels.exe
+	@./bin/test_scene_lighting.exe
 	@./bin/test_chatbox.exe
 	@./bin/test_mouse_picking.exe
 	@./bin/test_pathfinding.exe
