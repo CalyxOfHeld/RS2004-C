@@ -35,7 +35,8 @@ int main(void) {
     PathTarget target={.x=50,.z=50,.width=2,.length=3,.shape=-1};
     assert(pathfinder_find_target(&pf,&map,45,51,&target,false,&path));
     assert(path.steps_x[path.step_count-1]==49 && path.steps_z[path.step_count-1]>=50 && path.steps_z[path.step_count-1]<=52);
-    assert(pathfinder_find_target(&pf,&map,49,51,&target,false,&path) && path.step_count==0);
+    assert(pathfinder_find_target(&pf,&map,49,51,&target,false,&path) && path.step_count==1);
+    assert(path.steps_x[0]==49 && path.steps_z[0]==51); // Original tryMove includes the current endpoint.
     puts("PASS: 33,408 wall/decor/rectangular reach decisions and directional wall/rotated footprint flags match original Java CollisionMap output");
     puts("PASS: production pathfinder approaches blocked footprint and recognizes already-reached adjacency");
     return 0;

@@ -27,9 +27,12 @@ bool pathfinder_find_target(Pathfinder *pf,const CollisionMap *cm,int src_x,int 
     if (src_x < 0 || src_x >= COLLISION_MAX_X || src_z < 0 || src_z >= COLLISION_MAX_Z) return false;
     if (dst_x < 0 || dst_x >= COLLISION_MAX_X || dst_z < 0 || dst_z >= COLLISION_MAX_Z) return false;
 
-    // Same tile - already reached
+    // Original tryMove still serializes one endpoint when already in reach.
+    // A same-tile game/minimap click cancels pending server actions.
     if (reached_target(cm,src_x,src_z,target)) {
-        out_result->step_count = 0;
+        out_result->step_count = 1;
+        out_result->steps_x[0] = src_x;
+        out_result->steps_z[0] = src_z;
         out_result->reached_destination = true;
         return true;
     }
@@ -194,11 +197,10 @@ bool pathfinder_find_target(Pathfinder *pf,const CollisionMap *cm,int src_x,int 
     int bz = cur_z;
 
     while (bx != src_x || bz != src_z) {
-        if (count < MAX_PATH_STEPS) {
-            temp_x[count] = bx;
-            temp_z[count] = bz;
-            count++;
-        }
+        if (count >= MAX_PATH_STEPS) return false;
+        temp_x[count] = bx;
+        temp_z[count] = bz;
+        count++;
         int dir = pf->bfs_direction[bx][bz];
         if ((dir & 0x2) != 0) {
             bx++;
@@ -210,8 +212,11 @@ bool pathfinder_find_target(Pathfinder *pf,const CollisionMap *cm,int src_x,int 
         } else if ((dir & 0x4) != 0) {
             bz--;
         }
-        if (dir == 0 || dir == 99) break;
+        if (dir == 0 || dir == 99) return false;
     }
+
+    // Nearest fallback may choose the source itself, also a real endpoint.
+    if (!count) { temp_x[0] = src_x; temp_z[0] = src_z; count = 1; }
 
     // Reverse path so that index 0 is first step from src towards dst
     out_result->step_count = count;

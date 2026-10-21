@@ -176,20 +176,8 @@ void minimap_draw(
         const WorldMapLocation *loc=&m->scene->map_locations[i];
         if(loc->level!=m->level || loc->shape!=22 || loc->mapfunction<0 || loc->mapfunction>=50) continue;
         Pix32 *sprite=media->mapfunction[loc->mapfunction];if(!sprite) continue;
-        int dx=loc->x*4+2-player_x/32,dz=loc->z*4+2-player_z/32;
-        if(dx*dx+dz*dz>6400) continue;
-        int angle=camera_yaw&2047,sin=pix3d_sin_table[angle],cos=pix3d_cos_table[angle];
-        int rx=(dz*sin+dx*cos)>>16,rz=(dz*cos-dx*sin)>>16;
-        int left=94+rx-sprite->crop_w/2+sprite->crop_x;
-        int top=83-rz-sprite->crop_h/2+sprite->crop_y;
-        for(int y=0;y<sprite->height;y++) for(int x=0;x<sprite->width;x++) {
-            int mx=left+x,my=top+y,xx=mapback_x+mx,yy=mapback_y+my;
-            uint32_t rgb=sprite->pixels[y*sprite->width+x];
-            if(!rgb || !media->mapback || mx<0 || my<0 || mx>=media->mapback->width || my>=media->mapback->height) continue;
-            if(media->mapback->pixels[my*media->mapback->width+mx] || (mx<=34 && my<=34)) continue;
-            if(xx>=pix2d_clip_left && xx<pix2d_clip_right && yy>=pix2d_clip_top && yy<pix2d_clip_bottom)
-                pix2d_pixels[yy*pix2d_width+xx]=rgb;
-        }
+        minimap_draw_dot(player_x,player_z,loc->x*128+64,loc->z*128+64,
+            camera_yaw,mapback_x,mapback_y,sprite,media->mapback);
     }
 
     // Draw local player center white dot (3x3 pixels at center)
@@ -204,7 +192,8 @@ void minimap_draw_dot(
     int camera_yaw,
     int mapback_x,
     int mapback_y,
-    Pix32 *dot_sprite
+    Pix32 *dot_sprite,
+    const Pix8 *mask
 ) {
     if (!dot_sprite) return;
 
@@ -225,53 +214,56 @@ void minimap_draw_dot(
     int screen_x = mapback_x + 94 + rx - dot_sprite->crop_w / 2;
     int screen_y = mapback_y + 83 - rz - dot_sprite->crop_h / 2;
 
-    pix32_draw(dot_sprite, screen_x, screen_y);
+    if (dist_sq <= 2500) {
+        pix32_draw(dot_sprite, screen_x, screen_y);
+        return;
+    }
+    // Original drawOnMinimap uses Pix32.drawMasked beyond distance 50.
+    if (!mask) return;
+    for (int y = 0; y < dot_sprite->height; y++) for (int x = 0; x < dot_sprite->width; x++) {
+        int sx = screen_x + dot_sprite->crop_x + x, sy = screen_y + dot_sprite->crop_y + y;
+        int mx = sx - mapback_x, my = sy - mapback_y;
+        uint32_t rgb = dot_sprite->pixels[y * dot_sprite->width + x];
+        if (!rgb || mx < 0 || my < 0 || mx >= mask->width || my >= mask->height) continue;
+        if (mask->pixels[my * mask->width + mx]) continue;
+        if (sx >= pix2d_clip_left && sx < pix2d_clip_right && sy >= pix2d_clip_top && sy < pix2d_clip_bottom)
+            pix2d_pixels[sy * pix2d_width + sx] = rgb;
+    }
 }
 
 void minimap_draw_npc_dot(int player_x, int player_z, const NpcEntity *npc,
-    int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite) {
+    int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite, const Pix8 *mask) {
     // Revision-225 client.drawMinimap: isVisible(false) means type != null.
     if (!npc || !npc->has_type || !npc->type.minimap) return;
     minimap_draw_dot(player_x, player_z, npc->base.x, npc->base.z,
-        camera_yaw, mapback_x, mapback_y, dot_sprite);
+        camera_yaw, mapback_x, mapback_y, dot_sprite, mask);
 }
 
 void minimap_draw_player_dot(int player_x, int player_z, const PlayerEntity *other,
-    int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite) {
+    int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite, const Pix8 *mask) {
     // Revision-225 PlayerEntity.isVisible and client.drawMinimap.
     if (!other || !other->visible) return;
     minimap_draw_dot(player_x, player_z, other->base.x, other->base.z,
-        camera_yaw, mapback_x, mapback_y, dot_sprite);
+        camera_yaw, mapback_x, mapback_y, dot_sprite, mask);
 }
 
 void minimap_draw_destination(Minimap *m, Media *media, int player_x, int player_z,
     int camera_yaw, int mapback_x, int mapback_y) {
     if (!m || !media || !media->mapflag || m->flag_scene_tile_x == 0) return;
-    Pix32 *sprite = media->mapflag;
-    int dx = m->flag_scene_tile_x * 4 + 2 - player_x / 32;
-    int dz = m->flag_scene_tile_z * 4 + 2 - player_z / 32;
-    int distance = dx * dx + dz * dz;
-    if (distance > 6400) return;
-    int angle = camera_yaw & 2047;
-    int rx = (dz * pix3d_sin_table[angle] + dx * pix3d_cos_table[angle]) >> 16;
-    int rz = (dz * pix3d_cos_table[angle] - dx * pix3d_sin_table[angle]) >> 16;
-    int left = 94 + rx - sprite->crop_w / 2;
-    int top = 83 - rz - sprite->crop_h / 2;
-    if (distance <= 2500) {
-        pix32_draw(sprite, mapback_x + left, mapback_y + top);
-        return;
-    }
-    // Original drawOnMinimap masks distant markers against imageMapback.
-    if (!media->mapback) return;
-    for (int y = 0; y < sprite->height; y++) for (int x = 0; x < sprite->width; x++) {
-        int mx = left + sprite->crop_x + x, my = top + sprite->crop_y + y;
-        int sx = mapback_x + mx, sy = mapback_y + my;
-        uint32_t rgb = sprite->pixels[y * sprite->width + x];
-        if (!rgb || mx < 0 || my < 0 || mx >= media->mapback->width || my >= media->mapback->height) continue;
-        if (media->mapback->pixels[my * media->mapback->width + mx]) continue;
-        if (sx >= pix2d_clip_left && sx < pix2d_clip_right && sy >= pix2d_clip_top && sy < pix2d_clip_bottom)
-            pix2d_pixels[sy * pix2d_width + sx] = rgb;
-    }
+    minimap_draw_dot(player_x,player_z,m->flag_scene_tile_x*128+64,m->flag_scene_tile_z*128+64,
+        camera_yaw,mapback_x,mapback_y,media->mapflag,media->mapback);
+}
+
+bool minimap_click_target(int mouse_x, int mouse_y, int player_x, int player_z,
+    int camera_yaw, MinimapClick *click) {
+    if (!click || mouse_x < 582 || mouse_x >= 728 || mouse_y < 14 || mouse_y >= 165) return false;
+    int x = mouse_x - 582 - 73, y = mouse_y - 14 - 75;
+    int yaw = camera_yaw & 2047;
+    int sin = pix3d_sin_table[yaw], cos = pix3d_cos_table[yaw];
+    int dx = (y * sin + x * cos) >> 11;
+    int dz = (y * cos - x * sin) >> 11;
+    *click = (MinimapClick){x, y, (player_x + dx) >> 7, (player_z - dz) >> 7};
+    return true;
 }
 
 void minimap_free(Minimap *m) {

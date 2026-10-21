@@ -10,11 +10,12 @@ int main(void) {
     // 1. Initialize tables
     pix3d_init();
     assert(pix3d_sin_table[0] == 0);
-    // sin(90 deg) = sin(512 in 2048 units) = 65536
-    assert(pix3d_sin_table[512] == 65536);
+    // Original Pix3D's truncated angular constant produces 65535 here.
+    // test_minimap_reference compares every entry with actual Java output.
+    assert(pix3d_sin_table[512] == 65535);
     assert(pix3d_cos_table[0] == 65536);
     assert(pix3d_cos_table[512] == 0);
-    printf("  Trigonometry tables (2048 entries) verified!\n");
+    printf("  Four original trigonometry table anchor entries verified!\n");
 
     // 2. Initialize colour table (brightness = 0.8)
     pix3d_init_colour_table(0.8);

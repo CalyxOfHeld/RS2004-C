@@ -6,7 +6,9 @@
 #include "dash3d/collision_map.h"
 
 #define PATHFINDER_QUEUE_SIZE 4096
-#define MAX_PATH_STEPS 104
+// A winding route can visit far more tiles than the scene's width. Preserve
+// every tile until protocol compression selects the first 25 direction turns.
+#define MAX_PATH_STEPS (COLLISION_MAX_X * COLLISION_MAX_Z)
 
 typedef struct {
     int step_count;

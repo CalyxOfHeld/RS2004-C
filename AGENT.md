@@ -5,7 +5,8 @@
 - Do not rewrite shared history or discard existing user changes. Commit only when the user asks.
 
 ## ACTIVE TASK HANDOFF
-- See `HANDOFF.md` for the current progress, completed milestones, and immediate focus (3D ground terrain/land visibility in `world3d.c`).
+- Read the newest section of `HANDOFF.md` and `client-c/verification/completion/progress.md` for current progress and the next task. Older sections are historical.
+- Read `SOURCE-INVENTORY.md` for the additional workspace directories and the distinction between the original Java client, TypeScript port, native C client, server and supporting tools.
 
 ## STRICT GROUND RULES - ZERO EXCEPTIONS
 

@@ -916,19 +916,19 @@ int main(int argc, char *argv[]) {
                     // Consume this click before stale scene/context-menu actions.
                     if (!menu.visible && has_minimap && mx >= 582 && mx < 728 && my >= 14 && my < 165) {
                         if (interfaces.viewport == -1 && !comp_cfg.drag.active && live_server) {
-                            int click_x=mx-582-73,click_y=my-14-75;
                             int yaw=cam.render_yaw&2047;
-                            int sin=pix3d_sin_table[yaw],cos=pix3d_cos_table[yaw];
-                            int dx=(click_y*sin+click_x*cos)>>11;
-                            int dz=(click_y*cos-click_x*sin)>>11;
-                            int target_x=(player.base.x+dx)>>7,target_z=(player.base.z-dz)>>7;
+                            MinimapClick click;
                             PathResult route;
-                            if(pathfinder_find_path(&pathfinder,&collision_maps[sync_ctx.current_plane],
-                                player.base.path_tile_x[0],player.base.path_tile_z[0],target_x,target_z,true,&route) && route.step_count>0) {
+                            if(minimap_click_target(mx,my,player.base.x,player.base.z,yaw,&click) &&
+                                pathfinder_find_path(&pathfinder,&collision_maps[sync_ctx.current_plane],
+                                player.base.path_tile_x[0],player.base.path_tile_z[0],click.tile_x,click.tile_z,true,&route) && route.step_count>0) {
+                                if(trace) printf("[NAV] click=(%d,%d) yaw=%d source=(%d,%d) target=(%d,%d) nearest=%d steps=%d\n",
+                                    mx,my,yaw,streamer.base_tile_x+player.base.path_tile_x[0],streamer.base_tile_z+player.base.path_tile_z[0],
+                                    streamer.base_tile_x+click.tile_x,streamer.base_tile_z+click.tile_z,route.reached_nearest,route.step_count);
                                 bool ctrl=(SDL_GetModState()&KMOD_CTRL)!=0;
                                 bool sent=protocol_send_minimap_route(&session,streamer.base_tile_x,streamer.base_tile_z,
                                     player.base.path_tile_x[0],player.base.path_tile_z[0],route.steps_x,route.steps_z,route.step_count,
-                                    ctrl,click_x,click_y,yaw,player.base.x,player.base.z,route.reached_nearest);
+                                    ctrl,click.click_x,click.click_y,yaw,player.base.x,player.base.z,route.reached_nearest);
                                 if(sent) {
                                     minimap.flag_scene_tile_x=route.steps_x[route.step_count-1];
                                     minimap.flag_scene_tile_z=route.steps_z[route.step_count-1];
@@ -1340,6 +1340,8 @@ int main(int argc, char *argv[]) {
                             if (has_minimap && minimap.flag_scene_tile_x != 0) {
                                 minimap.flag_scene_tile_x -= streamer.base_tile_x-old_base_x;
                                 minimap.flag_scene_tile_z -= streamer.base_tile_z-old_base_z;
+                                if(trace) printf("[NAV] rebased destination world=(%d,%d)\n",
+                                    streamer.base_tile_x+minimap.flag_scene_tile_x,streamer.base_tile_z+minimap.flag_scene_tile_z);
                             }
                             arena_reset(&arena_npc_models);memset(npc_models,0,npc_cfg.count*sizeof(Model *));
                             const char *m_dir = "../engine/data/pack/client/maps";
@@ -1412,8 +1414,11 @@ int main(int argc, char *argv[]) {
             // C. Entity Logic Updates (authentic 50 Hz stride & frame progression)
             pathing_entity_update_movement(&player.base);
             if (has_minimap && player.base.x / 128 == minimap.flag_scene_tile_x &&
-                player.base.z / 128 == minimap.flag_scene_tile_z)
+                player.base.z / 128 == minimap.flag_scene_tile_z) {
+                if(trace && minimap.flag_scene_tile_x) printf("[NAV] destination reached world=(%d,%d)\n",
+                    streamer.base_tile_x+minimap.flag_scene_tile_x,streamer.base_tile_z+minimap.flag_scene_tile_z);
                 minimap.flag_scene_tile_x = 0;
+            }
             pathing_entity_update_facing(&player.base);
             pathing_entity_update_sequences(&player.base, &seq_cfg);
 
@@ -1488,6 +1493,9 @@ int main(int argc, char *argv[]) {
                 camera_pitch, camera_yaw, terrain_path);
             printf("[VERIFY] player tile=(%d,%d) sequence=%d frame=%d\n", player.base.x / 128,
                 player.base.z / 128, player.base.secondary_seq_id, player.base.secondary_seq_frame);
+            if(trace) printf("[NAV] frame=%d player_world=(%d,%d) destination_local=(%d,%d) yaw=%d\n",rendered_frames,
+                streamer.base_tile_x+player.base.x/128,streamer.base_tile_z+player.base.z/128,
+                has_minimap?minimap.flag_scene_tile_x:0,has_minimap?minimap.flag_scene_tile_z:0,camera_yaw);
             if(trace) printf("[STATE] live=%d plane=%d npcs=%d players=%d appearance_weapon=%d hash=%llu\n",live_server,sync_ctx.current_plane,
                 sync_ctx.npc_count,sync_ctx.player_count,player.appearances[3],(unsigned long long)player.appearance_hashcode);
             if(trace) for(int i=0;i<sync_ctx.npc_count;i++) {
@@ -1785,15 +1793,15 @@ int main(int argc, char *argv[]) {
                 minimap_draw(&minimap, &media, player.base.x, player.base.z, camera_yaw, 561, 5);
                 for(int x=0;x<world3d->max_tile_x;x++) for(int z=0;z<world3d->max_tile_z;z++)
                     if(world3d->tiles[sync_ctx.current_plane][x][z].items)
-                        minimap_draw_dot(player.base.x,player.base.z,x*128+64,z*128+64,camera_yaw,561,5,media.mapdots[0]);
+                        minimap_draw_dot(player.base.x,player.base.z,x*128+64,z*128+64,camera_yaw,561,5,media.mapdots[0],media.mapback);
                 if(live_server) for(int i=0;i<sync_ctx.npc_count;i++) {
                     NpcEntity *npc=sync_ctx.npcs[sync_ctx.npc_indices[i]];
-                    minimap_draw_npc_dot(player.base.x,player.base.z,npc,camera_yaw,561,5,media.mapdots[1]);
+                    minimap_draw_npc_dot(player.base.x,player.base.z,npc,camera_yaw,561,5,media.mapdots[1],media.mapback);
                 }
-                if(offline) minimap_draw_npc_dot(player.base.x,player.base.z,&hans,camera_yaw,561,5,media.mapdots[1]);
+                if(offline) minimap_draw_npc_dot(player.base.x,player.base.z,&hans,camera_yaw,561,5,media.mapdots[1],media.mapback);
                 if(live_server) for(int i=0;i<sync_ctx.player_count;i++) {
                     PlayerEntity *other=sync_ctx.players[sync_ctx.player_indices[i]];
-                    minimap_draw_player_dot(player.base.x,player.base.z,other,camera_yaw,561,5,media.mapdots[2]);
+                    minimap_draw_player_dot(player.base.x,player.base.z,other,camera_yaw,561,5,media.mapdots[2],media.mapback);
                 }
                 minimap_draw_destination(&minimap,&media,player.base.x,player.base.z,camera_yaw,561,5);
                 // Original minimap draws the local centre marker last.

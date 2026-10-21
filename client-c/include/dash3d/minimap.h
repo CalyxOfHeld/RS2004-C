@@ -22,6 +22,11 @@ typedef struct {
     int32_t minimap_mask_lengths[151];
 } Minimap;
 
+typedef struct { int click_x, click_y, tile_x, tile_z; } MinimapClick;
+// Original handleMinimapInput, matching the current zero angle/zoom renderer.
+bool minimap_click_target(int mouse_x, int mouse_y, int player_x, int player_z,
+    int camera_yaw, MinimapClick *click);
+
 void minimap_init(Minimap *m, Media *media, Arena *arena);
 void minimap_draw_tile(uint32_t *pixels,int offset,int stride,const GroundTile *tile);
 void minimap_build(Minimap *m, World *world, World3D *scene, Media *media, int level);
@@ -42,13 +47,14 @@ void minimap_draw_dot(
     int camera_yaw,
     int mapback_x,
     int mapback_y,
-    Pix32 *dot_sprite
+    Pix32 *dot_sprite,
+    const Pix8 *mask
 );
 void minimap_free(Minimap *m);
 void minimap_draw_npc_dot(int player_x, int player_z, const NpcEntity *npc,
-    int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite);
+    int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite, const Pix8 *mask);
 void minimap_draw_player_dot(int player_x, int player_z, const PlayerEntity *other,
-    int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite);
+    int camera_yaw, int mapback_x, int mapback_y, Pix32 *dot_sprite, const Pix8 *mask);
 void minimap_draw_destination(Minimap *m, Media *media, int player_x, int player_z,
     int camera_yaw, int mapback_x, int mapback_y);
 

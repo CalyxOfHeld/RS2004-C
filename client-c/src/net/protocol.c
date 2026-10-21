@@ -1,5 +1,6 @@
 #include "net/protocol.h"
 #include "net/rsa.h"
+#include "dash3d/pathfinder.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -338,7 +339,7 @@ bool protocol_send_item_on_item(GameSession *session,int item,int slot,int compo
 
 static bool send_walk_opcode(GameSession *session,int opcode,int start_x,int start_z,int count,const int8_t *rel_x,const int8_t *rel_z,bool ctrl,const uint8_t *minimap_extra);
 static bool send_route(GameSession *session,int opcode,int base_x,int base_z,int source_x,int source_z,const int *x,const int *z,int count,bool ctrl,const uint8_t *minimap_extra) {
-    if(!x || !z || count<=0 || count>10000) return false;
+    if(!x || !z || count<=0 || count>MAX_PATH_STEPS) return false;
     // Client.tryMove backtracks direction changes, then sends the nearest
     // turn first. Including the origin separately retains a turn on step 1.
     int indices[25],points=0,previous_x=source_x,previous_z=source_z;

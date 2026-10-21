@@ -42,8 +42,10 @@ void pix3d_init(void) {
         pix3d_div_table2[i] = 65536 / i;
     }
     for (int32_t i = 0; i < 2048; i++) {
-        pix3d_sin_table[i] = (int32_t)(sin((double)i * 0.0030679615757712823) * 65536.0);
-        pix3d_cos_table[i] = (int32_t)(cos((double)i * 0.0030679615757712823) * 65536.0);
+        // Preserve the original Pix3D constant: substituting a more precise
+        // 2*pi/2048 changes integer entries and shifts rotated sprite pixels.
+        pix3d_sin_table[i] = (int32_t)(sin((double)i * 0.0030679615) * 65536.0);
+        pix3d_cos_table[i] = (int32_t)(cos((double)i * 0.0030679615) * 65536.0);
     }
 }
 

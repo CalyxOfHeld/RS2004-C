@@ -1,24 +1,16 @@
-# Test the current Windows client — October 21, 2026
+# Test the current Windows navigation checkpoint — October 21, 2026
 
-## Launch
+Launch play_client.bat in this folder. It uses the configured local server on43595 and preserves account progress. If no server is running, start_local_server.bat checks for port conflicts before starting one. Reuse the existing server when it is already available. Close/reopen the client to load the new executable.
 
-The current client is already installed in this checkout. Double-click play_client.bat in `2004scape C Rewrite`. The existing server was confirmed listening on43595/8889/8899 in PID3128 at handoff. If it is no longer running, use start_local_server.bat and wait for World ready. The launcher preserves account progress and uses the existing local test account automatically. For another account, see MANUAL-TESTING.md. Login code5 means already logged in or pending logout. Close the client window to exit.
+Installed native SHA-256: `487B85739750A5456CD5D0DB1BBCAC4ACC8360FA9BA9C7610377FA3197F94F9E`. Current cumulative overlay: navigation-verified-checkpoint.zip and its .sha256 sidecar. Extract into this existing rewrite checkout; existing engine/cache/content and build dependencies are required. No player saves or .env files are packaged. Preserve old packages and never restore the withdrawn save-purge launcher.
 
-The newest complete update is `handoff-checkpoint-2026-10-21.zip`, with a .sha256 sidecar. Extract its contents directly into the existing `2004scape C Rewrite` folder, allowing matching client/source/doc files to be replaced. Existing engine/content/cache are required. No saves or .env files are included. Older ZIPs are historical snapshots; never restore the withdrawn save-purge launcher from an old package.
+## Visible changes
 
-## Visible changes to try
+1. Click reachable ground on the minimap, rotate with arrow keys and click again. The flag and route use the displayed camera direction. Movement comes from the server.
+2. Click near the player centre to interrupt a route. Same-tile clicks now send the original movement packet instead of being discarded.
+3. Longer winding routes retain their starting path before the original25-turn packet compression.
+4. Distant entity dots respect the minimap border. Rotation uses the original integer trigonometry tables.
 
-1. Close any bank/shop interface, then left-click nearby walkable ground on the minimap. The client should send a route and display its destination flag. Rotate with arrow keys and try another click. Movement remains driven by the real server.
-2. Watch the destination flag clear on arrival. Ordinary NPC, scenery and ground-item approaches now set the same flag. Server-clear and region-rebase handling are implemented but still need live verification.
-3. Other visible players now have ordinary minimap dots. Friend colouring is unfinished. NPC and ground dots use the original coordinate rounding.
-4. Bank Deposit/Withdraw X, bank dragging/close/reopen, shop Buy/Sell, ground Drop/Take and stairs are useful existing checks. Available items, tutorial restrictions and scripts depend on the actual account/server state.
+Modal interfaces, open menus and active item drags gate minimap input. Friend colouring, nonzero minimap zoom/anticheat offsets, full gameplay and broader original rendering parity remain incomplete. See MANUAL-TESTING.md for optional account selection and controls; preserve all accounts.
 
-Minimap clicking is live-only. An open context menu, active inventory drag or main modal blocks it. Nonzero minimap zoom/angle drift and wider navigation parity remain unfinished. Escape closes an active menu/interface and otherwise selects Inventory; window close exits.
-
-For a bug report, include account name (never password), location, clicked position/action, camera direction, expected/actual outcome and screenshot or console log. Preserve saves.
-
-## What has actually been checked
-
-The older world-loops executable passed37 programs and separate instrumented live ground, bank, shop, dialogue and stair scenarios. Eight subsequent small changes built with zero warnings, including the current minimap input implementation. Tests and live scenarios were not rerun for those changes. Audible MIDI, friend colouring, complete gameplay and original visual parity are not established.
-
-Current build/evidence scope: client-c/verification/completion/runs/2026-10-21-minimap-click/README.md. HANDOFF.md identifies the latest source, hashes, gaps and continuation order. Cursor/Grok audit recovery is deferred; do not spend more tokens searching for its partial output.
+All39 programs pass with zero compiler warnings. Original Java comparisons cover20 route cases,4096 trigonometry entries and160 complete sprite framebuffers. The final executable also completed live region-crossing/cancellation checks. The separate optional login program skips without explicit opt-in; actual live sessions are documented independently. Exact evidence and remaining gaps: client-c/verification/completion/runs/2026-10-21-navigation-sol/README.md and HANDOFF.md.

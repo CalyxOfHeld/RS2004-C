@@ -46,6 +46,9 @@ $(VIEWER_TARGET): $(ALL_OBJS) $(HEADERS) platform/model_viewer.c
 
 TEST_BINS = bin/test_coplanar_visibility.exe bin/test_zone_sync.exe bin/test_ground_items.exe bin/test_collision_reference.exe bin/test_protocol_transport.exe bin/test_interactions.exe bin/test_isaac.exe bin/test_packet.exe bin/test_jagfile.exe bin/test_pix2d.exe bin/test_sprites.exe bin/test_rasterizer.exe bin/test_scene_rasterizer.exe bin/test_model.exe bin/test_config.exe bin/test_rsa.exe bin/test_world.exe bin/test_entity_sync.exe bin/test_audio_reference.exe bin/test_net_login.exe bin/test_media_ui.exe bin/test_component.exe bin/test_anim.exe bin/test_context_menu.exe bin/test_item_icon.exe bin/test_minimap.exe bin/test_audio.exe bin/test_chatbox.exe bin/test_mouse_picking.exe bin/test_pathfinding.exe bin/test_map_streaming.exe bin/test_interface_scripts.exe bin/test_camera.exe bin/test_full_ui.exe bin/test_net_sync.exe bin/test_dialogue_head.exe bin/test_bank_interface.exe
 
+TEST_BINS += bin/test_navigation_reference.exe
+TEST_BINS += bin/test_minimap_reference.exe
+
 test: $(TEST_BINS)
 	@echo "================ RUNNING TESTS ================"
 	@./bin/test_coplanar_visibility.exe
@@ -74,10 +77,12 @@ test: $(TEST_BINS)
 	@./bin/test_context_menu.exe
 	@./bin/test_item_icon.exe
 	@./bin/test_minimap.exe
+	@./bin/test_minimap_reference.exe
 	@./bin/test_audio.exe
 	@./bin/test_chatbox.exe
 	@./bin/test_mouse_picking.exe
 	@./bin/test_pathfinding.exe
+	@./bin/test_navigation_reference.exe
 	@./bin/test_map_streaming.exe
 	@./bin/test_interface_scripts.exe
 	@./bin/test_camera.exe
