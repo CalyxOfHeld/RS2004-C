@@ -1,0 +1,87 @@
+--- original/deob/client.java
++++ isolated/deob/client.java
+@@ -57,6 +57,7 @@
+ 
+ @ObfuscatedName("client")
+ public class client extends GameShell {
++    public static volatile Runnable referenceTask; // isolated harness scheduling only
+ 
+ 	@ObfuscatedName("client.ab")
+ 	public int hintTileZ;
+@@ -641,7 +642,7 @@
+ 	public int field1525 = -676;
+ 
+ 	@ObfuscatedName("client.F")
+-	public static String CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!\"£$%^&*()-_=+[{]};:'@#~,<.>/?\\| ";
++	public static String CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!\"Â£$%^&*()-_=+[{]};:'@#~,<.>/?\\| ";
+ 
+ 	@ObfuscatedName("client.od")
+ 	public static int[] levelExperience = new int[99];
+@@ -7969,7 +7970,7 @@
+ 		}
+ 		try {
+ 			if (super.frame != null) {
+-				return new URL("http://127.0.0.1:" + (portOffset + 80));
++				return new URL("http://127.0.0.1:" + System.getProperty("rs2.reference.webport", "8889"));
+ 			}
+ 		} catch (Exception var1) {
+ 		}
+@@ -9016,6 +9017,7 @@
+ 
+ 	@ObfuscatedName("client.b(I)V")
+ 	public final void update(int arg0) {
++        Runnable task=referenceTask; if(task!=null) { referenceTask=null; task.run(); }
+ 		if (this.errorStarted || this.errorLoading || this.errorHost) {
+ 			return;
+ 		}
+@@ -10824,6 +10826,7 @@
+ 		} catch (IOException var24) {
+ 			this.tryReconnect(false);
+ 		} catch (Exception var25) {
++            var25.printStackTrace(); // observation only in isolated reference overlay
+ 			var3 = "T2 - " + this.packetType + "," + this.lastPacketType1 + "," + this.lastPacketType2 + " - " + this.packetSize + "," + (this.sceneBaseTileX + this.localPlayer.pathTileX[0]) + "," + (this.sceneBaseTileZ + this.localPlayer.pathTileZ[0]) + " - ";
+ 			for (var4 = 0; var4 < this.packetSize && var4 < 50; var4++) {
+ 				var3 = var3 + this.in.data[var4] + ",";
+--- original/sign/signlink.java
++++ isolated/sign/signlink.java
+@@ -177,28 +177,18 @@
+ 		}
+ 	}
+ 
+-	public static final String findcachedir() {
+-		String[] var0 = new String[] { "c:/windows/", "c:/winnt/", "d:/windows/", "d:/winnt/", "e:/windows/", "e:/winnt/", "f:/windows/", "f:/winnt/", "c:/", "~/", "/tmp/", "" };
+-		String var1 = ".file_store_32";
+-		for (int var2 = 0; var2 < var0.length; var2++) {
+-			try {
+-				String var3 = var0[var2];
+-				File var4;
+-				if (var3.length() > 0) {
+-					var4 = new File(var3);
+-					if (!var4.exists()) {
+-						continue;
+-					}
+-				}
+-				var4 = new File(var3 + var1);
+-				if (var4.exists() || var4.mkdir()) {
+-					return var3 + var1 + "/";
+-				}
+-			} catch (Exception var5) {
+-			}
+-		}
+-		return null;
+-	}
++    // Verification-only cache isolation. Rendering/protocol client code is unchanged.
++    public static final String findcachedir() {
++        try {
++            String workspace=System.getProperty("rs2.reference.workspace");
++            String location=System.getProperty("rs2.reference.cache");
++            if(workspace==null || location==null) throw new IllegalStateException("Explicit workspace/cache required");
++            File root=new File(workspace).getCanonicalFile(), cache=new File(location).getCanonicalFile();
++            if(!cache.getPath().startsWith(root.getPath()+File.separator)) throw new IllegalStateException("Cache outside workspace");
++            if(!cache.isDirectory()) throw new IllegalStateException("Cache must already exist inside workspace");
++            return cache.getPath()+File.separator;
++        } catch(IOException error) { throw new IllegalStateException(error); }
++    }
+ 
+ 	public static final int getuid(String arg0) {
+ 		try {
