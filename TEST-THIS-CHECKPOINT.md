@@ -1,5 +1,7 @@
 # Windows client checkpoint — October 21, 2026
 
+**Latest visible update: click the minimap to walk.** Launch play_client.bat, close any bank/shop interface, click nearby walkable minimap ground, then rotate the camera and try again. Latest cumulative package: minimap-click-client-update.zip. Build passed with zero warnings; tests/live checks were not run. Older status notes below are historical.
+
 **Latest update:** shared32/64-bit packet readers now avoid signed-shift overflow. Latest cumulative package: packet-integers-client-update.zip. Build passed with zero warnings; tests/live checks were not run.
 
 **Latest update:** server song packets now use the original byte10 delimiter with checked metadata framing. Latest cumulative package: song-packet-client-update.zip. Build passed with zero warnings; tests/live audio checks were not run.

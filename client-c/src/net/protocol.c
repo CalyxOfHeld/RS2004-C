@@ -336,8 +336,8 @@ bool protocol_send_item_on_item(GameSession *session,int item,int slot,int compo
     return client_stream_write(&session->stream,bytes,p.pos);
 }
 
-static bool send_walk_opcode(GameSession *session,int opcode,int start_x,int start_z,int count,const int8_t *rel_x,const int8_t *rel_z,bool ctrl);
-static bool send_route(GameSession *session,int opcode,int base_x,int base_z,int source_x,int source_z,const int *x,const int *z,int count,bool ctrl) {
+static bool send_walk_opcode(GameSession *session,int opcode,int start_x,int start_z,int count,const int8_t *rel_x,const int8_t *rel_z,bool ctrl,const uint8_t *minimap_extra);
+static bool send_route(GameSession *session,int opcode,int base_x,int base_z,int source_x,int source_z,const int *x,const int *z,int count,bool ctrl,const uint8_t *minimap_extra) {
     if(!x || !z || count<=0 || count>10000) return false;
     // Client.tryMove backtracks direction changes, then sends the nearest
     // turn first. Including the origin separately retains a turn on step 1.
@@ -356,10 +356,22 @@ static bool send_route(GameSession *session,int opcode,int base_x,int base_z,int
         if(dx < -128 || dx>127 || dz < -128 || dz>127) return false;
         rx[i-1]=(int8_t)dx;rz[i-1]=(int8_t)dz;
     }
-    return send_walk_opcode(session,opcode,base_x+x[first],base_z+z[first],points-1,rx,rz,ctrl);
+    return send_walk_opcode(session,opcode,base_x+x[first],base_z+z[first],points-1,rx,rz,ctrl,minimap_extra);
 }
-bool protocol_send_route(GameSession *session,int bx,int bz,int sx,int sz,const int *x,const int *z,int count,bool ctrl) {return send_route(session,181,bx,bz,sx,sz,x,z,count,ctrl);}
-bool protocol_send_operation_route(GameSession *session,int bx,int bz,int sx,int sz,const int *x,const int *z,int count,bool ctrl) {return send_route(session,93,bx,bz,sx,sz,x,z,count,ctrl);}
+bool protocol_send_route(GameSession *session,int bx,int bz,int sx,int sz,const int *x,const int *z,int count,bool ctrl) {return send_route(session,181,bx,bz,sx,sz,x,z,count,ctrl,NULL);}
+bool protocol_send_operation_route(GameSession *session,int bx,int bz,int sx,int sz,const int *x,const int *z,int count,bool ctrl) {return send_route(session,93,bx,bz,sx,sz,x,z,count,ctrl,NULL);}
+
+bool protocol_send_minimap_route(GameSession *session,int bx,int bz,int sx,int sz,
+    const int *x,const int *z,int count,bool ctrl,int click_x,int click_y,int yaw,int player_x,int player_z,bool nearest) {
+    if(click_x < -73 || click_x > 72 || click_y < -75 || click_y > 75 ||
+        yaw < 0 || yaw > 2047 || player_x < 0 || player_x > 65535 || player_z < 0 || player_z > 65535) return false;
+    // Original handleMinimapInput trailer; current minimap angle/zoom are zero.
+    uint8_t extra[14];Packet p=packet_wrap(extra,sizeof(extra));
+    p1(&p,click_x);p1(&p,click_y);p2(&p,yaw);p1(&p,57);
+    p1(&p,0);p1(&p,0);p1(&p,89);p2(&p,player_x);p2(&p,player_z);
+    p1(&p,nearest ? 1 : 0);p1(&p,63);
+    return send_route(session,165,bx,bz,sx,sz,x,z,count,ctrl,extra);
+}
 
 bool protocol_send_opplayer(GameSession *session,int op,int slot) {
     static const int opcodes[4]={164,53,185,206};
@@ -438,13 +450,13 @@ bool protocol_send_opobj(GameSession *session, int op, int x, int z, int obj_id)
 }
 
 bool protocol_send_walk(GameSession *session,int start_x,int start_z,int count,const int8_t *rel_x,const int8_t *rel_z,bool ctrl) {
-    return send_walk_opcode(session,181,start_x,start_z,count,rel_x,rel_z,ctrl);
+    return send_walk_opcode(session,181,start_x,start_z,count,rel_x,rel_z,ctrl,NULL);
 }
-static bool send_walk_opcode(GameSession *session,int opcode,int start_x,int start_z,int count,const int8_t *rel_x,const int8_t *rel_z,bool ctrl) {
+static bool send_walk_opcode(GameSession *session,int opcode,int start_x,int start_z,int count,const int8_t *rel_x,const int8_t *rel_z,bool ctrl,const uint8_t *minimap_extra) {
     if (!session || !session->in_game) return false;
     uint8_t buf[256];
     if (count < 0 || count > 24 || (count && (!rel_x || !rel_z))) return false;
-    size_t payload_len = 1 + 2 + 2 + (size_t)count * 2;
+    size_t payload_len = 1 + 2 + 2 + (size_t)count * 2 + (minimap_extra ? 14 : 0);
     if (payload_len + 2 > sizeof(buf)) return false;
 
     Packet pkt = packet_wrap(buf, sizeof(buf));
@@ -457,6 +469,7 @@ static bool send_walk_opcode(GameSession *session,int opcode,int start_x,int sta
         p1(&pkt, rel_x[i]);
         p1(&pkt, rel_z[i]);
     }
+    if (minimap_extra) pdata(&pkt,minimap_extra,14);
     return client_stream_write(&session->stream, buf, pkt.pos);
 }
 

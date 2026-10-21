@@ -1,11 +1,11 @@
 # Current next move and external-agent work
 
-Updated October 21, 2026. After the test checkpoint, the user authorized one small task at a time. Seven small changes are complete; no new implementation task is running during this documentation update. The server was left available for manual testing. Last account usage check:81% of the five-hour window used,13% weekly. Write the next full runnable handoff at95% used/5% remaining, as requested. Current progress and run notes supersede the older paused handoff where they differ.
+Updated October 21, 2026. After the test checkpoint, the user authorized one small task at a time. Eight small changes are complete; no new implementation task is running during this documentation update. The server was left available for manual testing. Last account usage check:92% of the five-hour window used,14% weekly. Write the next full runnable handoff at95% used/5% remaining, as requested. Current progress and run notes supersede the older paused handoff where they differ.
 
 ## Resume order
 
 1. Read the user's checkpoint feedback and reproduce/fix reported failures first. Preserve all accounts, history, cache and server behavior.
-2. Complete minimap click navigation from the bundled revision-225 reference: input hit area/inverse transform and original route serialization. Scene-click destination rendering/arrival/packet19/rebase is now implemented, as are dot coordinate rounding and ordinary player dots. Approach routes now update the shared flag after a successful nonempty send. Friend colouring needs synchronized social state. All recent changes need scoped verification before claiming runtime parity; natural route, cancellation and region-crossing evidence remains open.
+2. Verify the newly implemented live minimap clicks: hit area/inverse transform, camera rotation, collision routing and opcode165 with14-byte trailer. Current zero zoom/angle input and serialization are implemented; do not duplicate them. Scene-click destination rendering/arrival/packet19/rebase is now implemented, as are dot coordinate rounding and ordinary player dots. Approach routes now update the shared flag after a successful nonempty send. Friend colouring needs synchronized social state. All recent changes need scoped verification before claiming runtime parity; natural route, cancellation and region-crossing evidence remains open.
 3. Close remaining item-use/spell and connected combat/skilling/social/effect gaps in dependency order from AUTONOMOUS_PLAN.md. Unsupported zone families 23/42/69/191 need source-backed coverage.
 4. Continue original-render comparisons for roofs, bridges, occlusion and ground piles, then sustained session checks. Passing the current suite does not establish complete parity.
 
@@ -25,7 +25,7 @@ Searching for Cursor/Grok's partial output is deferred at the user's request. Re
 
 ## Checkpoint boundaries
 
-Latest installed native SHA-256: `20D9AD3D709FB183649B509D3AA1F3BF8D99F0B1081361545A091C94339B8C23`. Latest cumulative update: `packet-integers-client-update.zip`, with matching .sha256 sidecar. It includes MIDI failure reporting, dot rounding, ordinary player dots the scene-click flag operation-approach flag integration MIDI song packet framing and defined signed packet reads. All seven built with zero warnings; tests/live checks were not rerun for these updates.
+Latest installed native SHA-256: `78346F76B3BE7C689B2C472F60E092FA647B64F31D92AD742943D3AEE406D28F`. Latest cumulative update: `minimap-click-client-update.zip`, with matching .sha256 sidecar. It includes MIDI failure reporting, dot rounding, ordinary player dots the scene-click flag operation-approach flag integration MIDI song packet framing defined signed packet reads and live minimap click implementation. All eight built with zero warnings; tests/live checks were not rerun for these updates.
 
 The earlier world-loops-test-checkpoint.zip preserves SHA-256 `3035DF94DAFA31A55C038CB1F25DEC795118BD7513EBA85AA463B3ACF0077919`, the executable used for the accepted live scenarios. Its37-program suite and the later Makefile shared-object suite passed. Those results do not certify the newer binary. Read the latest task instructions from the workspace; copies in older ZIPs are historical snapshots.
 Existing server PID 3128 owned ports 43595/8889/8899 at packaging. Verify ownership again before starting any server. New test saves stack211a, stack211b, bank211 and bank212 are persistent and must be preserved too.

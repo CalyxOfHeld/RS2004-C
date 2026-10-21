@@ -43,3 +43,7 @@ Fixed byte10 name termination, exact metadata length, native name bounds and uns
 ## Small task: defined signed packet integer reads
 
 g4/g8 now assemble unsigned values and map to signed Java values without undefined signed shifts or out-of-range casts. Build exit0/zero warnings; no tests/live checks run. Latest native SHA-256: `20D9AD3D709FB183649B509D3AA1F3BF8D99F0B1081361545A091C94339B8C23`. Latest cumulative update: packet-integers-client-update.zip. See runs/2026-10-21-packet-integers. Full handoff at95% as requested.
+
+## Visible task: clickable live minimap
+
+Original inverse click transform/current zero zoom-angle, collision routing and opcode165 with14-byte trailer implemented. Successful send sets destination; actual movement stays server-driven. Main modals/drag/context menus gate input. Build exit0/zero warnings; no tests/live checks run. Latest native SHA-256: `78346F76B3BE7C689B2C472F60E092FA647B64F31D92AD742943D3AEE406D28F`. Latest cumulative update: minimap-click-client-update.zip. See runs/2026-10-21-minimap-click. Usage92%; full handoff at95%.

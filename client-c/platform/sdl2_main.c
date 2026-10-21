@@ -912,6 +912,33 @@ int main(int argc, char *argv[]) {
                     }
                     if (has_fonts && menu.size > 0) context_menu_open(&menu, mx, my, &font_b12);
                 } else if (event.button.button == SDL_BUTTON_LEFT) {
+                    // Original handleMinimapInput hit rectangle and inverse rotation.
+                    // Consume this click before stale scene/context-menu actions.
+                    if (!menu.visible && has_minimap && mx >= 582 && mx < 728 && my >= 14 && my < 165) {
+                        if (interfaces.viewport == -1 && !comp_cfg.drag.active && live_server) {
+                            int click_x=mx-582-73,click_y=my-14-75;
+                            int yaw=cam.render_yaw&2047;
+                            int sin=pix3d_sin_table[yaw],cos=pix3d_cos_table[yaw];
+                            int dx=(click_y*sin+click_x*cos)>>11;
+                            int dz=(click_y*cos-click_x*sin)>>11;
+                            int target_x=(player.base.x+dx)>>7,target_z=(player.base.z-dz)>>7;
+                            PathResult route;
+                            if(pathfinder_find_path(&pathfinder,&collision_maps[sync_ctx.current_plane],
+                                player.base.path_tile_x[0],player.base.path_tile_z[0],target_x,target_z,true,&route) && route.step_count>0) {
+                                bool ctrl=(SDL_GetModState()&KMOD_CTRL)!=0;
+                                bool sent=protocol_send_minimap_route(&session,streamer.base_tile_x,streamer.base_tile_z,
+                                    player.base.path_tile_x[0],player.base.path_tile_z[0],route.steps_x,route.steps_z,route.step_count,
+                                    ctrl,click_x,click_y,yaw,player.base.x,player.base.z,route.reached_nearest);
+                                if(sent) {
+                                    minimap.flag_scene_tile_x=route.steps_x[route.step_count-1];
+                                    minimap.flag_scene_tile_z=route.steps_z[route.step_count-1];
+                                } else fprintf(stderr,"[ACTION] Minimap route send failed\n");
+                                if(trace) printf("[ACTION] minimap route %s destination=(%d,%d)\n",sent?"sent":"failed",
+                                    streamer.base_tile_x+route.steps_x[route.step_count-1],streamer.base_tile_z+route.steps_z[route.step_count-1]);
+                            }
+                        }
+                        continue;
+                    }
                     MenuAction action = {.type = MENU_CANCEL}; bool chosen = false;
                     if (menu.visible) {
                         chosen = context_menu_pick_action(&menu, mx, my, &action);

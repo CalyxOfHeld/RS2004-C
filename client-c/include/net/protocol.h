@@ -50,6 +50,8 @@ bool protocol_send_design(GameSession *session,int gender,const int parts[7],con
 bool protocol_send_item_on_item(GameSession *session,int item,int slot,int component,int use_item,int use_slot,int use_component);
 bool protocol_send_route(GameSession *session,int base_x,int base_z,int source_x,int source_z,const int *x,const int *z,int count,bool ctrl);
 bool protocol_send_operation_route(GameSession *session,int base_x,int base_z,int source_x,int source_z,const int *x,const int *z,int count,bool ctrl);
+bool protocol_send_minimap_route(GameSession *session,int base_x,int base_z,int source_x,int source_z,
+    const int *x,const int *z,int count,bool ctrl,int click_x,int click_y,int yaw,int player_x,int player_z,bool nearest);
 bool protocol_send_opplayer(GameSession *session,int op,int slot);
 bool protocol_send_inv_button(GameSession *session, int op, int item_id, int slot, int component_id);
 bool protocol_send_inv_buttond(GameSession *session, int component_id, int from_slot, int to_slot);
