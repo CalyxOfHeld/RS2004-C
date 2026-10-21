@@ -825,9 +825,9 @@ int main(int argc, char *argv[]) {
                             const char *song = cmd + 7;
                             while (*song == ' ') song++;
                             if (*song) {
-                                midi_play(song, 0, 0);
+                                bool started = midi_play(song, 0, 0);
                                 char song_msg[96];
-                                snprintf(song_msg, sizeof(song_msg), "@yel@Now playing: %s", song);
+                                snprintf(song_msg, sizeof(song_msg), started ? "@yel@Now playing: %s" : "@red@Could not play: %s", song);
                                 chatbox_add_message(&chatbox, 0, NULL, song_msg);
                             }
                         } else if (strncmp(cmd, "::stopsong", 10) == 0 || strncmp(cmd, "::stopmusic", 11) == 0) {

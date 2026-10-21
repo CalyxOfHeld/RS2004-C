@@ -1,5 +1,7 @@
 # Windows client checkpoint — October 21, 2026
 
+**Subsequent small update:** the installed executable now includes MIDI failure reporting. It built with zero warnings but has not had tests or audible/live checks rerun. The 37-program/live results below apply to the prior binary retained in world-loops-test-checkpoint.zip. See client-c/verification/completion/runs/2026-10-21-midi-status/README.md.
+
 Feature work is paused for your testing. This is a working checkpoint; the full native client is still incomplete.
 
 ## Launch

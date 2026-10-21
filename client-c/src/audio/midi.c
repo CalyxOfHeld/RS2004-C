@@ -14,6 +14,36 @@ static bool s_is_playing = false;
 static char s_current_song[64] = {0};
 static int  s_volume = 200; // 0..255
 
+#ifdef _WIN32
+static bool midi_mci_ok(MCIERROR err, const char *operation) {
+    if (err == 0) return true;
+    fprintf(stderr, "[MIDI] %s failed (MCI error %lu)\n", operation, (unsigned long)err);
+    return false;
+}
+#endif
+
+static bool midi_start_file(const char *path, const char *alias) {
+#ifdef _WIN32
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "close %s", alias);
+    mciSendStringA(cmd, NULL, 0, NULL);
+    snprintf(cmd, sizeof(cmd), "open \"%s\" type sequencer alias %s", path, alias);
+    if (!midi_mci_ok(mciSendStringA(cmd, NULL, 0, NULL), "open")) return false;
+    snprintf(cmd, sizeof(cmd), "play %s", alias);
+    if (!midi_mci_ok(mciSendStringA(cmd, NULL, 0, NULL), "play")) {
+        snprintf(cmd, sizeof(cmd), "close %s", alias);
+        mciSendStringA(cmd, NULL, 0, NULL);
+        return false;
+    }
+    return true;
+#else
+    (void)path;
+    (void)alias;
+    fprintf(stderr, "[MIDI] No sequencer backend available\n");
+    return false;
+#endif
+}
+
 static const char *s_song_search_dirs[] = {
     "../engine/data/pack/client/songs",
     "engine/data/pack/client/songs",
@@ -47,7 +77,7 @@ bool midi_play(const char *name, int crc, int size) {
         return true;
     }
 
-    if (s_is_playing && strcmp(s_current_song, name) == 0) {
+    if (strcmp(s_current_song, name) == 0 && midi_is_playing()) {
         return true;
     }
 
@@ -85,7 +115,7 @@ bool midi_play(const char *name, int crc, int size) {
                           ((uint32_t)file_data[2] << 8)  |
                           ((uint32_t)file_data[3]);
 
-    if (uncomp_len == 0 || uncomp_len > 2 * 1024 * 1024) {
+    if (uncomp_len < 4 || uncomp_len > 2 * 1024 * 1024) {
         free(file_data);
         return false;
     }
@@ -117,20 +147,21 @@ bool midi_play(const char *name, int crc, int size) {
         return false;
     }
 
-    fwrite(decompressed, 1, uncomp_len, out_f);
-    fclose(out_f);
+    size_t written = fwrite(decompressed, 1, uncomp_len, out_f);
+    int close_result = fclose(out_f);
     free(decompressed);
-
-#ifdef _WIN32
-    mciSendStringA("close rs2midi", NULL, 0, NULL);
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "open \"%s\" type sequencer alias rs2midi", temp_midi_path);
-    MCIERROR err = mciSendStringA(cmd, NULL, 0, NULL);
-    if (err == 0) {
-        mciSendStringA("play rs2midi", NULL, 0, NULL);
-        snprintf(cmd, sizeof(cmd), "setaudio rs2midi volume to %d", (s_volume * 1000) / 255);
-        mciSendStringA(cmd, NULL, 0, NULL);
+    if (written != uncomp_len || close_result != 0) {
+        fprintf(stderr, "[MIDI] Could not write music file: %s\n", temp_midi_path);
+        return false;
     }
+
+    s_is_playing = false;
+    s_current_song[0] = '\0';
+    if (!midi_start_file(temp_midi_path, "rs2midi")) return false;
+#ifdef _WIN32
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "setaudio rs2midi volume to %d", (s_volume * 1000) / 255);
+    mciSendStringA(cmd, NULL, 0, NULL);
 #endif
 
     strncpy(s_current_song, name, sizeof(s_current_song) - 1);
@@ -141,7 +172,7 @@ bool midi_play(const char *name, int crc, int size) {
 }
 
 bool midi_play_jingle(const uint8_t *bzip_data, int compressed_len, int uncompressed_len) {
-    if (!bzip_data || compressed_len <= 0 || uncompressed_len <= 0) return false;
+    if (!bzip_data || compressed_len <= 0 || uncompressed_len < 4) return false;
 
     uint8_t *decompressed = (uint8_t *)malloc(uncompressed_len);
     if (!decompressed) return false;
@@ -164,19 +195,14 @@ bool midi_play_jingle(const uint8_t *bzip_data, int compressed_len, int uncompre
         return false;
     }
 
-    fwrite(decompressed, 1, uncompressed_len, out_f);
-    fclose(out_f);
+    size_t written = fwrite(decompressed, 1, uncompressed_len, out_f);
+    int close_result = fclose(out_f);
     free(decompressed);
-
-#ifdef _WIN32
-    mciSendStringA("close rs2jingle", NULL, 0, NULL);
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "open \"%s\" type sequencer alias rs2jingle", temp_jingle_path);
-    MCIERROR err = mciSendStringA(cmd, NULL, 0, NULL);
-    if (err == 0) {
-        mciSendStringA("play rs2jingle", NULL, 0, NULL);
+    if (written != (size_t)uncompressed_len || close_result != 0) {
+        fprintf(stderr, "[MIDI] Could not write jingle file: %s\n", temp_jingle_path);
+        return false;
     }
-#endif
+    if (!midi_start_file(temp_jingle_path, "rs2jingle")) return false;
 
     printf("[MIDI] Playing jingle (%d bytes uncompressed)\n", uncompressed_len);
     return true;
@@ -208,13 +234,20 @@ bool midi_is_playing(void) {
 #ifdef _WIN32
     if (!s_is_playing) return false;
     char mode[64] = {0};
-    mciSendStringA("status rs2midi mode", mode, sizeof(mode) - 1, NULL);
+    if (!midi_mci_ok(mciSendStringA("status rs2midi mode", mode, sizeof(mode) - 1, NULL), "status")) {
+        s_is_playing = false;
+        s_current_song[0] = '\0';
+        return false;
+    }
     if (strcmp(mode, "playing") == 0) return true;
     if (strcmp(mode, "stopped") == 0) {
         // Auto-loop ambient music
-        mciSendStringA("play rs2midi from 0", NULL, 0, NULL);
-        return true;
+        if (midi_mci_ok(mciSendStringA("play rs2midi from 0", NULL, 0, NULL), "loop")) return true;
+        mciSendStringA("close rs2midi", NULL, 0, NULL);
     }
+    s_is_playing = false;
+    s_current_song[0] = '\0';
+    return false;
 #endif
     return s_is_playing;
 }
