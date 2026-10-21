@@ -1,4 +1,5 @@
 #include "config/flo.h"
+#include "core/jrandom.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -104,15 +105,15 @@ void flo_set_color(FloType* flo, int rgb) {
     if (flo->luminance < 1) flo->luminance = 1;
     flo->chroma = (int)(h * (double)flo->luminance);
 
-    int var19 = flo->hue + (int)(((double)rand() / (double)RAND_MAX) * 16.0) - 8;
+    int var19 = flo->hue + (int)(math_random() * 16.0) - 8;
     if (var19 < 0) var19 = 0;
     else if (var19 > 255) var19 = 255;
 
-    int var20 = flo->saturation + (int)(((double)rand() / (double)RAND_MAX) * 48.0) - 24;
+    int var20 = flo->saturation + (int)(math_random() * 48.0) - 24;
     if (var20 < 0) var20 = 0;
     else if (var20 > 255) var20 = 255;
 
-    int var21 = flo->lightness + (int)(((double)rand() / (double)RAND_MAX) * 48.0) - 24;
+    int var21 = flo->lightness + (int)(math_random() * 48.0) - 24;
     if (var21 < 0) var21 = 0;
     else if (var21 > 255) var21 = 255;
 

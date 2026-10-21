@@ -9,6 +9,7 @@
 #include <stdio.h>
 
 typedef struct {
+    bool present; // listed in ob_head.dat (Model.metadata[id] != null), even when empty
     int32_t num_points;
     int32_t num_faces;
     int32_t num_t;
@@ -105,6 +106,7 @@ void model_init_repo(Jagfile *models_jag, Arena *arena) {
         int32_t id = g2(&g_head);
         ModelMeta *meta = &g_model_meta[id];
 
+        meta->present = true;
         meta->num_points = g2(&g_head);
         meta->num_faces  = g2(&g_head);
         meta->num_t      = g1(&g_head);
@@ -164,7 +166,7 @@ void model_init_repo(Jagfile *models_jag, Arena *arena) {
 Model *model_load(int32_t id, Arena *arena) {
     if (!g_model_meta || id < 0 || id >= g_model_meta_count) return NULL;
     ModelMeta *meta = &g_model_meta[id];
-    if (meta->num_points == 0 && meta->num_faces == 0) return NULL;
+    if (!meta->present) return NULL;
 
     Model *m = arena ? (Model *)arena_alloc_zero(arena, sizeof(Model))
                      : (Model *)calloc(1, sizeof(Model));

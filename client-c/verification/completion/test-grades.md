@@ -1,6 +1,6 @@
 # Native test grades (Phase A, step 2) — 2026-10-22
 
-What each of the 53 programs in `make test` actually proves. Graded by reading each test's expectations and where they come from, not its PASS text. Many PASS lines claim "bit-for-bit" or "100% parity" for checks that are spot anchors; those claims are void.
+What each of the 54 programs in `make test` actually proves. Graded by reading each test's expectations and where they come from, not its PASS text. Many PASS lines claim "bit-for-bit" or "100% parity" for checks that are spot anchors; those claims are void.
 
 | Grade | Meaning | Counts toward parity? |
 | --- | --- | --- |
@@ -9,7 +9,7 @@ What each of the 53 programs in `make test` actually proves. Graded by reading e
 | **C** | Expected values come from the C implementation's own model (smoke tests, "not zero", native-only state) | No |
 | **D** | Asserts behavior the original does **not** have (depth-buffer renderer properties) | No; must be replaced at the Phase C renderer port |
 
-## A — Java oracle (18)
+## A — Java oracle (19)
 
 | Test | Oracle |
 | --- | --- |
@@ -31,6 +31,7 @@ What each of the 53 programs in `make test` actually proves. Graded by reading e
 | test_target_interactions | TargetOracle (+ loopback encrypted stream) |
 | test_title_screen | TitleOracle (+ loopback login handshake) |
 | test_wall_decor | WallDecorationOracle |
+| test_data_reference | DataOracle: all 27,984 decoded cache entries (configs incl. VarpType, models, anims, fonts, components, sprite pixels) by per-object digest |
 
 The 3D-renderer oracles (scene lighting, wall decor, location) compare geometry, lighting and poses, not rasterized pixels. Nothing in the suite compares World3D/Pix3D output pixels against Java.
 

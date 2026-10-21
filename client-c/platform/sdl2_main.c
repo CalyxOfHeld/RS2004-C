@@ -325,6 +325,13 @@ int main(int argc, char *argv[]) {
         printf("[PASS] Audio synthesizer online (sounds.dat unpacked)\n");
     }
 
+    // client.load: AnimBase/AnimFrame precede SeqType, whose delays resolve from frames.
+    bool has_anim = anim_unpack(models_jag, &arena_perm);
+    if (has_anim) {
+        printf("[PASS] %d Animation Bases & %d Frames loaded from models cache\n",
+               g_anim_cfg.base_count, g_anim_cfg.frame_count);
+    }
+
     FloConfig flo_cfg;
     flo_unpack(&flo_cfg, config_jag);
 
@@ -348,12 +355,6 @@ int main(int argc, char *argv[]) {
 
     printf("[INFO] Cache loaded: %d flo, %d seq, %d loc, %d npc, %d obj, %d idk\n",
            flo_cfg.count, seq_cfg.count, loc_cfg.count, npc_cfg.count, obj_cfg.count, idk_cfg.count);
-
-    bool has_anim = anim_unpack(models_jag, &arena_perm);
-    if (has_anim) {
-        printf("[PASS] %d Animation Bases & %d Frames loaded from models cache\n",
-               g_anim_cfg.base_count, g_anim_cfg.frame_count);
-    }
 
     Jagfile *title_jag = jagfile_load_file("../engine/data/pack/client/title", &arena_perm);
     if (!title_jag) title_jag = jagfile_load_file("engine/data/pack/client/title", &arena_perm);

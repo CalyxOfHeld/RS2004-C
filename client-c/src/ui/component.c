@@ -205,6 +205,9 @@ bool component_unpack(ComponentConfig *cfg, Jagfile *media_jag, PixFont *fonts[4
         }
 
         if (c->type == COMPONENT_TYPE_MODEL_3D) {
+            // -1 = no model (Java leaves Component.model null); 0 is a real model id.
+            c->model_id = -1;
+            c->active_model_id = -1;
             int m1 = g1(&pkt);
             if (m1 != 0) {
                 c->model_id = ((m1 - 1) << 8) + g1(&pkt);

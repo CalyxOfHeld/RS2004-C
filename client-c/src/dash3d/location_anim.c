@@ -1,5 +1,6 @@
 #include "dash3d/location_anim.h"
 #include "dash3d/world.h"
+#include "core/jrandom.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -28,8 +29,8 @@ bool location_anim_add(World3D *scene,int id,int level,int x,int z,int layer,int
     }
     LocationAnimation a={id,level,x,z,layer,sequence,-1,0,random_start};
     if(random_start && seq->replayoff!=-1) {
-        a.frame=(int)((double)rand()/((double)RAND_MAX+1)*seq->frame_count);
-        a.cycle=(int)((double)rand()/((double)RAND_MAX+1)*frame_delay(seq,a.frame));
+        a.frame=(int)(math_random()*(double)seq->frame_count);
+        a.cycle=(int)(math_random()*(double)seq->delay[a.frame]);
     }
     scene->location_animations[scene->location_animation_count++]=a;
     if(scene->trace_location_animations) printf("[LOCANIM] start id=%d tile=(%d,%d,%d) layer=%d seq=%d random=%d\n",id,level,x,z,layer,sequence,random_start);

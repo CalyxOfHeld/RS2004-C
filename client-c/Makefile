@@ -3,9 +3,9 @@ CFLAGS = -std=c99 -Wall -Wextra -O2 -Iinclude -Ilib/SDL2/x86_64-w64-mingw32/incl
 LDFLAGS = -Llib/SDL2/x86_64-w64-mingw32/lib -lmingw32 -lSDL2main -lSDL2 -lws2_32 -lwinmm -lm -Wl,--stack,16777216
 TEST_LDFLAGS = -Llib/SDL2/x86_64-w64-mingw32/lib -lSDL2 -lws2_32 -lwinmm -lm -Wl,--stack,16777216
 
-CORE_SRCS   = src/core/arena.c src/core/packet.c src/core/isaac.c src/core/bzip2.c src/core/jagfile.c src/core/jstring.c
+CORE_SRCS   = src/core/arena.c src/core/packet.c src/core/isaac.c src/core/bzip2.c src/core/jagfile.c src/core/jstring.c src/core/jrandom.c
 GFX_SRCS    = src/gfx/pix2d.c src/gfx/pix8.c src/gfx/pix32.c src/gfx/pix3d.c src/gfx/model.c src/gfx/pixfont.c src/gfx/media.c src/gfx/anim.c src/gfx/jpeg.c
-CONFIG_SRCS = src/config/flo.c src/config/seq.c src/config/loc.c src/config/npc.c src/config/obj.c src/config/idk.c src/config/spotanim.c
+CONFIG_SRCS = src/config/flo.c src/config/seq.c src/config/loc.c src/config/npc.c src/config/obj.c src/config/idk.c src/config/spotanim.c src/config/varp_type.c
 ENTITY_SRCS = src/entity/pathing_entity.c src/entity/player_entity.c src/entity/npc_entity.c
 ENTITY_SRCS += src/entity/actor_model.c
 NET_SRCS    = src/net/rsa.c src/net/client_stream.c src/net/protocol.c src/net/entity_sync.c src/net/zone_sync.c
@@ -66,6 +66,7 @@ TEST_BINS += bin/test_bridge_levels.exe
 TEST_BINS += bin/test_scene_lighting.exe
 TEST_BINS += bin/test_wall_decor.exe
 TEST_BINS += bin/test_title_screen.exe
+TEST_BINS += bin/test_data_reference.exe
 
 test: $(TEST_BINS)
 	@echo "================ RUNNING TESTS ================"
@@ -122,6 +123,7 @@ test: $(TEST_BINS)
 	@./bin/test_net_sync.exe
 	@./bin/test_dialogue_head.exe
 	@./bin/test_bank_interface.exe
+	@./bin/test_data_reference.exe --check ../engine/data/pack/client tests/fixtures/data-reference.digest
 	@echo "================ ALL TESTS PASSED ================"
 
 clean:

@@ -60,6 +60,15 @@ void seq_decode(SeqType* seq, Packet* pkt) {
                     seq->iframes[i] = -1;
                 }
                 seq->delay[i] = g2(pkt);
+                // SeqType.decode resolves the delay at decode time, so
+                // AnimFrame must already be unpacked (client.load order).
+                if (seq->delay[i] == 0) {
+                    AnimFrame *af = anim_get_frame(seq->frames[i]);
+                    if (af) seq->delay[i] = af->delay;
+                }
+                if (seq->delay[i] == 0) {
+                    seq->delay[i] = 1;
+                }
             }
         } else if (code == 2) {
             seq->replayoff = g2(pkt);
@@ -102,11 +111,7 @@ void seq_free(SeqConfig* config) {
 }
 
 int seq_get_delay(const SeqType* seq, int frame_idx) {
-    if (!seq || frame_idx < 0 || frame_idx >= seq->frame_count) return 1;
-    if (seq->delay && seq->delay[frame_idx] > 0) return seq->delay[frame_idx];
-    if (seq->frames && seq->frames[frame_idx] >= 0) {
-        AnimFrame *af = anim_get_frame(seq->frames[frame_idx]);
-        if (af && af->delay > 0) return af->delay;
-    }
-    return 1;
+    // Java reads seq.delay[frame] directly; seq_decode resolves it like SeqType.decode.
+    if (!seq || !seq->delay || frame_idx < 0 || frame_idx >= seq->frame_count) return 1;
+    return seq->delay[frame_idx];
 }

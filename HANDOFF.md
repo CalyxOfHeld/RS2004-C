@@ -1,3 +1,49 @@
+# Phase A: foundation audit and decoder oracle — October 22, 2026 (Claude)
+
+**Native build.** SHA-256 `E931CB6CC9B617625550D528BD32227DB695F05E21342E3C18CDC0F58A42FEBE` is installed as `client-c/bin/rs2client.exe`; `rs2client_bridge.exe` and `rs2client_decor.exe` match it. The previous build `0510EADD…97E4` is kept as `bin/rs2client.lastgood.exe`.
+
+**The plan is now `CLAUDE-PLAN.md`.** It has five phases: A trust audit, B differential replay, C renderer port, D coverage, E live. The user's decisions on 2026-10-21:
+- I may start and stop the local server.
+- Local commits are allowed; never push or rewrite history.
+- The Pix3D/World3D/Model port is approved.
+
+**Phase A findings** are in `client-c/verification/completion/phaseA-findings.md`, with the test grades in `test-grades.md` and the generated `coverage-map.md`. The main ones:
+- The reference overlay's CHARSET was double-encoded. It is now fixed and guarded by `tools/check_reference.py`.
+- The 3D renderer is not a port of the original.
+- 18 server and 25 client opcodes are absent.
+- Public chat is dropped in live mode.
+- The game loop is inlined in `main()`.
+- Many PASS lines overstate what their tests check.
+
+**Decoder oracle (new grade-A test).**
+- `DataOracle.java` runs the unchanged decoders in client.load order, with Math.random seeded. `test_data_reference --check` (in `make test`) verifies **all 27,984 decoded cache entries** field for field via per-object digests: every config type including VarpType, every model, all anim bases and frames, the fonts, and every interface component with sprite pixel hashes.
+- Defects found and fixed, with Java as the source:
+  - **Seq delays:** 952 seqs did not resolve their delay from AnimFrame. AnimFrame is now unpacked before SeqType, as in client.load.
+  - **`rand()`** was used where Java uses `Math.random()`. There is a new `core/jrandom.c` port of `java.util.Random`. The login ISAAC seed halves are no longer identical every session.
+  - **Empty listed models** 596, 2214 and 2215 loaded as NULL.
+  - **VarpType was missing.** It is now in the new `config/varp_type.c`.
+  - **Component "no model"** was ambiguous with model 0.
+- New gaps, queued for Phase D:
+  - interface type-6 models never load from the cache and are drawn unlit;
+  - there is no `updateVarp` (brightness and other client codes are ignored);
+  - `varp_init` invents initial stats and varps.
+
+**Tests.** 54 programs pass with zero warnings, and `make test` exits 0.
+
+**Live smoke.** On the user's server (PID 2352, port 43595, left running), the new disposable account `claudesm22` logged in with reply 18, received REBUILD_NORMAL, and showed the character-design interface with the player animating. Exit 0. All 38 pre-existing saves are byte-identical; `claudesm22.sav` is new.
+
+**Commits.** Local commits are on the workspace repo: baseline `46216c7`, then Phase A. Nothing has been pushed.
+
+**Evidence:** `client-c/verification/completion/runs/2026-10-22-phaseA-audit/` (`data-oracle.md`, `data-oracle-compare.txt`, `live-smoke/`, `before-reference/`).
+
+**Next: Phase B.**
+1. Extract the client loop from `main()`.
+2. Record server packets and input.
+3. Replay headlessly into Java and C with seeded ISAAC and Math.random, comparing per tick.
+4. Add `make parity`.
+
+---
+
 # Logout returns to the original title screen; in-client login — October 21, 2026
 
 Native SHA-256: `0510EADD01B31BC64212ABAA78D6A71B62FFE62A4095F6356ED4CA0BCFF597E4`. Installed `client-c/bin/rs2client.exe`; the launcher update `rs2client_bridge.exe` and `rs2client_decor.exe` match. Launch `play_client.bat` normally. The previous build `CD6A014A…7C4A` is preserved in this run's `before/`. New cumulative overlay: `logout-title-checkpoint.zip` with its SHA-256 sidecar.

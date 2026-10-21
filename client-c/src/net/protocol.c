@@ -1,5 +1,6 @@
 #include "net/protocol.h"
 #include "net/rsa.h"
+#include "core/jrandom.h"
 #include "dash3d/pathfinder.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -146,8 +147,8 @@ LoginResponse protocol_login_ex(GameSession *session, const char *host, int port
 
     // 2. Generate 4-part ISAAC seed
     uint32_t seed[4];
-    seed[0] = (uint32_t)rand();
-    seed[1] = (uint32_t)rand();
+    seed[0] = (uint32_t)(int32_t)(math_random() * 9.9999999E7);
+    seed[1] = (uint32_t)(int32_t)(math_random() * 9.9999999E7);
     seed[2] = (uint32_t)(server_seed >> 32);
     seed[3] = (uint32_t)(server_seed & 0xFFFFFFFF);
 

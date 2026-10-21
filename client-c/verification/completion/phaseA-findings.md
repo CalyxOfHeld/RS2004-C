@@ -57,7 +57,7 @@ These are the findings from re-checking the foundation built by earlier models, 
 - Headless deterministic replay (Phase B) first requires extracting this into a client module with tick, receive and draw entry points.
 
 **F7. Test strength.**
-- Of 53 programs: 18 A (Java oracle), 16 B (real data, spot anchors), 17 C (self-referential), 2 D (non-original renderer behavior).
+- Of 53 programs: 18 A (Java oracle), 16 B (real data, spot anchors), 17 C (self-referential), 2 D (non-original renderer behavior). With `test_data_reference` (F10) the totals are 54 programs and 19 A.
 - No test compares rendered World3D/Pix3D/Model pixels or interface rendering against Java.
 - Whole-cache decoding (models, configs, sprites, interfaces, animations) is checked only through a few anchors per type.
 - PASS strings claiming "bit-for-bit" or "100% parity" are void unless the test is grade A.
@@ -72,9 +72,22 @@ These are the findings from re-checking the foundation built by earlier models, 
 - An `OSRS/` directory sits in the workspace root. It is a forbidden source and stays unread.
 - The Java reference build of `client.java` has LF line endings; the isolated copy has CRLF. Tools must compare with endings normalized.
 
+**F10. Decoder oracle: the whole data layer is now grade A.** Details are in `runs/2026-10-22-phaseA-audit/data-oracle.md`.
+- `DataOracle.java` and `test_data_reference --check` (in `make test`) compare all 27,984 decoded entries field for field: every config type including VarpType, every model, all anim bases and frames, the fonts, and every interface component with sprite pixel hashes.
+- Defects fixed, with Java as the source:
+  - **D1.** Seq delays were not resolved at decode (952 seqs). Load order is now as in client.load.
+  - **D2.** `rand()` stood in for `Math.random()`. It is now a `java.util.Random` port, and the login ISAAC seed halves are no longer constant per session.
+  - **D3.** Empty listed models (596, 2214, 2215) loaded as NULL.
+  - **D4.** VarpType was missing.
+  - **D5.** Component "no model" was ambiguous with model 0.
+- New gaps:
+  - **N1.** Interface type-6 models never load from the cache and are drawn unlit.
+  - **N2.** There is no `updateVarp` (client codes such as brightness are ignored).
+  - **N3.** `varp_init` invents initial stats and varps.
+
 ## Next (in order)
 
-1. **Decoder oracle (data layer).** Java dumps every model, every config type, all sprites and fonts, every interface component and every animation frame from the bundled cache; C compares all fields. It is the cheapest way to verify or refute the whole data foundation.
+1. ~~Decoder oracle (data layer).~~ Done (F10).
 2. **Phase B.**
    - Extract the client loop from `main()` (F6).
    - Add packet/input recording.
