@@ -38,6 +38,8 @@
 #include "dash3d/pathfinder.h"
 #include "dash3d/map_streamer.h"
 #include "dash3d/camera.h"
+#include "dash3d/effects.h"
+#include "ui/combat_feedback.h"
 #include "audio/wave.h"
 #include "audio/midi.h"
 #include "ui/chatbox.h"
@@ -330,6 +332,9 @@ int main(int argc, char *argv[]) {
     SeqConfig seq_cfg;
     seq_unpack(&seq_cfg, config_jag);
 
+    SpotAnimConfig spot_cfg;
+    if(!spotanim_unpack(&spot_cfg,config_jag,&seq_cfg)) {fprintf(stderr,"Spot animation cache decode failed\n");return 1;}
+
     LocConfig loc_cfg;
     loc_unpack(&loc_cfg, config_jag);
 
@@ -498,9 +503,10 @@ int main(int argc, char *argv[]) {
     }
 
     // 4. Spawn Player Character (Lumbridge Courtyard at Tile 32, 32)
-    ZoneSync zones={0};zones.trace=trace;zones.objects=&obj_cfg;zones.local_pid=-1;
+    SceneEffects effects={0};effects.config=&spot_cfg;effects.trace=trace;
+    ZoneSync zones={0};zones.effects=&effects;zones.trace=trace;zones.objects=&obj_cfg;zones.local_pid=-1;
     EntitySyncContext sync_ctx;
-    entity_sync_init(&sync_ctx, &npc_cfg);
+    entity_sync_init(&sync_ctx, &npc_cfg);sync_ctx.trace=trace;
     PlayerEntity *player_ptr = &sync_ctx.local_player;
     #define player (*player_ptr)
 
@@ -1119,6 +1125,7 @@ int main(int argc, char *argv[]) {
         // 50 Hz Client Logic Tick Accumulator (matching GameShell.java:200-206)
         while (var6 < 256) {
             game_ticks++;
+            sync_ctx.cycle=game_ticks;effects.cycle=game_ticks;
             audio_tick();
             if (comp_cfg.drag.active) comp_cfg.drag.cycles++;
             if (comp_cfg.scroll_drag.active && comp_cfg.scroll_drag.target && comp_cfg.scroll_drag.arrow_dir != 0) {
@@ -1361,6 +1368,7 @@ int main(int argc, char *argv[]) {
                             const char *m_dir = "../engine/data/pack/client/maps";
                             FILE *tf = fopen("../engine/data/pack/client/maps/m50_50", "rb");
                             if (tf) { fclose(tf); } else { m_dir = "engine/data/pack/client/maps"; }
+                            effects_clear(&effects);
                             zone_sync_reset(&zones);
                             GroundItem **saved_items=ground_items_detach(world3d);
                             if(!saved_items) {fprintf(stderr,"Cannot retain ground items during rebuild\n");running=false;break;}
@@ -1453,6 +1461,10 @@ int main(int argc, char *argv[]) {
             // D. Cross animation progression (client.java:7744-7749)
             click_feedback_tick(&click_feedback);
             midi_tick();
+            actor_spotanim_tick(&player.base,&spot_cfg,game_ticks);
+            for(int i=0;i<sync_ctx.npc_count;i++)if(sync_ctx.npcs[sync_ctx.npc_indices[i]])actor_spotanim_tick(&sync_ctx.npcs[sync_ctx.npc_indices[i]]->base,&spot_cfg,game_ticks);
+            for(int i=0;i<sync_ctx.player_count;i++)if(sync_ctx.players[sync_ctx.player_indices[i]])actor_spotanim_tick(&sync_ctx.players[sync_ctx.player_indices[i]]->base,&spot_cfg,game_ticks);
+            effects_tick(&effects,world,world3d,&sync_ctx,game_ticks);
 
             var6 += var4;
         }
@@ -1629,21 +1641,23 @@ int main(int argc, char *argv[]) {
                     int frame=current_entity_frame(&npc->base,&seq_cfg);
                     if(frame>=0) model_apply_transform(model,frame);
                     model_calculate_normals(model,64,850,-30,-50,-30);
+                    model=actor_with_spotanim(model,&npc->base,&spot_cfg,&arena_frame);
                     int y=camera_get_height(sync_ctx.current_plane,npc->base.x,npc->base.z,world3d->heightmap,world->tile_flags);
                     if(verification_npc_type==type) {
                         int sx,sy;
                         if(project_from_point(npc->base.x,y-npc->base.height/2,npc->base.z,eye_x,eye_y,eye_z,camera_pitch,camera_yaw,&sx,&sy)) {
-                            for(int dy=-20;dy<=20 && verification_npc_type>=0;dy+=5)
-                                for(int dx=-15;dx<=15 && verification_npc_type>=0;dx+=5) {
-                                    int px=sx+dx,py=sy+dy;
-                                    if(px<VIEWPORT_X || px>=VIEWPORT_X+VIEWPORT_W || py<VIEWPORT_Y || py>=VIEWPORT_Y+VIEWPORT_H) continue;
-                                    if(model_draw_pickable(model,npc->base.yaw,camera_pitch,camera_yaw,npc->base.x-eye_x,y-eye_y,npc->base.z-eye_z,px,py)) {
-                                        SDL_Event pointer;memset(&pointer,0,sizeof(pointer));pointer.type=SDL_MOUSEMOTION;
-                                        pointer.motion.x=px;pointer.motion.y=py;SDL_PushEvent(&pointer);
-                                        verification_cursor_x=px;verification_cursor_y=py;verification_npc_type=-1;
-                                        printf("[INPUT] rendered NPC type=%d slot=%d pointer=(%d,%d)\n",type,slot,px,py);
-                                    }
-                                }
+                            int best=100000,bx=-1,by=-1;
+                            for(int dy=-20;dy<=20;dy+=2) for(int dx=-16;dx<=16;dx+=2) {
+                                int px=sx+dx,py=sy+dy,score=dx*dx+dy*dy;
+                                if(score>=best || px<VIEWPORT_X || px>=VIEWPORT_X+VIEWPORT_W || py<VIEWPORT_Y || py>=VIEWPORT_Y+VIEWPORT_H)continue;
+                                if(model_draw_pickable(model,npc->base.yaw,camera_pitch,camera_yaw,npc->base.x-eye_x,y-eye_y,npc->base.z-eye_z,px,py)){best=score;bx=px;by=py;}
+                            }
+                            if(bx>=0) {
+                                SDL_Event pointer;memset(&pointer,0,sizeof(pointer));pointer.type=SDL_MOUSEMOTION;
+                                pointer.motion.x=bx;pointer.motion.y=by;SDL_PushEvent(&pointer);
+                                verification_cursor_x=bx;verification_cursor_y=by;verification_npc_type=-1;
+                                printf("[INPUT] rendered NPC type=%d slot=%d pointer=(%d,%d)\n",type,slot,bx,by);
+                            }
                         }
                     }
                     if(model_draw_pickable(model,npc->base.yaw,camera_pitch,camera_yaw,npc->base.x-eye_x,y-eye_y,npc->base.z-eye_z,mouse_x,mouse_y))
@@ -1659,6 +1673,7 @@ int main(int argc, char *argv[]) {
                     model_create_label_references(model,&arena_frame);int frame=current_entity_frame(&other->base,&seq_cfg);
                     if(frame>=0) model_apply_transform(model,frame);
                     model_calculate_normals(model,64,850,-30,-50,-30);
+                    model=actor_with_spotanim(model,&other->base,&spot_cfg,&arena_frame);
                     int y=camera_get_height(sync_ctx.current_plane,other->base.x,other->base.z,world3d->heightmap,world->tile_flags);
                     if(model_draw_pickable(model,other->base.yaw,camera_pitch,camera_yaw,other->base.x-eye_x,y-eye_y,other->base.z-eye_z,mouse_x,mouse_y))
                         mouse_picker_add_picked(&picker,mouse_picker_make_bitset(0,slot,other->base.x/128,other->base.z/128));
@@ -1695,11 +1710,28 @@ int main(int argc, char *argv[]) {
                     model_apply_transform(p_model, p_frame_id);
                 }
                 model_calculate_normals(p_model, 64, 768, -50, -10, -50);
+                p_model=actor_with_spotanim(p_model,&player.base,&spot_cfg,&arena_frame);
                 int px = player.base.x - eye_x;
                 int py = ground_y - eye_y;
                 int pz = player.base.z - eye_z;
                 model_draw(p_model, player.base.yaw, camera_pitch, camera_yaw, px, py, pz);
             }
+        }
+
+        effects_draw(&effects,&arena_frame,sync_ctx.current_plane,eye_x,eye_y,eye_z,camera_pitch,camera_yaw);
+        pix3d_end_scene();
+        // Original entity overlays, using the received hit/health expiry timers.
+        for(int index=-1;index<sync_ctx.npc_count+sync_ctx.player_count;index++) {
+            PathingEntity *actor=NULL;
+            if(index<0)actor=&player.base;
+            else if(index<sync_ctx.npc_count) {NpcEntity *n=sync_ctx.npcs[sync_ctx.npc_indices[index]];if(n)actor=&n->base;}
+            else {PlayerEntity *p=sync_ctx.players[sync_ctx.player_indices[index-sync_ctx.npc_count]];if(p && p->visible)actor=&p->base;}
+            if(!actor || actor->combat_cycle<=game_ticks+100)continue;
+            int y=camera_get_height(sync_ctx.current_plane,actor->x,actor->z,world3d->heightmap,world->tile_flags);
+            int bx=-1,by=-1,hx=-1,hy=-1;
+            project_from_point(actor->x,y-actor->height-15,actor->z,eye_x,eye_y,eye_z,camera_pitch,camera_yaw,&bx,&by);
+            project_from_point(actor->x,y-actor->height/2,actor->z,eye_x,eye_y,eye_z,camera_pitch,camera_yaw,&hx,&hy);
+            combat_feedback_draw(actor,game_ticks,&media,&font_p11,bx,by,hx,hy);
         }
 
         // Authentic Rev 225 Hint Arrow Rendering (Packet 25)
@@ -1834,7 +1866,6 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        pix3d_end_scene();
         // Reset clip to full window
         pix2d_reset_clip();
         pix3d_center_x = CLIENT_WIDTH / 2;
@@ -1964,6 +1995,8 @@ int main(int argc, char *argv[]) {
     if (live_server) {
         protocol_close_session(&session);
     }
+    effects_dispose(&effects);
+    spotanim_free(&spot_cfg);
     zone_sync_dispose(&zones);
     entity_sync_cleanup(&sync_ctx);
     client_stream_global_cleanup();

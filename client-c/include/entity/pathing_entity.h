@@ -55,6 +55,7 @@ typedef struct {
     int target_tile_z;
 
     int spotanim_id,spotanim_height,spotanim_delay;
+    int spotanim_frame,spotanim_cycle;
     int exact_start_x,exact_start_z,exact_end_x,exact_end_z,exact_start_cycle,exact_end_cycle,exact_facing;
     int cycle;
     int height;

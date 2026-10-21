@@ -192,6 +192,8 @@ bool entity_sync_player_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_
             p->base.damage_type = g1(pkt);
             p->base.health = g1(pkt);
             p->base.total_health = g1(pkt);
+            p->base.combat_cycle=ctx->cycle+400;
+            if(ctx->trace)printf("[HIT] player=%d damage=%d type=%d health=%d/%d until=%d\n",extended_update_ids[i],p->base.damage,p->base.damage_type,p->base.health,p->base.total_health,p->base.combat_cycle);
         }
         if (mask & 0x20) {
             p->base.target_tile_x = g2(pkt);
@@ -206,7 +208,8 @@ bool entity_sync_player_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_
         }
         if(mask & 0x100) {
             p->base.spotanim_id=g2(pkt);uint32_t info=(uint32_t)g4(pkt);
-            p->base.spotanim_height=info>>16;p->base.spotanim_delay=info&65535;
+            p->base.spotanim_height=info>>16;p->base.spotanim_delay=ctx->cycle+(info&65535);
+            p->base.spotanim_frame=p->base.spotanim_delay>ctx->cycle?-1:0;p->base.spotanim_cycle=0;
             if(p->base.spotanim_id==65535) p->base.spotanim_id=-1;
         }
         if(mask & 0x200) {
@@ -357,6 +360,8 @@ bool entity_sync_npc_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_siz
             npc->base.damage_type = g1(pkt);
             npc->base.health = g1(pkt);
             npc->base.total_health = g1(pkt);
+            npc->base.combat_cycle=ctx->cycle+400;
+            if(ctx->trace)printf("[HIT] npc damage=%d type=%d health=%d/%d until=%d\n",npc->base.damage,npc->base.damage_type,npc->base.health,npc->base.total_health,npc->base.combat_cycle);
         }
         if (mask & 0x20) {
             int new_type = g2(pkt);
@@ -373,7 +378,8 @@ bool entity_sync_npc_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_siz
         }
         if (mask & 0x40) {
             npc->base.spotanim_id=g2(pkt);uint32_t info=(uint32_t)g4(pkt);
-            npc->base.spotanim_height=info>>16;npc->base.spotanim_delay=info&65535;
+            npc->base.spotanim_height=info>>16;npc->base.spotanim_delay=ctx->cycle+(info&65535);
+            npc->base.spotanim_frame=npc->base.spotanim_delay>ctx->cycle?-1:0;npc->base.spotanim_cycle=0;
             if(npc->base.spotanim_id==65535) npc->base.spotanim_id=-1;
         }
         if(mask & 0x80) {npc->base.target_tile_x=g2(pkt);npc->base.target_tile_z=g2(pkt);}

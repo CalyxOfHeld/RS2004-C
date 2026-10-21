@@ -1,4 +1,5 @@
 #include "net/zone_sync.h"
+#include "dash3d/effects.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -29,6 +30,8 @@ static void unsupported(ZoneSync *z,int index) {
     z->unsupported|=1u<<index;
 }
 static bool apply_event(ZoneSync *z,World *world,World3D *scene,LocConfig *locs,CollisionMap *collision,int level,int opcode,const uint8_t *data) {
+    if((opcode==69 || opcode==191) && z->effects)
+        return effects_add_packet(z->effects,world,scene,level,z->base_x,z->base_z,opcode,data);
     if(opcode==223 || opcode==49 || opcode==151 || opcode==50) {
         int x=z->base_x+((data[0]>>4)&7),y=z->base_z+(data[0]&7);
         if(x<0 || y<0 || x>=scene->max_tile_x || y>=scene->max_tile_z) return true;
@@ -50,6 +53,10 @@ static bool apply_event(ZoneSync *z,World *world,World3D *scene,LocConfig *locs,
     return true;
 }
 static bool valid_item(ZoneSync *z,int op,const uint8_t *data) {
+    if((op==69 || op==191) && z->effects && z->effects->config) {
+        int id=op==69?(data[5]<<8)|data[6]:(data[1]<<8)|data[2];
+        return id<z->effects->config->count;
+    }
     if(op!=223 && op!=49 && op!=151 && op!=50) return true;
     int id=(data[1]<<8)|data[2];if(op==49 || op==151) id&=32767;
     return z->objects && id<z->objects->count;

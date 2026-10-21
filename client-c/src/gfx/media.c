@@ -30,6 +30,10 @@ bool media_load(Media *m, Jagfile *media_jag, Arena *arena) {
 
     m->compass = pix32_load(media_jag, "compass", 0, arena);
     m->mapflag = pix32_load(media_jag, "mapflag", 0, arena);
+    for(int i=0;i<20;i++) {
+        m->hitmarks[i]=pix32_load(media_jag,"hitmarks",i,arena);
+        if(!m->hitmarks[i])break;
+    }
     for (int i = 0; i < 8; i++) {
         m->crosses[i] = pix32_load(media_jag, "cross", i, arena);
     }

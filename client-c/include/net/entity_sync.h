@@ -15,6 +15,8 @@ typedef struct {
     PlayerEntity local_player;
     int local_player_index;
     int current_plane;
+    int cycle;
+    bool trace;
 
     PlayerEntity *players[MAX_PLAYERS];
     int player_indices[MAX_PLAYERS];

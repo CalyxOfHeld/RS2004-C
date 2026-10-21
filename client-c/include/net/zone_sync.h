@@ -2,6 +2,7 @@
 #define RS2_ZONE_SYNC_H
 #include "dash3d/world.h"
 typedef struct {int level,x,z,layer,id,shape,rotation;} ZoneLocationBaseline;
+struct SceneEffects;
 typedef struct {
     int base_x,base_z;
     bool has_base,dirty,trace;
@@ -10,6 +11,7 @@ typedef struct {
     int local_pid;
     ZoneLocationBaseline *changes;
     size_t change_count,change_capacity;
+    struct SceneEffects *effects;
 } ZoneSync;
 void zone_sync_reset(ZoneSync *zone);
 void zone_sync_dispose(ZoneSync *zone);

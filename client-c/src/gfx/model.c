@@ -884,6 +884,17 @@ void model_create_label_references(Model *m, Arena *arena) {
 static void apply_single_transform(Model *m, int type, const int *labels, int label_count, int dx, int dy, int dz) {
     if (!m || !m->label_vertices || !labels) return;
 
+    // Original Model transform type 5 operates on face-label groups, not
+    // vertex groups. The old implementation silently omitted alpha animation.
+    if(type==5) {
+        if(m->face_label && m->face_alpha) for(int group=0;group<label_count;group++)
+            for(int face=0;face<m->num_faces;face++) if(m->face_label[face]==labels[group]) {
+                int alpha=m->face_alpha[face]+dx*8;
+                m->face_alpha[face]=alpha<0?0:alpha>255?255:alpha;
+            }
+        return;
+    }
+
     if (type == 0) {
         int count = 0;
         g_base_x = 0;

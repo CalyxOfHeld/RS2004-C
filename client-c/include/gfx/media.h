@@ -30,6 +30,7 @@ typedef struct {
     Pix8 *sideicons[14];
     Pix32 *compass;
     Pix32 *crosses[8];
+    Pix32 *hitmarks[20];
     Pix32 *mapdots[4];
     Pix32 *mapflag;
     Pix8 *mapscene[50];
