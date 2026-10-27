@@ -91,5 +91,9 @@ void audio_queue_sound(int sound_id, int loop_count, int delay_ticks);
 void audio_tick(void);
 int  audio_queued_count(void);
 void audio_close(void);
+/* Platform suspend (Wii U HOME menu): stops the worker and closes the device,
+   keeping queued sounds; audio_resume reopens both. */
+void audio_suspend(void);
+void audio_resume(void);
 
 #endif // RS2_WAVE_H

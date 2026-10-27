@@ -8,7 +8,7 @@ SD card changes:
 
 Hardware fixes (Wii U-only, `platform/sdl2_main.c`):
 - **Keyboard:** an swkbd appear issued during the previous keyboard's fade-out was dropped, which left the keyboard state stuck. An open now waits until the keyboard is hidden, and a keyboard of ours that has been invisible for 50 frames is treated as closed.
-- **Exit:** HOME → Close previously hung on the Wii U Menu loading screen. `SDL_QUIT` now calls `client_stop()`, and synced `[WIIU]` exit stages are written to log.txt. The retest is pending.
+- **HOME menu and exit (confirmed on hardware):** before the foreground is released, audio is suspended (the wave worker is stopped and the device closed, via new `audio_suspend`/`audio_resume` in wave.c), because SDL audio threads may keep running on core 2 in the background. On a HOME → Close quit, `client_stop()` runs and the frame breaks out at once. In-game HOME now works, and closing returns to the Wii U Menu. Synced `[WIIU]` exit stages stay in log.txt.
 - **Connection:** "Could not connect" was a missing inbound Windows Firewall rule for TCP 43595. The user added it.
 
 Open issues reported by the user:
@@ -18,12 +18,12 @@ Open issues reported by the user:
 Verification:
 - Wii U and PC builds: 0 warnings
 - PC make test: ALL TESTS PASSED, 0 warnings
-- `.wuhb` SHA256 `af82b77d…207b`
+- `.wuhb` SHA256 `8bc0af98…58e0`
 
 Details: client-c/verification/completion/runs/2026-10-27-wiiu-hardware-claude/README.md.
 
 Next:
-1. HOME → Close log check
+1. check whether the two in-game logouts were caused by the low frame rate
 2. hardware performance profiling
 3. touch right-click/camera and USB keyboard
 4. software MIDI synth

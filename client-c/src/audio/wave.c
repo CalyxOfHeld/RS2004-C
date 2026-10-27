@@ -638,3 +638,16 @@ void audio_close(void){
     s_wave_pending225=0;if(s_wave_mutex225){SDL_UnlockMutex(s_wave_mutex225);SDL_DestroyMutex(s_wave_mutex225);s_wave_mutex225=NULL;}
     audio_queue_cold225();
 }
+static bool s_worker_suspended225;
+void audio_suspend(void){
+    s_worker_suspended225=s_wave_worker225!=NULL;
+    if(s_wave_worker225){SDL_AtomicSet(&s_wave_stop225,1);SDL_WaitThread(s_wave_worker225,NULL);s_wave_worker225=NULL;}
+    if(s_wave_mutex225)SDL_LockMutex(s_wave_mutex225);
+    if(s_audio_dev){SDL_CloseAudioDevice(s_audio_dev);s_audio_dev=0;}
+    if(s_wave_mutex225)SDL_UnlockMutex(s_wave_mutex225);
+}
+void audio_resume(void){
+    (void)audio_init();
+    if(s_worker_suspended225)(void)audio_start_worker225();
+    s_worker_suspended225=false;
+}

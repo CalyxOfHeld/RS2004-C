@@ -33,19 +33,20 @@ The SD card had Tiramisu (`default.cfg` = `tiramisu`). Tiramisu cannot launch `.
 - Fix, part 2: a keyboard of ours that has not been visible for 50 frames is treated as closed.
 - Confirmed on hardware: the user logged in.
 
-**Exit.**
-- `SDL_QUIT` (ProcUI EXITING, from HOME → Close) now calls `client_stop()` directly.
-- Exit-path stages are written with `fflush` and `fsync` to `log.txt` (`[WIIU] ...`). They cover quit, background/foreground, loop end, audio closed, client shut down, SDL_Quit and thread joined.
-- The HOME → Close retest is pending.
+**HOME menu and exit (confirmed on hardware).**
+- In-game HOME froze the console right after `entered background` (`hw2-home-freeze-log.txt`). Probable cause: SDL creates its threads with any-core affinity, so the audio threads could keep running on core 2 in the background (wut procui.h: background apps keep only core-2 threads). Fix: on `SDL_APP_WILLENTERBACKGROUND`, `audio_suspend()` stops the wave worker and closes the device before the foreground is released; `SDL_APP_DIDENTERFOREGROUND` calls `audio_resume()`. Queued sounds are kept. Hardware: the HOME menu opens and returning works.
+- HOME → Close hung on the Wii U Menu loading screen; the log ended at `quit requested` (`hw3-close-hang-log.txt`). The quit arrives while still in the background, and the rest of that frame (swkbd state query, update, draw) blocked. Fix: `SDL_QUIT` calls `client_stop()`, and the frame breaks out at once. Shutdown calls `SDL_StopTextInput` only if our keyboard is open.
+- Hardware: closes cleanly, with every stage logged through `client thread joined` (`hw4-close-ok-log.txt`).
+- Synced `[WIIU]` stage lines (fflush and fsync) stay in log.txt for future hardware diagnosis.
 
 ## Verification
 
 - `make -f Makefile.wiiu all`: 0 warnings.
 - PC `make`: 0 warnings.
-- PC `make test`: ALL TESTS PASSED, 0 warning lines (`suite.log`). The PC code paths are unchanged apart from a no-op `WIIU_STAGE` macro.
+- PC `make test`: ALL TESTS PASSED, 0 warning lines (`suite.log`). Re-run on the final code. Shared-code change: `audio_suspend`/`audio_resume` added to wave.c; only the Wii U calls them. Final `.wuhb` SHA256 `8bc0af98…58e0`, uploaded over FTPiiU and checked by reading it back.
 
 ## Next
 
-1. Read the logs after HOME → Close. If the exit still hangs, the last `[WIIU]` line names the stuck step.
+1. Investigate the two in-game logouts during the second run (`hw2-home-freeze-log.txt`): user action, or a server timeout caused by the low frame rate?
 2. Performance on Espresso: profile first. Candidates are frame pacing, using the other two cores, and `-O3`/LTO; check each against Cemu's recompiler fault.
 3. Input: right-click and camera on touch (GamePad buttons). USB keyboard through SDL's Wii U keyboard driver. Controller later, as the user asked.

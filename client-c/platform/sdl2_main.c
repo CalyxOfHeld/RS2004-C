@@ -422,14 +422,24 @@ int main(int argc, char *argv[]) {
             // Closing from the HOME menu: ProcUI waits for the app to exit, so stop
             // here rather than relying on the queued quit event being processed.
             if (event.type == SDL_QUIT) { WIIU_STAGE("quit requested"); client_stop(); }
+            // HOME menu: background apps keep only core-2 threads, and SDL's audio
+            // threads may run there; close audio before the foreground is released
+            // (the next pump) and reopen it on return.
+            if (event.type == SDL_APP_WILLENTERBACKGROUND) { audio_suspend(); WIIU_STAGE("audio suspended"); }
             if (event.type == SDL_APP_DIDENTERBACKGROUND) WIIU_STAGE("entered background");
-            if (event.type == SDL_APP_DIDENTERFOREGROUND) WIIU_STAGE("entered foreground");
+            if (event.type == SDL_APP_DIDENTERFOREGROUND) { WIIU_STAGE("entered foreground"); audio_resume(); }
             if (wiiu_keyboard_event(&event)) continue;
             if (event.type == SDL_JOYDEVICEADDED) { (void)SDL_JoystickOpen(event.jdevice.which); continue; }
 #endif
             if(tracking_sdl_event(&event,&input)){client_log_event(&input);client_queue_event(&input);}
             if (sdl_client_event(&event, &input)) { client_log_event(&input); client_queue_event(&input); }
         }
+#ifdef __WIIU__
+        // Closing from the HOME menu arrives while still in the background, where
+        // the rest of the frame (swkbd state, game update, drawing) can block: the
+        // October 27 hardware log ends at "quit requested". Shut down at once.
+        if (!client_running()) break;
+#endif
         const uint8_t *keystates = SDL_GetKeyboardState(NULL);
         ClientHeldKeys held = {
             .left = keystates[SDL_SCANCODE_LEFT], .right = keystates[SDL_SCANCODE_RIGHT],
@@ -484,7 +494,11 @@ int main(int argc, char *argv[]) {
     // Marks a complete recording; a log cut at a frame boundary lacks it.
     if (session_log_mode() == SESSION_LOG_RECORD) { session_log_begin("Q"); session_log_end(); }
     session_log_close();
+#ifdef __WIIU__
+    if (wiiu_kbd_shown) SDL_StopTextInput(); // no swkbd calls in the background unless open
+#else
     SDL_StopTextInput();
+#endif
     SDL_DestroyTexture(framebuffer);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

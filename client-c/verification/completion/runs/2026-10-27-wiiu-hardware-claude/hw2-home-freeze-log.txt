@@ -1,0 +1,29 @@
+[RS2004-C] Starting RS2 Revision 225 Client...
+[PASS] 2004scape Bitmap Fonts loaded (p11, p12, b12, q8)
+[PASS] 2004scape Media artwork loaded (frames, tabs, compass, icons)
+[INFO] Loading 2004scape cache...
+[Textures] Loaded 50 cache textures
+[PASS] 229 Animation Bases & 7783 Frames loaded from models cache
+[PASS] Audio synthesizer online (original shared noise initialization)
+[INFO] Cache loaded: 78 flo, 1027 seq, 3387 loc, 1017 npc, 2886 obj, 82 idk
+[PASS] 7386 UI Components unpacked from interface.jag
+[INFO] Building Lumbridge 3D scene (m50_50 / l50_50)...
+[PASS] 3D Scene built successfully!
+[PASS] Minimap radar & compass needle initialized
+[INFO] Entering main render loop. Controls:
+       [Arrow Keys] Rotate camera Pitch & Yaw
+       [W, A, S, D] Move only in explicit offline preview
+       [Left Click] Walk to tile / Interact / Select tab
+       [Right Click] Open available target operations
+       [ESC] Close active interface/menu, otherwise exit
+[STATE] title screen state=0
+[WIIU] entered foreground
+[LOGIN] login reply=18
+[PASS] Connected to LIVE SERVER! (is_mod=1)
+[VERIFY] Live REBUILD_NORMAL: 9 mapsquares, base=(3040,3056)
+[STATE] logout -> title state=0
+[LOGIN] login reply=18
+[PASS] Connected to LIVE SERVER! (is_mod=1)
+[VERIFY] Live REBUILD_NORMAL: 9 mapsquares, base=(3040,3056)
+[STATE] logout -> title state=0
+[WIIU] entered background
