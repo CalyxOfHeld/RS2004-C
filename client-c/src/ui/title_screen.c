@@ -198,6 +198,7 @@ static void title_edit(char *text, size_t capacity, int key, bool valid) {
 TitleAction title_screen_update(TitleScreen *title, int click_button, int click_x, int click_y) {
     TitleAction action = TITLE_IDLE;
     const int sw = TITLE_SCREEN_WIDTH, sh = TITLE_SCREEN_HEIGHT;
+    title->field_clicked = false;
     if (title->state == 0) {
         int y = sh / 2 + 20 + 20;
         if (title_button_hit(click_button, click_x, click_y, sw / 2 - 80, y)) {
@@ -210,9 +211,9 @@ TitleAction title_screen_update(TitleScreen *title, int click_button, int click_
         }
     } else if (title->state == 2) {
         int y = sh / 2 - 40 + 30 + 25;
-        if (click_button == 1 && click_y >= y - 15 && click_y < y) title->login_field = 0;
+        if (click_button == 1 && click_y >= y - 15 && click_y < y) { title->login_field = 0; title->field_clicked = true; }
         y += 15;
-        if (click_button == 1 && click_y >= y - 15 && click_y < y) title->login_field = 1;
+        if (click_button == 1 && click_y >= y - 15 && click_y < y) { title->login_field = 1; title->field_clicked = true; }
         int button_y = sh / 2 + 50 + 20;
         if (title_button_hit(click_button, click_x, click_y, sw / 2 - 80, button_y)) action = TITLE_LOGIN_REQUESTED;
         if (title_button_hit(click_button, click_x, click_y, sw / 2 + 80, button_y)) {

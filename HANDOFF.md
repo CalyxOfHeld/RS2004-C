@@ -1,3 +1,35 @@
+# Wii U step 3: GamePad touch, swkbd keyboard, login and world loading in Cemu — Claude, October 27, 2026 (completed)
+
+In Cemu 2.6 the Wii U build now logs in, rebuilds the map and stays in game. The user confirmed the login.
+
+**Root cause of "Loading - please wait" forever (and the random startup hangs):** with GCC -O2, `-fcaller-saves` makes Cemu 2.6's PPC recompiler lose stores. Models were corrupted straight after decode, and malloc sometimes hung. The same binary runs correctly under Cemu's interpreter. Flag bisection isolated `-fcaller-saves`, so `Makefile.wiiu` now builds with `-O2 -fno-caller-saves`.
+
+Other changes (Wii U-only):
+- GamePad touch via opened joysticks
+- swkbd text entry, with a guard for Cemu's sticky OK; the shared `client_text_field()` is unused on PC
+- default port 43595
+- 16 MB client thread stack
+- SD log files
+- optional `autologin.txt` test login
+
+Verification:
+- Wii U build: 0 warnings
+- PC make test: ALL TESTS PASSED, 0 warnings
+- rs2client.exe relinked (263d32ad…)
+- strict parity, integrated 3099 and tour 3849 frames: PARITY MATCH
+
+Details: client-c/verification/completion/runs/2026-10-27-wiiu-cemu-fix-claude/README.md.
+
+Next:
+1. hardware test on the user's Aroma Wii U (LAN address in server.txt)
+2. software MIDI synth
+3. non-Windows map cache write
+4. build_release.py must package sources.mk
+
+Not 244.
+
+---
+
 # Wii U port step 2: Makefile + first Cemu boot — Claude, October 27, 2026 (completed)
 
 `make -f Makefile.wiiu` (or `client-c/build_wiiu.bat`) builds `client-c/bin/wiiu/rs2004c.wuhb` with 0 warnings. In Cemu 2.6 (`wii u/` folder, added by the user) it boots to the revision-225 title screen at about 49.5 FPS.

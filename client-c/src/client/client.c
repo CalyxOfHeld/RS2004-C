@@ -185,6 +185,7 @@ static bool capture_clicks;
 static int last_captured_cross = -1, last_cross_cycle = 400;
 static int capture_frame, capture_interval, server_port, capture_yaw;
 static const char *server_host = "127.0.0.1";
+static bool title_field_tapped; // latched for client_text_field (on-screen keyboards)
 static int rendered_frames;
 // client.updateGame's closing packets: heartbeatTimer (instance) and the static cyclelogic4.
 static int heartbeat_timer, cyclelogic4;
@@ -1715,7 +1716,10 @@ bool client_update(void) {
     client_login_dns_poll225();
     game_ticks++;
     if (!ingame) {
-        if (!login_pending && title_screen_update(&title, title_click_button, title_click_x, title_click_y) == TITLE_LOGIN_REQUESTED) {
+        bool title_ran = !login_pending;
+        TitleAction title_action = title_ran ? title_screen_update(&title, title_click_button, title_click_x, title_click_y) : TITLE_IDLE;
+        if (title_ran && title.field_clicked) title_field_tapped = true;
+        if (title_action == TITLE_LOGIN_REQUESTED) {
             // client.login(): show "Connecting to server..." before the blocking connect.
             title.message0[0] = '\0';
             snprintf(title.message1, sizeof(title.message1), "Connecting to server...");
@@ -3262,6 +3266,28 @@ void client_shutdown(void) {
     wave_free_all();
     wordfilter_tables_free(&chat_filter);
     chatbox_free(&chatbox);
+}
+
+ClientTextField client_text_field(void) {
+    ClientTextField field = { CLIENT_TEXT_NONE, "", 0, title_field_tapped };
+    title_field_tapped = false;
+    if (!ingame) {
+        if (title.state == 2) {
+            if (title.login_field == 0) { field.target = CLIENT_TEXT_USERNAME; field.text = title.username; field.max_length = 12; }
+            else { field.target = CLIENT_TEXT_PASSWORD; field.text = title.password; field.max_length = 20; }
+        }
+        return field;
+    }
+    if (interfaces.viewport != -1 && interfaces.viewport == chatbox.report_interface) {
+        field.target = CLIENT_TEXT_REPORT; field.text = chatbox.report_input; field.max_length = 12;
+    } else if (chatbox.private_prompt_open) {
+        field.target = CLIENT_TEXT_PROMPT; field.text = chatbox.private_input; field.max_length = 80;
+    } else if (chatbox.count_dialog_open) {
+        field.target = CLIENT_TEXT_AMOUNT; field.text = chatbox.count_dialog_input; field.max_length = 10;
+    } else if (!(live_server && interfaces.chat != -1)) {
+        field.target = CLIENT_TEXT_CHAT; field.text = chatbox.input; field.max_length = CHATBOX_MAX_INPUT_LEN;
+    }
+    return field;
 }
 
 bool client_running(void) { return running; }

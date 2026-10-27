@@ -38,6 +38,7 @@ typedef struct {
 
     int        state;          // titleScreenState: 0 welcome, 2 login box, 3 new user
     int        login_field;    // titleLoginField: 0 username, 1 password
+    bool       field_clicked;  // last update's click hit a login field row (not in the original)
     char       username[13];   // at most 12 characters
     char       password[21];   // at most 20 characters
     char       message0[64];   // loginMessage0

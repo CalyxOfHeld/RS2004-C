@@ -32,7 +32,10 @@ OBJS := $(ALL_SRCS:%.c=$(BUILD_DIR)/%.o) \
         $(BUILD_DIR)/platform/sdl2_main.o
 
 MACHDEP := -DESPRESSO -mcpu=750 -meabi -mhard-float
-CFLAGS  := -std=c99 -Wall -Wextra -O2 -ffunction-sections $(MACHDEP) \
+# -fno-caller-saves: with GCC's -O2 caller-saves, Cemu 2.6's PPC recompiler loses
+# stores (corrupt models, startup hangs in malloc); its interpreter runs the same
+# code correctly. Bisected October 27, 2026 (verification/completion runs).
+CFLAGS  := -std=c99 -Wall -Wextra -O2 -fno-caller-saves -ffunction-sections $(MACHDEP) \
            -D__WIIU__ -D__WUT__ -Iinclude \
            -I$(PORTLIBS)/wiiu/include -I$(PORTLIBS)/wiiu/include/SDL2 \
            -I$(PORTLIBS)/ppc/include -I$(WUT_ROOT)/include

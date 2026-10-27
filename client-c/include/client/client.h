@@ -111,6 +111,21 @@ int client_rendered_frames(void);
 // The capture the platform must take of the presented frame, or NULL.
 const char *client_frame_capture_path(void);
 
+// The text field typed input currently goes to, for platforms with an on-screen
+// keyboard. Priority follows client.handleInputKey: report abuse, social/private
+// prompt, amount dialog, public chat; on the title screen the focused login field.
+typedef enum {
+    CLIENT_TEXT_NONE, CLIENT_TEXT_USERNAME, CLIENT_TEXT_PASSWORD, CLIENT_TEXT_CHAT,
+    CLIENT_TEXT_PROMPT, CLIENT_TEXT_AMOUNT, CLIENT_TEXT_REPORT
+} ClientTextTarget;
+typedef struct {
+    ClientTextTarget target;
+    const char *text;   // current contents
+    int max_length;
+    bool tapped;        // a login field row was clicked since the last call
+} ClientTextField;
+ClientTextField client_text_field(void);
+
 ClientKey client_key_from_name(const char *name);
 // FNV-1a 64 over the framebuffer words, for recording and replay checks.
 uint64_t client_frame_hash(void);

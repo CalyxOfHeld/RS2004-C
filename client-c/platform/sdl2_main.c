@@ -102,13 +102,93 @@ static bool sdl_client_event(const SDL_Event *in, ClientEvent *out) {
 }
 
 #ifdef __WIIU__
+#include <SDL2/SDL_syswm.h>
+#include <sys/stat.h>
 // The .wuhb bundles engine/data/pack/client under /vol/content; the client's
 // "engine/data/pack/client/..." fallback paths then resolve from there.
 #define WIIU_CONTENT_DIR "fs:/vol/content"
 // Optional "host [port]" for the LAN server, e.g. "192.168.1.20 43595".
-#define WIIU_SERVER_FILE "fs:/vol/external01/wiiu/apps/rs2004c/server.txt"
+#define WIIU_APP_DIR "fs:/vol/external01/wiiu/apps/rs2004c"
+#define WIIU_SERVER_FILE WIIU_APP_DIR "/server.txt"
+#define WIIU_LOG_FILE WIIU_APP_DIR "/log.txt"
+#define WIIU_ERR_FILE WIIU_APP_DIR "/errors.txt"
 static char wiiu_server_host[64];
+
+// System keyboard (swkbd). It opens when a login field or prompt becomes active,
+// on a tap on a login field, or on a tap in the chatbox for public chat. OK
+// replaces the field's text with the keyboard's: backspaces, the typed text
+// (SDL text events), then Return for fields where Enter submits/advances. The
+// original's Enter in the password field only refocuses the username, so the
+// player taps "Login" there.
+static ClientTextTarget wiiu_kbd_last = CLIENT_TEXT_NONE;
+static ClientTextTarget wiiu_kbd_target = CLIENT_TEXT_NONE;
+static bool wiiu_kbd_shown, wiiu_chat_tapped;
+
+static void wiiu_queue_key(int key) {
+    ClientEvent e;
+    memset(&e, 0, sizeof(e));
+    e.type = CLIENT_EVENT_KEY_DOWN; e.key = key;
+    client_log_event(&e); client_queue_event(&e);
+    e.type = CLIENT_EVENT_KEY_UP;
+    client_log_event(&e); client_queue_event(&e);
+}
+
+static void wiiu_keyboard_open(const ClientTextField *field) {
+    static const char *hints[] = { "", "Username", "Password", "Chat", "Enter name or message", "Enter amount", "Enter name" };
+    SDL_WiiUSetSWKBDInitialText(field->text);
+    SDL_WiiUSetSWKBDHintText(hints[field->target]);
+    SDL_WiiUSetSWKBDShowWordSuggestions(SDL_FALSE);
+    if (field->target == CLIENT_TEXT_AMOUNT) SDL_WiiUSetSWKBDKeyboardMode(SDL_WIIU_SWKBD_KEYBOARD_MODE_NUMPAD);
+    if (field->target == CLIENT_TEXT_PASSWORD) SDL_WiiUSetSWKBDPasswordMode(SDL_WIIU_SWKBD_PASSWORD_MODE_FADE);
+    wiiu_kbd_target = field->target;
+    wiiu_kbd_shown = true;
+    SDL_StartTextInput();
+}
+
+static void wiiu_keyboard_closed(void) {
+    SDL_StopTextInput();
+    wiiu_kbd_shown = false;
+}
+
+// Handles swkbd OK/cancel notifications; returns true when the event was one.
+static bool wiiu_keyboard_event(const SDL_Event *event) {
+    if (event->type == SDL_MOUSEBUTTONDOWN && event->button.x >= 22 && event->button.x < 501 &&
+        event->button.y >= 375 && event->button.y < 471) wiiu_chat_tapped = true;
+    if (event->type != SDL_SYSWMEVENT || event->syswm.msg->subsystem != SDL_SYSWM_WIIU) return false;
+    unsigned what = event->syswm.msg->msg.wiiu.event;
+    // Cemu keeps IsDecideOkButton true after OK until the next appear, so SDL
+    // repeats OK_START/OK_FINISH on every pump; only the first one, while our
+    // keyboard is open, is acted on.
+    if (!wiiu_kbd_shown) return true;
+    if (what == SDL_WIIU_SYSWM_SWKBD_OK_START_EVENT) {
+        ClientTextField field = client_text_field();
+        if (field.target == wiiu_kbd_target)
+            for (size_t i = strlen(field.text); i > 0; i--) wiiu_queue_key(CLIENT_KEY_BACKSPACE);
+    } else if (what == SDL_WIIU_SYSWM_SWKBD_OK_FINISH_EVENT) {
+        if (wiiu_kbd_target != CLIENT_TEXT_PASSWORD && wiiu_kbd_target != CLIENT_TEXT_NONE) wiiu_queue_key(CLIENT_KEY_RETURN);
+        wiiu_keyboard_closed();
+    } else if (what == SDL_WIIU_SYSWM_SWKBD_CANCEL_EVENT) {
+        wiiu_keyboard_closed();
+    }
+    return true;
+}
+
+// After a frame's updates: open the keyboard for a newly active field or a tap.
+static void wiiu_keyboard_frame(void) {
+    ClientTextField field = client_text_field();
+    bool open = false;
+    if (!wiiu_kbd_shown) {
+        if (field.target != wiiu_kbd_last && field.target != CLIENT_TEXT_NONE && field.target != CLIENT_TEXT_CHAT) open = true;
+        if (field.tapped && (field.target == CLIENT_TEXT_USERNAME || field.target == CLIENT_TEXT_PASSWORD)) open = true;
+        if (wiiu_chat_tapped && field.target == CLIENT_TEXT_CHAT) open = true;
+    }
+    wiiu_kbd_last = field.target;
+    wiiu_chat_tapped = false;
+    if (open) wiiu_keyboard_open(&field);
+}
 static void wiiu_read_server(ClientOptions *options) {
+    // No argv on the console: default to start_local_server.bat's port, like play_client.bat.
+    options->server_port = 43595;
     FILE *file = fopen(WIIU_SERVER_FILE, "r");
     if (!file) return;
     int port = 0;
@@ -118,15 +198,64 @@ static void wiiu_read_server(ClientOptions *options) {
     }
     fclose(file);
 }
+// Test login: an optional "autologin.txt" ("user password") next to server.txt
+// logs in like RS2_USERNAME/RS2_PASSWORD on PC. Absent by default.
+static char wiiu_login_user[16], wiiu_login_pass[24];
+static void wiiu_read_autologin(ClientOptions *options) {
+    FILE *file = fopen(WIIU_APP_DIR "/autologin.txt", "r");
+    if (!file) return;
+    if (fscanf(file, "%15s %23s", wiiu_login_user, wiiu_login_pass) == 2) {
+        options->login_username = wiiu_login_user;
+        options->login_password = wiiu_login_pass;
+    }
+    fclose(file);
+}
 #endif
 
+#ifdef __WIIU__
+#include <coreinit/thread.h>
+#include <malloc.h>
+static int client_main(int argc, char *argv[]);
+static int wiiu_argc;
+static char **wiiu_argv;
+static int wiiu_client_thread(int argc, const char **argv) {
+    (void)argc; (void)argv;
+    return client_main(wiiu_argc, wiiu_argv);
+}
+// The PC build links a 16 MB stack (Makefile --stack); an RPX main thread has
+// 64 KB, which the scene renderer's per-model scratch arrays overflow. Run the
+// client on a main-core thread with the same 16 MB stack.
 int main(int argc, char *argv[]) {
+    enum { WIIU_STACK_SIZE = 16 * 1024 * 1024 };
+    static OSThread thread __attribute__((aligned(16)));
+    uint8_t *stack = memalign(16, WIIU_STACK_SIZE);
+    if (!stack) return 1;
+    wiiu_argc = argc; wiiu_argv = argv;
+    if (!OSCreateThread(&thread, wiiu_client_thread, 0, NULL, stack + WIIU_STACK_SIZE, WIIU_STACK_SIZE,
+                        OSGetThreadPriority(OSGetCurrentThread()), OS_THREAD_ATTRIB_AFFINITY_CPU1)) {
+        free(stack); return 1;
+    }
+    OSResumeThread(&thread);
+    int result = 1;
+    OSJoinThread(&thread, &result);
+    free(stack);
+    return result;
+}
+static int client_main(int argc, char *argv[]) {
+#else
+int main(int argc, char *argv[]) {
+#endif
     ClientOptions options;
     if (!client_parse_args(argc, argv, &options)) return 1;
     setbuf(stdout, NULL);
 
 #ifdef __WIIU__
+    // The console has no visible stdout; keep the client's log on the SD card.
+    mkdir("fs:/vol/external01/wiiu", 0777); mkdir("fs:/vol/external01/wiiu/apps", 0777); mkdir(WIIU_APP_DIR, 0777);
+    if (freopen(WIIU_LOG_FILE, "w", stdout)) { setvbuf(stdout, NULL, _IOLBF, 0); }
+    if (freopen(WIIU_ERR_FILE, "w", stderr)) setvbuf(stderr, NULL, _IOLBF, 0);
     wiiu_read_server(&options);
+    wiiu_read_autologin(&options);
     if (chdir(WIIU_CONTENT_DIR) != 0) { perror("Cannot enter content directory"); return 1; }
 #else
     // Resolve cache paths consistently when launched from Explorer or either wrapper.
@@ -185,6 +314,13 @@ int main(int argc, char *argv[]) {
 #ifdef __WIIU__
     // Letterbox the 765x503 frame on the TV/GamePad; SDL maps touch back to it.
     SDL_RenderSetLogicalSize(renderer, CLIENT_WIDTH, CLIENT_HEIGHT);
+    // SDL's Wii U port reads GamePad touch (and feeds swkbd) only while the GamePad
+    // joystick is open; touches then arrive as synthesized left-button mouse events.
+    if (SDL_InitSubSystem(SDL_INIT_JOYSTICK) == 0) {
+        for (int i = 0; i < SDL_NumJoysticks(); i++) (void)SDL_JoystickOpen(i);
+    } else {
+        fprintf(stderr, "SDL joystick init failed: %s\n", SDL_GetError());
+    }
 #endif
     SDL_Texture *framebuffer = SDL_CreateTexture(
         renderer,
@@ -197,8 +333,10 @@ int main(int argc, char *argv[]) {
     recovery_renderer=renderer; recovery_texture=framebuffer;
     ClientPlatform platform = { sdl_now_ms, sdl_save_bmp, sdl_present_recovery,sdl_tracking_now_ms };
     if (!client_init(&options, &platform)) { SDL_Quit(); return 1; }
-#ifndef __WIIU__
-    // On Wii U this opens the system keyboard; it is shown only while typing (later step).
+#ifdef __WIIU__
+    // swkbd OK/cancel arrive as SDL_SYSWMEVENT; the keyboard opens only while typing.
+    SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+#else
     SDL_StartTextInput();
 #endif
 
@@ -245,8 +383,19 @@ int main(int argc, char *argv[]) {
         client_log_frame(client_rendered_frames());
         client_begin_frame();
         SDL_Event event;
+#ifdef __WIIU__
+        // One pump per frame: SDL_PollEvent pumps on every call, and the repeated
+        // swkbd OK events above would then never let the queue drain.
+        SDL_PumpEvents();
+        while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT) > 0) {
+#else
         while (SDL_PollEvent(&event)) {
+#endif
             ClientEvent input;
+#ifdef __WIIU__
+            if (wiiu_keyboard_event(&event)) continue;
+            if (event.type == SDL_JOYDEVICEADDED) { (void)SDL_JoystickOpen(event.jdevice.which); continue; }
+#endif
             if(tracking_sdl_event(&event,&input)){client_log_event(&input);client_queue_event(&input);}
             if (sdl_client_event(&event, &input)) { client_log_event(&input); client_queue_event(&input); }
         }
@@ -269,6 +418,9 @@ int main(int argc, char *argv[]) {
             var6 += var4;
         }
         var6 &= 0xFF;
+#ifdef __WIIU__
+        wiiu_keyboard_frame();
+#endif
 
         if (!client_draw()) return 1;
         if (session_log_mode() == SESSION_LOG_RECORD) client_log_draw(client_frame_hash());
