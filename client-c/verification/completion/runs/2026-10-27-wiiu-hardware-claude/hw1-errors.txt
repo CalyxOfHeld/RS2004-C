@@ -1,0 +1,9 @@
+[Jagfile] Failed to open file: ../engine/data/pack/client/title
+[Jagfile] Failed to open file: ../engine/data/pack/client/media
+[Jagfile] Failed to open file: ../engine/data/pack/client/config
+[Jagfile] Failed to open file: ../engine/data/pack/client/wordenc
+[Jagfile] Failed to open file: ../engine/data/pack/client/textures
+[Jagfile] Failed to open file: ../engine/data/pack/client/models
+[Jagfile] Failed to open file: ../engine/data/pack/client/sounds
+[Jagfile] Failed to open file: ../engine/data/pack/client/interface
+[Login] Could not connect to 192.168.1.100:43595.

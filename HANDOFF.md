@@ -1,3 +1,37 @@
+# Wii U step 4: first real-hardware run — Claude, October 27, 2026
+
+The user logged in and joined the world on their real Wii U.
+
+SD card changes:
+- The card was moved from Tiramisu to Aroma beta-27 with FTPiiU, Wiiload, Bloopair and sigpatches.
+- The original card contents are backed up in `Documents\WiiU-SD-backup-2026-10-27`.
+
+Hardware fixes (Wii U-only, `platform/sdl2_main.c`):
+- **Keyboard:** an swkbd appear issued during the previous keyboard's fade-out was dropped, which left the keyboard state stuck. An open now waits until the keyboard is hidden, and a keyboard of ours that has been invisible for 50 frames is treated as closed.
+- **Exit:** HOME → Close previously hung on the Wii U Menu loading screen. `SDL_QUIT` now calls `client_stop()`, and synced `[WIIU]` exit stages are written to log.txt. The retest is pending.
+- **Connection:** "Could not connect" was a missing inbound Windows Firewall rule for TCP 43595. The user added it.
+
+Open issues reported by the user:
+- very low FPS on hardware
+- touch alone cannot control the game; keyboard, mouse and controller support come later
+
+Verification:
+- Wii U and PC builds: 0 warnings
+- PC make test: ALL TESTS PASSED, 0 warnings
+- `.wuhb` SHA256 `af82b77d…207b`
+
+Details: client-c/verification/completion/runs/2026-10-27-wiiu-hardware-claude/README.md.
+
+Next:
+1. HOME → Close log check
+2. hardware performance profiling
+3. touch right-click/camera and USB keyboard
+4. software MIDI synth
+5. non-Windows map cache write
+6. build_release.py sources.mk
+
+Not 244.
+
 # Wii U step 3: GamePad touch, swkbd keyboard, login and world loading in Cemu — Claude, October 27, 2026 (completed)
 
 In Cemu 2.6 the Wii U build now logs in, rebuilds the map and stays in game. The user confirmed the login.

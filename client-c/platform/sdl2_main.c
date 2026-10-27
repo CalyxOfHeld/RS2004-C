@@ -122,7 +122,8 @@ static char wiiu_server_host[64];
 // player taps "Login" there.
 static ClientTextTarget wiiu_kbd_last = CLIENT_TEXT_NONE;
 static ClientTextTarget wiiu_kbd_target = CLIENT_TEXT_NONE;
-static bool wiiu_kbd_shown, wiiu_chat_tapped;
+static bool wiiu_kbd_shown, wiiu_kbd_pending, wiiu_chat_tapped;
+static int wiiu_kbd_hidden_frames;
 
 static void wiiu_queue_key(int key) {
     ClientEvent e;
@@ -142,6 +143,7 @@ static void wiiu_keyboard_open(const ClientTextField *field) {
     if (field->target == CLIENT_TEXT_PASSWORD) SDL_WiiUSetSWKBDPasswordMode(SDL_WIIU_SWKBD_PASSWORD_MODE_FADE);
     wiiu_kbd_target = field->target;
     wiiu_kbd_shown = true;
+    wiiu_kbd_hidden_frames = 0;
     SDL_StartTextInput();
 }
 
@@ -174,17 +176,29 @@ static bool wiiu_keyboard_event(const SDL_Event *event) {
 }
 
 // After a frame's updates: open the keyboard for a newly active field or a tap.
-static void wiiu_keyboard_frame(void) {
+// On hardware the keyboard fades in and out over several frames and an appear
+// issued during the fade-out is dropped (Cemu has no fade), so a requested open
+// waits until the previous keyboard is hidden, and a keyboard of ours that has
+// not been visible for a second is treated as closed.
+static void wiiu_keyboard_frame(SDL_Window *window) {
     ClientTextField field = client_text_field();
-    bool open = false;
-    if (!wiiu_kbd_shown) {
-        if (field.target != wiiu_kbd_last && field.target != CLIENT_TEXT_NONE && field.target != CLIENT_TEXT_CHAT) open = true;
-        if (field.tapped && (field.target == CLIENT_TEXT_USERNAME || field.target == CLIENT_TEXT_PASSWORD)) open = true;
-        if (wiiu_chat_tapped && field.target == CLIENT_TEXT_CHAT) open = true;
+    bool visible = SDL_IsScreenKeyboardShown(window);
+    if (wiiu_kbd_shown) {
+        wiiu_kbd_hidden_frames = visible ? 0 : wiiu_kbd_hidden_frames + 1;
+        if (wiiu_kbd_hidden_frames > 50) wiiu_keyboard_closed();
     }
+    if (!wiiu_kbd_shown) {
+        if (field.target != wiiu_kbd_last && field.target != CLIENT_TEXT_NONE && field.target != CLIENT_TEXT_CHAT) wiiu_kbd_pending = true;
+        if (field.tapped && (field.target == CLIENT_TEXT_USERNAME || field.target == CLIENT_TEXT_PASSWORD)) wiiu_kbd_pending = true;
+        if (wiiu_chat_tapped && field.target == CLIENT_TEXT_CHAT) wiiu_kbd_pending = true;
+    }
+    if (field.target == CLIENT_TEXT_NONE) wiiu_kbd_pending = false;
     wiiu_kbd_last = field.target;
     wiiu_chat_tapped = false;
-    if (open) wiiu_keyboard_open(&field);
+    if (wiiu_kbd_pending && !wiiu_kbd_shown && !visible) {
+        wiiu_kbd_pending = false;
+        wiiu_keyboard_open(&field);
+    }
 }
 static void wiiu_read_server(ClientOptions *options) {
     // No argv on the console: default to start_local_server.bat's port, like play_client.bat.
@@ -215,6 +229,16 @@ static void wiiu_read_autologin(ClientOptions *options) {
 #ifdef __WIIU__
 #include <coreinit/thread.h>
 #include <malloc.h>
+#include <unistd.h>
+int fileno(FILE *stream); // POSIX; hidden by -std=c99 in newlib's stdio.h
+// Exit-path progress, synced to the SD card at once so a hang leaves its last
+// step in log.txt even after the console is powered off.
+static void wiiu_stage(const char *step) {
+    printf("[WIIU] %s\n", step);
+    fflush(stdout);
+    fsync(fileno(stdout));
+}
+#define WIIU_STAGE(step) wiiu_stage(step)
 static int client_main(int argc, char *argv[]);
 static int wiiu_argc;
 static char **wiiu_argv;
@@ -238,11 +262,13 @@ int main(int argc, char *argv[]) {
     OSResumeThread(&thread);
     int result = 1;
     OSJoinThread(&thread, &result);
+    WIIU_STAGE("client thread joined");
     free(stack);
     return result;
 }
 static int client_main(int argc, char *argv[]) {
 #else
+#define WIIU_STAGE(step) ((void)0)
 int main(int argc, char *argv[]) {
 #endif
     ClientOptions options;
@@ -393,6 +419,11 @@ int main(int argc, char *argv[]) {
 #endif
             ClientEvent input;
 #ifdef __WIIU__
+            // Closing from the HOME menu: ProcUI waits for the app to exit, so stop
+            // here rather than relying on the queued quit event being processed.
+            if (event.type == SDL_QUIT) { WIIU_STAGE("quit requested"); client_stop(); }
+            if (event.type == SDL_APP_DIDENTERBACKGROUND) WIIU_STAGE("entered background");
+            if (event.type == SDL_APP_DIDENTERFOREGROUND) WIIU_STAGE("entered foreground");
             if (wiiu_keyboard_event(&event)) continue;
             if (event.type == SDL_JOYDEVICEADDED) { (void)SDL_JoystickOpen(event.jdevice.which); continue; }
 #endif
@@ -419,7 +450,7 @@ int main(int argc, char *argv[]) {
         }
         var6 &= 0xFF;
 #ifdef __WIIU__
-        wiiu_keyboard_frame();
+        wiiu_keyboard_frame(window);
 #endif
 
         if (!client_draw()) return 1;
@@ -444,9 +475,12 @@ int main(int argc, char *argv[]) {
         client_end_frame();
     }
 
+    WIIU_STAGE("main loop ended");
     audio_close();
+    WIIU_STAGE("audio closed");
     midi_close();
     client_shutdown();
+    WIIU_STAGE("client shut down");
     // Marks a complete recording; a log cut at a frame boundary lacks it.
     if (session_log_mode() == SESSION_LOG_RECORD) { session_log_begin("Q"); session_log_end(); }
     session_log_close();
@@ -454,6 +488,7 @@ int main(int argc, char *argv[]) {
     SDL_DestroyTexture(framebuffer);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
+    WIIU_STAGE("SDL_Quit");
     SDL_Quit();
 
     printf("[RS2004-C] Shutdown complete.\n");
