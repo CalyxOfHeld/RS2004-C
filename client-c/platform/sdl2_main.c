@@ -124,6 +124,7 @@ static ClientTextTarget wiiu_kbd_last = CLIENT_TEXT_NONE;
 static ClientTextTarget wiiu_kbd_target = CLIENT_TEXT_NONE;
 static bool wiiu_kbd_shown, wiiu_kbd_pending, wiiu_chat_tapped;
 static int wiiu_kbd_hidden_frames;
+static bool wiiu_background;
 
 static void wiiu_queue_key(int key) {
     ClientEvent e;
@@ -132,6 +133,130 @@ static void wiiu_queue_key(int key) {
     client_log_event(&e); client_queue_event(&e);
     e.type = CLIENT_EVENT_KEY_UP;
     client_log_event(&e); client_queue_event(&e);
+}
+
+// GamePad controls. The client receives the same mouse and arrow-key input a PC
+// sends; SDL's own touch-to-mouse is off (main) so a touch can mean more than a
+// left click:
+//   tap                -> left click at the touch point (on release)
+//   hold 500 ms        -> right click at the touch point (opens the menu)
+//   drag               -> left-button drag (moving inventory items)
+//   L or ZL held + tap -> right click at once
+//   D-pad, right stick -> arrow keys (camera)
+enum { WIIU_TOUCH_IDLE, WIIU_TOUCH_PENDING, WIIU_TOUCH_DRAG, WIIU_TOUCH_DONE };
+enum { WIIU_PAD_L = 6, WIIU_PAD_ZL = 8, WIIU_PAD_LEFT = 12, WIIU_PAD_UP = 13, WIIU_PAD_RIGHT = 14,
+       WIIU_PAD_DOWN = 15, WIIU_PAD_RSTICK_LEFT = 20 }; // SDL wiiu vpad_button_map order
+static SDL_Joystick *wiiu_gamepad;
+static int wiiu_touch_state, wiiu_touch_x, wiiu_touch_y;
+
+// Touch diagnostics for hardware runs (log.txt; touches are infrequent).
+static void wiiu_input_log(const char *what, int x, int y, int value) {
+    printf("[WIIU] %s x=%d y=%d %d\n", what, x, y, value);
+    fflush(stdout);
+}
+static uint64_t wiiu_touch_ms;
+static bool wiiu_arrows[4];
+
+static void wiiu_queue_mouse(ClientEventType type, int x, int y, int button) {
+    ClientEvent e;
+    memset(&e, 0, sizeof(e));
+    e.type = type; e.x = x; e.y = y; e.button = button;
+    client_log_event(&e); client_queue_event(&e);
+}
+
+// The client builds the menu (the action a click runs) while drawing, from the
+// mouse position (client_draw), as the original does; a click resolves against
+// the last drawn menu. A mouse rests over a button before clicking, but a tap
+// moves and clicks at once, so the press waits for one frame drawn at the new
+// position.
+static int wiiu_click_x, wiiu_click_y, wiiu_click_button, wiiu_click_wait = -1;
+
+static void wiiu_click_press(void) {
+    wiiu_input_log("press", wiiu_click_x, wiiu_click_y, wiiu_click_button);
+    wiiu_queue_mouse(CLIENT_EVENT_MOUSE_DOWN, wiiu_click_x, wiiu_click_y, wiiu_click_button);
+    wiiu_queue_mouse(CLIENT_EVENT_MOUSE_UP, wiiu_click_x, wiiu_click_y, wiiu_click_button);
+    wiiu_click_wait = -1;
+}
+
+static void wiiu_click(int x, int y, int button) {
+    if (wiiu_click_wait >= 0) wiiu_click_press();
+    // The chatbox tap opens the keyboard for public chat (wiiu_keyboard_frame).
+    if (button == CLIENT_BUTTON_LEFT && x >= 22 && x < 501 && y >= 375 && y < 471) wiiu_chat_tapped = true;
+    wiiu_queue_mouse(CLIENT_EVENT_MOUSE_MOVE, x, y, CLIENT_BUTTON_NONE);
+    wiiu_click_x = x; wiiu_click_y = y; wiiu_click_button = button; wiiu_click_wait = 1;
+}
+
+static bool wiiu_pad_button(int button) {
+    return wiiu_gamepad && SDL_JoystickGetButton(wiiu_gamepad, button);
+}
+
+static bool wiiu_touch_event(const SDL_Event *event) {
+    if (event->type != SDL_FINGERDOWN && event->type != SDL_FINGERMOTION && event->type != SDL_FINGERUP) return false;
+    int x = (int)(event->tfinger.x * CLIENT_WIDTH), y = (int)(event->tfinger.y * CLIENT_HEIGHT);
+    if (x >= CLIENT_WIDTH) x = CLIENT_WIDTH - 1;
+    if (y >= CLIENT_HEIGHT) y = CLIENT_HEIGHT - 1;
+    if (event->type == SDL_FINGERDOWN) {
+        wiiu_input_log("touch down", x, y, wiiu_pad_button(WIIU_PAD_L) || wiiu_pad_button(WIIU_PAD_ZL));
+        if (wiiu_pad_button(WIIU_PAD_L) || wiiu_pad_button(WIIU_PAD_ZL)) {
+            wiiu_click(x, y, CLIENT_BUTTON_RIGHT);
+            wiiu_touch_state = WIIU_TOUCH_DONE;
+        } else {
+            wiiu_touch_state = WIIU_TOUCH_PENDING;
+            wiiu_touch_x = x; wiiu_touch_y = y; wiiu_touch_ms = SDL_GetTicks64();
+            wiiu_queue_mouse(CLIENT_EVENT_MOUSE_MOVE, x, y, CLIENT_BUTTON_NONE);
+        }
+    } else if (event->type == SDL_FINGERMOTION) {
+        if (wiiu_touch_state == WIIU_TOUCH_PENDING && abs(x - wiiu_touch_x) + abs(y - wiiu_touch_y) > 8) {
+            wiiu_queue_mouse(CLIENT_EVENT_MOUSE_DOWN, wiiu_touch_x, wiiu_touch_y, CLIENT_BUTTON_LEFT);
+            wiiu_input_log("drag start", x, y, 0);
+            wiiu_touch_state = WIIU_TOUCH_DRAG;
+        }
+        if (wiiu_touch_state == WIIU_TOUCH_DRAG) wiiu_queue_mouse(CLIENT_EVENT_MOUSE_MOVE, x, y, CLIENT_BUTTON_NONE);
+    } else {
+        wiiu_input_log("touch up", x, y, wiiu_touch_state);
+        if (wiiu_touch_state == WIIU_TOUCH_PENDING) wiiu_click(wiiu_touch_x, wiiu_touch_y, CLIENT_BUTTON_LEFT);
+        if (wiiu_touch_state == WIIU_TOUCH_DRAG) {
+            wiiu_queue_mouse(CLIENT_EVENT_MOUSE_MOVE, x, y, CLIENT_BUTTON_NONE);
+            wiiu_queue_mouse(CLIENT_EVENT_MOUSE_UP, x, y, CLIENT_BUTTON_LEFT);
+        }
+        wiiu_touch_state = WIIU_TOUCH_IDLE;
+    }
+    return true;
+}
+
+// Once per frame after events: long-press right click and GamePad camera keys.
+static void wiiu_pad_frame(ClientHeldKeys *held) {
+    // Before this frame's events are processed: wait 1 lets the move be processed
+    // and drawn this frame; wait 0 presses on the next.
+    if (wiiu_click_wait == 0) wiiu_click_press();
+    else if (wiiu_click_wait > 0) wiiu_click_wait--;
+    if (wiiu_touch_state == WIIU_TOUCH_PENDING && SDL_GetTicks64() - wiiu_touch_ms >= 500) {
+        wiiu_click(wiiu_touch_x, wiiu_touch_y, CLIENT_BUTTON_RIGHT);
+        wiiu_touch_state = WIIU_TOUCH_DONE;
+    }
+    // Left, right, up, down: D-pad or right stick, as the arrow keys' held flags
+    // plus the key presses input tracking records (GameShell codes 1-4).
+    static const int dpad[4] = { WIIU_PAD_LEFT, WIIU_PAD_RIGHT, WIIU_PAD_UP, WIIU_PAD_DOWN };
+    static const int rstick[4] = { WIIU_PAD_RSTICK_LEFT, WIIU_PAD_RSTICK_LEFT + 2, WIIU_PAD_RSTICK_LEFT + 1, WIIU_PAD_RSTICK_LEFT + 3 };
+    for (int i = 0; i < 4; i++) {
+        bool down = wiiu_pad_button(dpad[i]) || wiiu_pad_button(rstick[i]);
+        if (down != wiiu_arrows[i]) {
+            ClientEvent e;
+            memset(&e, 0, sizeof(e));
+            e.type = down ? CLIENT_EVENT_TRACK_KEY_DOWN : CLIENT_EVENT_TRACK_KEY_UP; e.key = i + 1;
+            client_log_event(&e); client_queue_event(&e);
+            wiiu_arrows[i] = down;
+        }
+    }
+    held->left |= wiiu_arrows[0]; held->right |= wiiu_arrows[1];
+    held->up |= wiiu_arrows[2]; held->down |= wiiu_arrows[3];
+}
+
+static void wiiu_open_joystick(int index) {
+    SDL_Joystick *joystick = SDL_JoystickOpen(index);
+    const char *name = joystick ? SDL_JoystickName(joystick) : NULL;
+    wiiu_input_log(name ? name : "joystick open failed", index, 0, joystick != NULL);
+    if (name && !strcmp(name, "WiiU Gamepad")) wiiu_gamepad = joystick;
 }
 
 static void wiiu_keyboard_open(const ClientTextField *field) {
@@ -154,8 +279,6 @@ static void wiiu_keyboard_closed(void) {
 
 // Handles swkbd OK/cancel notifications; returns true when the event was one.
 static bool wiiu_keyboard_event(const SDL_Event *event) {
-    if (event->type == SDL_MOUSEBUTTONDOWN && event->button.x >= 22 && event->button.x < 501 &&
-        event->button.y >= 375 && event->button.y < 471) wiiu_chat_tapped = true;
     if (event->type != SDL_SYSWMEVENT || event->syswm.msg->subsystem != SDL_SYSWM_WIIU) return false;
     unsigned what = event->syswm.msg->msg.wiiu.event;
     // Cemu keeps IsDecideOkButton true after OK until the next appear, so SDL
@@ -240,31 +363,57 @@ static void wiiu_stage(const char *step) {
 }
 #define WIIU_STAGE(step) wiiu_stage(step)
 static int client_main(int argc, char *argv[]);
-static int wiiu_argc;
+static int wiiu_argc, wiiu_result = 1;
 static char **wiiu_argv;
-static int wiiu_client_thread(int argc, const char **argv) {
-    (void)argc; (void)argv;
-    return client_main(wiiu_argc, wiiu_argv);
+static void wiiu_client_entry(void) {
+    wiiu_result = client_main(wiiu_argc, wiiu_argv);
 }
+// Calls fn with the stack pointer moved to stack_top (r3 = fn, r4 = stack_top)
+// and returns on the original stack. The new frame's back chain links to the
+// old one.
+void wiiu_call_on_stack(void (*fn)(void), void *stack_top);
+__asm__(
+    "    .text\n"
+    "    .align 2\n"
+    "    .type wiiu_call_on_stack, @function\n"
+    "wiiu_call_on_stack:\n"
+    "    mflr 0\n"
+    "    stw 0, 4(1)\n"
+    "    stwu 1, -16(1)\n"
+    "    clrrwi 4, 4, 4\n"
+    "    stwu 1, -16(4)\n"
+    "    mr 1, 4\n"
+    "    mtctr 3\n"
+    "    bctrl\n"
+    "    lwz 1, 0(1)\n"
+    "    addi 1, 1, 16\n"
+    "    lwz 0, 4(1)\n"
+    "    mtlr 0\n"
+    "    blr\n"
+    "    .size wiiu_call_on_stack, .-wiiu_call_on_stack\n");
 // The PC build links a 16 MB stack (Makefile --stack); an RPX main thread has
-// 64 KB, which the scene renderer's per-model scratch arrays overflow. Run the
-// client on a main-core thread with the same 16 MB stack.
+// 64 KB (elf2rpl's fixed FILEINFO stackSize), which the scene renderer's
+// per-model scratch arrays overflow. The client runs on the main thread itself
+// with a 16 MB stack: a separate client thread driving ProcUI froze the
+// console at the HOME menu on hardware (October 27), and the system suspends an
+// app's other core 0/1 threads when it leaves the foreground. (Cemu 2.6 exits
+// on coreinit's OSSwitchFiber, hence the explicit stack switch.)
 int main(int argc, char *argv[]) {
     enum { WIIU_STACK_SIZE = 16 * 1024 * 1024 };
-    static OSThread thread __attribute__((aligned(16)));
     uint8_t *stack = memalign(16, WIIU_STACK_SIZE);
     if (!stack) return 1;
     wiiu_argc = argc; wiiu_argv = argv;
-    if (!OSCreateThread(&thread, wiiu_client_thread, 0, NULL, stack + WIIU_STACK_SIZE, WIIU_STACK_SIZE,
-                        OSGetThreadPriority(OSGetCurrentThread()), OS_THREAD_ATTRIB_AFFINITY_CPU1)) {
-        free(stack); return 1;
-    }
-    OSResumeThread(&thread);
-    int result = 1;
-    OSJoinThread(&thread, &result);
-    WIIU_STAGE("client thread joined");
+    // Keep the thread's recorded stack bounds (and end-of-stack magic) on the
+    // stack in use.
+    OSThread *thread = OSGetCurrentThread();
+    void *old_start = thread->stackStart, *old_end = thread->stackEnd;
+    *(uint32_t *)stack = 0xDEADBABEu;
+    thread->stackStart = stack + WIIU_STACK_SIZE; thread->stackEnd = stack;
+    wiiu_call_on_stack(wiiu_client_entry, stack + WIIU_STACK_SIZE);
+    thread->stackStart = old_start; thread->stackEnd = old_end;
+    WIIU_STAGE("client finished");
     free(stack);
-    return result;
+    return wiiu_result;
 }
 static int client_main(int argc, char *argv[]) {
 #else
@@ -306,6 +455,9 @@ int main(int argc, char *argv[]) {
         printf("[RECORD] session log -> %s (seed %lld)\n", options.record_path, (long long)options.seed);
     }
 
+#ifdef __WIIU__
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0"); // touches are translated by wiiu_touch_event
+#endif
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
         return 1;
@@ -341,9 +493,9 @@ int main(int argc, char *argv[]) {
     // Letterbox the 765x503 frame on the TV/GamePad; SDL maps touch back to it.
     SDL_RenderSetLogicalSize(renderer, CLIENT_WIDTH, CLIENT_HEIGHT);
     // SDL's Wii U port reads GamePad touch (and feeds swkbd) only while the GamePad
-    // joystick is open; touches then arrive as synthesized left-button mouse events.
+    // joystick is open; touches arrive as finger events (wiiu_touch_event).
     if (SDL_InitSubSystem(SDL_INIT_JOYSTICK) == 0) {
-        for (int i = 0; i < SDL_NumJoysticks(); i++) (void)SDL_JoystickOpen(i);
+        for (int i = 0; i < SDL_NumJoysticks(); i++) wiiu_open_joystick(i);
     } else {
         fprintf(stderr, "SDL joystick init failed: %s\n", SDL_GetError());
     }
@@ -426,10 +578,15 @@ int main(int argc, char *argv[]) {
             // threads may run there; close audio before the foreground is released
             // (the next pump) and reopen it on return.
             if (event.type == SDL_APP_WILLENTERBACKGROUND) { audio_suspend(); WIIU_STAGE("audio suspended"); }
-            if (event.type == SDL_APP_DIDENTERBACKGROUND) WIIU_STAGE("entered background");
+            if (event.type == SDL_APP_DIDENTERBACKGROUND) { WIIU_STAGE("entered background"); wiiu_background = true; }
             if (event.type == SDL_APP_DIDENTERFOREGROUND) { WIIU_STAGE("entered foreground"); audio_resume(); }
             if (wiiu_keyboard_event(&event)) continue;
-            if (event.type == SDL_JOYDEVICEADDED) { (void)SDL_JoystickOpen(event.jdevice.which); continue; }
+            if (event.type == SDL_JOYDEVICEADDED) { wiiu_open_joystick(event.jdevice.which); continue; }
+            if (event.type == SDL_JOYDEVICEREMOVED) {
+                if (wiiu_gamepad && SDL_JoystickInstanceID(wiiu_gamepad) == event.jdevice.which) wiiu_gamepad = NULL;
+                continue;
+            }
+            if (wiiu_touch_event(&event)) continue;
 #endif
             if(tracking_sdl_event(&event,&input)){client_log_event(&input);client_queue_event(&input);}
             if (sdl_client_event(&event, &input)) { client_log_event(&input); client_queue_event(&input); }
@@ -439,6 +596,10 @@ int main(int argc, char *argv[]) {
         // the rest of the frame (swkbd state, game update, drawing) can block: the
         // October 27 hardware log ends at "quit requested". Shut down at once.
         if (!client_running()) break;
+        // Same for the HOME menu: the foreground is released (ProcUIDrawDoneRelease)
+        // only by the next pump, and in-game hardware logs end at "entered
+        // background". Skip this frame's update, draw and present.
+        if (wiiu_background) { wiiu_background = false; WIIU_STAGE("background frame skipped"); continue; }
 #endif
         const uint8_t *keystates = SDL_GetKeyboardState(NULL);
         ClientHeldKeys held = {
@@ -448,6 +609,9 @@ int main(int argc, char *argv[]) {
             .s = keystates[SDL_SCANCODE_S], .d = keystates[SDL_SCANCODE_D],
             .ctrl = (SDL_GetModState() & KMOD_CTRL) != 0
         };
+#ifdef __WIIU__
+        wiiu_pad_frame(&held);
+#endif
         client_log_held(&held);
         client_set_held_keys(&held);
         client_process_events();

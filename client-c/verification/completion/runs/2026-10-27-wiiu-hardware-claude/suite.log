@@ -9,10 +9,10 @@ PASS: actual cache model rendered 119 pixels; triangle pick (252,106) produces T
 PASS: picked Take sends approach 93 then OPOBJ3 200 with world coordinates/id; removed target rejected
 PASS: 33,408 wall/decor/rectangular reach decisions and directional wall/rotated footprint flags match original Java CollisionMap output
 PASS: production pathfinder approaches blocked footprint and recognizes already-reached adjacency
-make.exe : [Protocol] Receive failed: payload exceeds destination capacity
-At line:1 char:640
-+ ... ware-claude"; & C:\devkitPro\msys2\usr\bin\make.exe test 2>&1 | Out-F ...
-+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+make : [Protocol] Receive failed: payload exceeds destination capacity
+At line:1 char:503
++ ... n client-c; make test *> verification\completion\runs\2026-10-27-wiiu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: ([Protocol] Rece...nation capacity:String) [], RemoteException
     + FullyQualifiedErrorId : NativeCommandError
  
@@ -148,7 +148,7 @@ PASS: textured viewport clipping and cache texture-axis basis
 === Test Suite: Cache Configs (Rev 225) ===
 [PASS] Config Jagfile archive loaded (16 files)
 [INFO] Flo count: 78
-[PASS] FloType unpack verified (Flo 0: rgb=0xAAAAAA, hsl=79)
+[PASS] FloType unpack verified (Flo 0: rgb=0xAAAAAA, hsl=84)
 [INFO] Seq count: 1027
 [PASS] SeqType unpack verified (Seq 0: frame_count=14)
 [INFO] Loc count: 3387
@@ -1327,7 +1327,7 @@ PASS: 20 original Java cases, encrypted route/trailer bytes, endpoints, nearest 
 [PASS] Scene region #1 (Lumbridge 47_47) successfully streamed and built (199 height tiles)
 [PASS] Scene region #2 (Varrock 50_50) successfully streamed into recycled scene graph (3581 height tiles)
 [PASS] Boundary threshold checks verified (triggers rebuild when local tile < 16 or >= 88)
-PASS map download: 374 original states,367 packets,7 actual scene rebuilds;full buffers/cache/wire/ISAAC/heights/flags/collision;isolated cache verification/completion/runs/map-native-14060-0
+PASS map download: 374 original states,367 packets,7 actual scene rebuilds;full buffers/cache/wire/ISAAC/heights/flags/collision;isolated cache verification/completion/runs/map-native-23568-0
 === ALL MAP STREAMING TESTS PASSED! ===
 === Test Suite: Interface Scripts, Varps & Triggers (Rev 225) ===
 [PASS] VarpContext initialized with authentic default stats & varps
