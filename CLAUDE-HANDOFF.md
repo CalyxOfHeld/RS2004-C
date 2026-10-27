@@ -1,3 +1,25 @@
+# Wii U port step 2: Makefile + first Cemu boot — Claude, October 27, 2026 (completed)
+
+`make -f Makefile.wiiu` (or `client-c/build_wiiu.bat`) builds `client-c/bin/wiiu/rs2004c.wuhb` with 0 warnings. In Cemu 2.6 (`wii u/` folder, added by the user) it boots to the revision-225 title screen at about 49.5 FPS.
+
+Changes:
+- Source lists moved into a shared `client-c/sources.mk`; the PC list is identical.
+- Wii U-only startup in sdl2_main.c: /vol/content data root, SD `wiiu/apps/rs2004c/server.txt` server address, letterbox, and no automatic keyboard.
+- New `--host` option; PC default stays 127.0.0.1.
+
+PC verification: suite passes with 0 warnings and integrated parity matches. Details: client-c/verification/completion/runs/2026-10-27-wiiu-build-claude/README.md.
+
+The user has a modded Wii U (Aroma) for hardware tests.
+
+Next:
+1. swkbd text entry for login and chat
+2. hardware boot plus LAN login
+3. software MIDI synth
+
+Release note: build_release.py must also package sources.mk. Not 244.
+
+---
+
 # Wii U port step 1: byte-order / PowerPC audit — Claude, October 27, 2026 (completed)
 
 User approved the order Wii U, then Wii, then another revision, and said "go" on step 1. Report: client-c/verification/completion/runs/2026-10-27-wiiu-endian-claude/README.md.

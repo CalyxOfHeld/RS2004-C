@@ -1,24 +1,15 @@
 @echo off
 setlocal
-echo =======================================================
-echo Building 2004scape client for Nintendo Wii U (.wuhb)
-echo =======================================================
-
-set "DEVKITPRO=c:/devkitPro"
-set "DEVKITPPC=%DEVKITPRO%/devkitPPC"
-
-"%DEVKITPRO%\msys2\usr\bin\bash.exe" -lc "export DEVKITPRO=/c/devkitPro; export DEVKITPPC=/c/devkitPro/devkitPPC; cd '/c/Users/USER/Documents/2004scape-LostCityRS/2004scape C Rewrite/client-c'; make -f Makefile.wiiu all"
-
-if %ERRORLEVEL% equ 0 (
-    echo.
-    echo =======================================================
-    echo [SUCCESS] Built bin/rs2client.wuhb!
-    echo To install on your Wii U:
-    echo 1. Copy bin/rs2client.wuhb to sd:/wiiu/apps/rs2client/
-    echo 2. Launch via Aroma or Homebrew Launcher
-    echo =======================================================
-) else (
-    echo.
-    echo [ERROR] Wii U build failed with error code %ERRORLEVEL%.
+rem Builds the Wii U client: client-c\bin\wiiu\rs2004c.wuhb
+cd /d "%~dp0"
+"C:\devkitPro\msys2\usr\bin\bash.exe" -lc "export DEVKITPRO=/c/devkitPro DEVKITPPC=/c/devkitPro/devkitPPC; cd \"$(cygpath -u '%~dp0')\" && make -f Makefile.wiiu all"
+if errorlevel 1 (
+    echo Wii U build failed.
+    exit /b 1
 )
+echo.
+echo Built bin\wiiu\rs2004c.wuhb
+echo Cemu: File ^> Load, choose the .wuhb
+echo Wii U: copy it to sd:\wiiu\apps\rs2004c\ and put the server address in
+echo        sd:\wiiu\apps\rs2004c\server.txt, e.g. "192.168.1.20 43595"
 endlocal

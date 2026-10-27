@@ -101,11 +101,34 @@ static bool sdl_client_event(const SDL_Event *in, ClientEvent *out) {
     }
 }
 
+#ifdef __WIIU__
+// The .wuhb bundles engine/data/pack/client under /vol/content; the client's
+// "engine/data/pack/client/..." fallback paths then resolve from there.
+#define WIIU_CONTENT_DIR "fs:/vol/content"
+// Optional "host [port]" for the LAN server, e.g. "192.168.1.20 43595".
+#define WIIU_SERVER_FILE "fs:/vol/external01/wiiu/apps/rs2004c/server.txt"
+static char wiiu_server_host[64];
+static void wiiu_read_server(ClientOptions *options) {
+    FILE *file = fopen(WIIU_SERVER_FILE, "r");
+    if (!file) return;
+    int port = 0;
+    if (fscanf(file, "%63s %d", wiiu_server_host, &port) >= 1) {
+        options->server_host = wiiu_server_host;
+        if (port > 0 && port <= 65535) options->server_port = port;
+    }
+    fclose(file);
+}
+#endif
+
 int main(int argc, char *argv[]) {
     ClientOptions options;
     if (!client_parse_args(argc, argv, &options)) return 1;
     setbuf(stdout, NULL);
 
+#ifdef __WIIU__
+    wiiu_read_server(&options);
+    if (chdir(WIIU_CONTENT_DIR) != 0) { perror("Cannot enter content directory"); return 1; }
+#else
     // Resolve cache paths consistently when launched from Explorer or either wrapper.
     char *executable_dir = SDL_GetBasePath();
     if (!executable_dir) { fprintf(stderr, "Cannot locate client directory\n"); return 1; }
@@ -118,6 +141,7 @@ int main(int argc, char *argv[]) {
     int directory_result = chdir(client_dir);
 #endif
     if (directory_result != 0) { perror("Cannot enter client directory"); return 1; }
+#endif
 
     if (options.record_path) {
         // A recording replays only from a known Math.random() seed.
@@ -158,6 +182,10 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+#ifdef __WIIU__
+    // Letterbox the 765x503 frame on the TV/GamePad; SDL maps touch back to it.
+    SDL_RenderSetLogicalSize(renderer, CLIENT_WIDTH, CLIENT_HEIGHT);
+#endif
     SDL_Texture *framebuffer = SDL_CreateTexture(
         renderer,
         SDL_PIXELFORMAT_RGB888,
@@ -169,7 +197,10 @@ int main(int argc, char *argv[]) {
     recovery_renderer=renderer; recovery_texture=framebuffer;
     ClientPlatform platform = { sdl_now_ms, sdl_save_bmp, sdl_present_recovery,sdl_tracking_now_ms };
     if (!client_init(&options, &platform)) { SDL_Quit(); return 1; }
+#ifndef __WIIU__
+    // On Wii U this opens the system keyboard; it is shown only while typing (later step).
     SDL_StartTextInput();
+#endif
 
     // High-resolution 50Hz game loop timing (matching GameShell.java:150-210)
     uint64_t otim[10];

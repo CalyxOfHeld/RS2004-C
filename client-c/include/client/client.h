@@ -76,6 +76,7 @@ typedef struct {
     bool capture_rebuild, capture_clicks;
     int capture_frame, capture_interval;
     int server_port;
+    const char *server_host; // dotted IPv4; consoles reach the server over the LAN
     int walk_x, walk_z;
     int capture_yaw, capture_pitch;
     bool fixed_step;

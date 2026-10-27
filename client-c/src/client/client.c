@@ -184,6 +184,7 @@ static bool offline, trace;
 static bool capture_clicks;
 static int last_captured_cross = -1, last_cross_cycle = 400;
 static int capture_frame, capture_interval, server_port, capture_yaw;
+static const char *server_host = "127.0.0.1";
 static int rendered_frames;
 // client.updateGame's closing packets: heartbeatTimer (instance) and the static cyclelogic4.
 static int heartbeat_timer, cyclelogic4;
@@ -589,6 +590,7 @@ void client_default_options(ClientOptions *options) {
     memset(options, 0, sizeof(*options));
     options->capture_frame = 10;
     options->server_port = 43594;
+    options->server_host = "127.0.0.1";
     options->walk_x = -1; options->walk_z = -1;
     options->capture_pitch = 128;
 }
@@ -606,6 +608,7 @@ bool client_parse_args(int argc, char **argv, ClientOptions *o) {
         else if (strcmp(argv[i], "--capture-frame") == 0 && i + 1 < argc) o->capture_frame = atoi(argv[++i]);
         else if (strcmp(argv[i], "--capture-interval") == 0 && i + 1 < argc) o->capture_interval = atoi(argv[++i]);
         else if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) o->server_port = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--host") == 0 && i + 1 < argc) o->server_host = argv[++i];
         else if (strcmp(argv[i], "--walk-to") == 0 && i + 2 < argc) { o->walk_x = atoi(argv[++i]); o->walk_z = atoi(argv[++i]); }
         else if (strcmp(argv[i], "--camera-yaw") == 0 && i + 1 < argc) o->capture_yaw = atoi(argv[++i]) & 2047;
         else if (strcmp(argv[i], "--camera-pitch") == 0 && i + 1 < argc) o->capture_pitch = atoi(argv[++i]);
@@ -672,6 +675,7 @@ bool client_init(const ClientOptions *options, const ClientPlatform *platform) {
     capture_frame = options->capture_frame;
     capture_interval = options->capture_interval;
     server_port = options->server_port;
+    if (options->server_host && *options->server_host) server_host = options->server_host;
     capture_yaw = options->capture_yaw;
     verification_follow_input = options->follow_input;
     bool autologin = options->login_username && *options->login_username && options->login_password && *options->login_password;
@@ -3150,7 +3154,7 @@ void client_end_frame(void) {
 static void client_login(bool reconnect) {
         login_pending = false; reconnecting = false;
         if (trace) printf("[PARITY] login frame=%d random_state=%llu\n", rendered_frames, (unsigned long long)math_random_state());
-        LoginResponse reply = protocol_login_ex(&session, "127.0.0.1", server_port, title.username, title.password, false, reconnect);
+        LoginResponse reply = protocol_login_ex(&session, server_host, server_port, title.username, title.password, false, reconnect);
         printf("[LOGIN] %s reply=%d\n", reconnect ? "reconnect" : "login", (int)reply);
         if (reply == LOGIN_SUCCESS || reply == LOGIN_MOD_SUCCESS) {
             input_tracking_disable(&input_tracking);

@@ -3,26 +3,8 @@ CFLAGS = -std=c99 -Wall -Wextra -O2 -Iinclude -Ilib/SDL2/x86_64-w64-mingw32/incl
 LDFLAGS = -Llib/SDL2/x86_64-w64-mingw32/lib -lmingw32 -lSDL2main -lSDL2 -lws2_32 -lwinmm -lole32 -ldsound -ldxguid -luuid -lm -Wl,--stack,16777216
 TEST_LDFLAGS = -Llib/SDL2/x86_64-w64-mingw32/lib -lSDL2 -lws2_32 -lwinmm -lole32 -ldsound -ldxguid -luuid -lm -Wl,--stack,16777216
 
-CORE_SRCS   = src/core/arena.c src/core/packet.c src/core/isaac.c src/core/bzip2.c src/core/jagfile.c src/core/jstring.c src/core/jrandom.c src/core/session_log.c src/core/wordpack.c src/core/wordfilter.c
-CORE_SRCS += src/core/input_tracking.c src/core/sound_queue.c src/core/music225.c
-GFX_SRCS    = src/gfx/pix2d.c src/gfx/pix8.c src/gfx/pix32.c src/gfx/pix3d.c src/gfx/pix3d_flat225.c src/gfx/pix3d_gouraud225.c src/gfx/pix3d_texture225.c src/gfx/pix3d_texture_triangle225.c src/gfx/pix3d_texture_cache225.c src/gfx/model.c src/gfx/pixfont.c src/gfx/media.c src/gfx/anim.c src/gfx/jpeg.c
-CONFIG_SRCS = src/config/flo.c src/config/seq.c src/config/loc.c src/config/npc.c src/config/obj.c src/config/idk.c src/config/spotanim.c src/config/varp_type.c
-ENTITY_SRCS = src/entity/pathing_entity.c src/entity/player_entity.c src/entity/npc_entity.c
-ENTITY_SRCS += src/entity/actor_model.c
-NET_SRCS    = src/net/rsa.c src/net/client_stream.c src/net/protocol.c src/net/entity_sync.c src/net/zone_sync.c
-DASH3D_SRCS = src/dash3d/collision_map.c src/dash3d/world3d.c src/dash3d/ground_items.c src/dash3d/world.c src/dash3d/minimap.c src/dash3d/pathfinder.c src/dash3d/map_streamer.c src/dash3d/camera.c src/dash3d/effects.c
-UI_SRCS     = src/ui/client_actions.c src/ui/component_packets.c src/ui/component.c src/ui/context_menu.c src/ui/chatbox.c src/ui/overhead_chat.c src/ui/mouse_picking.c src/ui/varp.c src/ui/click_feedback.c src/ui/combat_feedback.c src/ui/title_screen.c
-AUDIO_SRCS  = src/audio/wave.c src/audio/midi.c src/audio/midi_gain225.c
-DASH3D_SRCS += src/dash3d/location_anim.c
-DASH3D_SRCS += src/dash3d/location_merge.c
-DASH3D_SRCS += src/dash3d/scene_lighting.c
-DASH3D_SRCS += src/dash3d/ground225.c
-DASH3D_SRCS += src/dash3d/visibility225.c
-DASH3D_SRCS += src/dash3d/scene_selection225.c
-DASH3D_SRCS += src/dash3d/occlusion225.c
-DASH3D_SRCS += src/dash3d/scene_raster225.c src/dash3d/scene_traversal225.c src/dash3d/scene_prepare225.c src/dash3d/scene_build225.c src/dash3d/scene_runtime225.c
+include sources.mk
 HEADERS = $(wildcard include/*/*.h)
-ALL_SRCS    = $(CORE_SRCS) $(GFX_SRCS) $(CONFIG_SRCS) $(ENTITY_SRCS) $(NET_SRCS) $(DASH3D_SRCS) $(UI_SRCS) $(AUDIO_SRCS)
 
 TARGET        = bin/rs2client.exe
 REPLAY_TARGET = bin/rs2replay.exe
