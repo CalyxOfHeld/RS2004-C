@@ -1,4 +1,4 @@
-# Current revision-225 release — October 26, 2026
+# Current revision-225 release — October 27, 2026
 
 Use [RELEASE-CURRENT.md](RELEASE-CURRENT.md) for the current package and instructions. Start `start_local_server.bat`, wait for World ready, then use the usual `test_client.bat`. The normal target now uses the qualified revision225 loop. If a server is already running older code, use Ctrl+C in its own window, wait for shutdown, and start it again. Rebuilding the client cannot update a running server.
 

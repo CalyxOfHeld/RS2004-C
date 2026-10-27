@@ -1,0 +1,31 @@
+﻿== oracle report
+  OK login packet identical (106 bytes)
+  STOP end of the recording; 3849 in-game frames compared
+  RESULT MATCH
+== regions from frame 1 (first in-game frame)
+  areaBackbase1    3849 frames,    0 differ
+  areaBackbase2    3849 frames,    0 differ
+  areaBackhmid1    3849 frames,    0 differ
+  areaBackhmid2    3849 frames,    0 differ
+  areaBackleft1    3849 frames,    0 differ
+  areaBackleft2    3849 frames,    0 differ
+  areaBackright1   3849 frames,    0 differ
+  areaBackright2   3849 frames,    0 differ
+  areaBacktop1     3849 frames,    0 differ
+  areaBacktop2     3849 frames,    0 differ
+  areaBackvmid1    3849 frames,    0 differ
+  areaBackvmid2    3849 frames,    0 differ
+  areaBackvmid3    3849 frames,    0 differ
+  areaChatback     3849 frames,    0 differ
+  areaMapback      3849 frames,    0 differ
+  areaSidebar      3849 frames,    0 differ
+  areaViewport     3849 frames,    0 differ
+  imageTitle2      3849 frames,    0 differ
+  imageTitle3      3849 frames,    0 differ
+  imageTitle4      3849 frames,    0 differ
+  imageTitle5      3849 frames,    0 differ
+  imageTitle6      3849 frames,    0 differ
+  imageTitle7      3849 frames,    0 differ
+  imageTitle8      3849 frames,    0 differ
+  screen           3849 frames,    0 differ
+== PARITY MATCH

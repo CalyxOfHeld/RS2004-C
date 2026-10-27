@@ -1,0 +1,14 @@
+{"package": "C:\\Users\\USER\\Documents\\2004scape-LostCityRS\\2004scape C Rewrite\\client-c\\verification\\completion\\releases\\2026-10-27-current-225-claude", "payload_files": 243, "source_files": 446}
+{
+  "archive": "2026-10-27-current-225-claude.zip",
+  "sha256": "ecfc067ec0921da32d25174405a730aa7e1070589ad1684872d2f2fb0c49b801",
+  "bytes": 148473108,
+  "members": 244,
+  "source_files": 446,
+  "all_member_hashes_verified": true,
+  "native_client_sha256": "ff10df0c1aa457d7ce15a087a6044b316f12a5c0bb5c04e039b8efe29c1a250f",
+  "native_replay_sha256": "1da5cdc1674cea82358c0806fce00372c119535c76da9d31b187d7b865463caf",
+  "supersedes": "2026-10-26-current-225-sol.zip",
+  "physical_listening": "pending",
+  "clean_byte_identical_rebuild": "not repeated"
+}

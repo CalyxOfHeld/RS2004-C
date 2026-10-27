@@ -1,0 +1,13 @@
+[
+  "Website-main\\view\\client.ejs",
+  "Website-main\\view\\serverlist.ejs",
+  "Website-main\\view\\title.ejs",
+  "Website-main\\view\\hiscores\\index.ejs",
+  "Website-main\\view\\hiscores\\no_results.ejs",
+  "Website-main\\view\\hiscores\\player.ejs",
+  "Website-main\\view\\worldmap\\applet.ejs",
+  "Website-main\\view\\_partial\\header.ejs",
+  "Website-main\\public\\img\\title\\rs2004-c.svg",
+  "2004scape C Rewrite\\client-c\\src\\client\\client.c",
+  "2004scape C Rewrite\\client-c\\platform\\sdl2_main.c"
+]

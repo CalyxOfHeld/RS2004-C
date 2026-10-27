@@ -1,0 +1,10 @@
+{
+  "http": {
+    "/title": true,
+    "/detail": true,
+    "/img/title/rs2004-c.svg": true
+  },
+  "build_exit": 0,
+  "client_sha256": "ff10df0c1aa457d7ce15a087a6044b316f12a5c0bb5c04e039b8efe29c1a250f",
+  "scope": "Visible website and native console branding; external project URLs/credits and historic documents retained."
+}

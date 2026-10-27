@@ -1,3 +1,39 @@
+# Release rebuilt: 2026-10-27-current-225-claude.zip — Claude, October 27, 2026 (completed)
+
+User asked to rebuild the release zip with the new binary. Current package is client-c/verification/completion/releases/2026-10-27-current-225-claude.zip: 148,473,108 bytes, 244 members, SHA256 ecfc067ec0921da32d25174405a730aa7e1070589ad1684872d2f2fb0c49b801. The sidecar .sha256.json and the expanded folder are kept. It supersedes 2026-10-26-current-225-sol.zip, which is preserved unchanged.
+
+Packaged binary:
+- rs2client.exe ff10df0c1aa457d7ce15a087a6044b316f12a5c0bb5c04e039b8efe29c1a250f
+- rs2replay.exe 1da5cdc1674cea82358c0806fce00372c119535c76da9d31b187d7b865463caf
+- Built by Codex's completed RS2004-C branding task. Source is commit 92b8847 plus three console printf strings (client.c, sdl2_main.c).
+
+Parity on the packaged binary: both October 27 recordings strictly replayed again and give PARITY MATCH (integrated 3099 frames, tour 3849 frames).
+
+Package build:
+- Sol's build_release.py, adapted in runs/2026-10-27-release-claude/: new name and hashes, the parity evidence added under evidence/current-parity-claude, plus zip, member re-verification and sidecar steps.
+- The same 11 engine and 3 content overlay files as before.
+- VerifyPackage.py --workspace: PASS, 243 files.
+
+Docs: RELEASE-CURRENT.md and the TEST-THIS-CHECKPOINT banner now point at the new zip. Codex's pre-branding banner was removed because this zip covers the branding.
+
+Unchanged limits: no clean byte-identical rebuild claim, and physical listening is still pending. No commit for this task. The branding source/doc edits from Codex are still uncommitted in the working tree.
+
+---
+
+# RS2004-C branding complete — October 27, 2026
+
+User requested the launched local website banner and all visible Lost City branding become RS2004-C. Updated eight Website-main EJS templates (page titles, Play/hiscore labels, game/worldmap titles and both logo references), added public/img/title/rs2004-c.svg wordmark, and replaced three native console branding messages in client.c/sdl2_main.c. Internal project identifiers, external reference URLs and original RuneScape/Jagex attribution remain intact. Website process15404 on8080 was not restarted; live HTTP /title, /detail and SVG all serve RS2004-C. Normal native client/replay rebuild exit0. No gameplay change or unnecessary tests. Evidence runs/2026-10-27-branding-sol/ includes before snapshots,11-file inventory, build log/exit and verification.json with new normal binary SHA.
+
+Task COMPLETE. Usual test_client.bat workflow retained; refresh the browser page for website branding. Existing October26 release archive predates these branding-only changes and is intentionally unchanged; refresh it in a separately authorized release task if needed. No process killed/restarted, save/map or original cache edit, commit or delegation. Handoff written now near the usage floor; last observed93%used, so check limits before any further implementation and stop at95%used as directed.
+
+---
+
+# RS2004-C branding — October 27, 2026
+
+User requested local website banner and all visible Lost City branding become RS2004-C. Current Codex engineer changed Website-main visible EJS brand labels/page titles and both logo references to a new SVG wordmark; internal identifiers, original RuneScape/Jagex credits and external project URLs are preserved. Native console branding also changed. Website process15404 serves8080; no process restart requested/performed. Evidence runs/2026-10-27-branding-sol/files.json and before snapshots. Normal client rebuild and live HTTP check underway. Existing October26 release archive predates these branding-only edits and remains unchanged. Respect5%usagehandoff; last observed93%used.
+
+---
+
 # Current-build Java frame parity + world tour — Claude, October 27, 2026 (completed)
 
 User-authorized after checkpoint commit 273f6ea. Not 244, no human play. Evidence and full details: client-c/verification/completion/runs/2026-10-27-current-parity-claude/README.md.

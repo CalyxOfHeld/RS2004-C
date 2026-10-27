@@ -1,6 +1,6 @@
-# Current Windows revision-225 release — October 26, 2026
+# Current Windows revision-225 release — October 27, 2026
 
-Current package: [2026-10-26-current-225-sol.zip](client-c/verification/completion/releases/2026-10-26-current-225-sol.zip).
+Current package: [2026-10-27-current-225-claude.zip](client-c/verification/completion/releases/2026-10-27-current-225-claude.zip). It supersedes 2026-10-26-current-225-sol.zip.
 
 This working checkout is already updated. Keep using:
 
@@ -11,10 +11,8 @@ If an older server is running, press Ctrl+C in its window, wait for shutdown, th
 
 The package contains the current normal client/replay and SDL runtime, native build sources, server/content changes and compiled server scripts. It is an update for this existing rewrite workspace, not a standalone server/cache distribution. Its README explains applying the `workspace/` overlay to another copy of this same checkout. It introduces no alternate launch script.
 
-Latest fixes include continuous music volume with direct attenuation, sound-effect gain correction, authentic input phases, the normal build using the verified225 loop, console-only development messages, idle logout configuration, five repaired stair placements and clue-reader failure handling. The retained renderer fixture was compared with Java and its populated regression restored. Quest progress journals were introduced after225 and remain absent correctly.
+Latest fixes (October 27) are three original-Java frame-parity corrections: the character-design model is no longer relit, the Wilderness "Level: N" skull and Arena indicator are now drawn, and the camera pitch clamp starts at Java's 0. An integrated scenario (3099 frames) and a nine-location world tour (3849 frames) match the original Java client frame for frame. Console log messages and the local website now use RS2004-C branding. Earlier fixes include continuous music volume with direct attenuation, sound-effect gain correction, authentic input phases, the normal build using the verified225 loop, console-only development messages, idle logout configuration, five repaired stair placements and clue-reader failure handling. The retained renderer fixture was compared with Java and its populated regression restored. Quest progress journals were introduced after225 and remain absent correctly.
 
 Physical speaker/headphone confirmation of the latest audio is still pending. Historical external-host instrument tone/fade timing is not established. Recovered stair landings follow bundled map/source patterns; their precise historical tiles are not independently proven. See the package's KNOWN-LIMITS.md and CHECKS.md for evidence and scope.
 
-Normal client SHA256: `05046e6dadab75f30351d00ec504dfffbe7bda00c8b11b22fa7c2a73d8acfb56`.
-
-**Post-package update, October 27, 2026 (Claude):** three original-Java parity fixes went in after this package was built: the design-screen model no longer gets relit twice, the Wilderness level/Arena indicator is now drawn, and the camera pitch clamp starts at 0. `test_client.bat` builds the updated client from this checkout. The 2026-10-26 zip still holds the earlier 05046e6d binary. Current normal client SHA256: `a63f9ca468eda929b981d434c91f2ce308ef4eae62959233f140764e692f11b5`. Evidence: client-c/verification/completion/runs/2026-10-27-current-parity-claude/README.md.
+Normal client SHA256: `ff10df0c1aa457d7ce15a087a6044b316f12a5c0bb5c04e039b8efe29c1a250f`.

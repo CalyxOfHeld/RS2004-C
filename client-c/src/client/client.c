@@ -693,7 +693,7 @@ bool client_init(const ClientOptions *options, const ClientPlatform *platform) {
     if(options->input_path && (!capture_path || !verification_load_input(options->input_path))) {
         fprintf(stderr,"Invalid input script; --capture is required\n");return false;
     }
-    printf("[Lost City 2004 C] Starting RS2 Revision 225 Client...\n");
+    printf("[RS2004-C] Starting RS2 Revision 225 Client...\n");
 
     arena_perm = arena_create(48 * 1024 * 1024);
 
@@ -3218,7 +3218,7 @@ static void client_login(bool reconnect) {
 void client_shutdown(void) {
     input_tracking_disable(&input_tracking);
     client_login_dns_clear225();
-    printf("[Lost City 2004 C] Shutting down...\n");
+    printf("[RS2004-C] Shutting down...\n");
 
     if (live_server) {
         protocol_close_session(&session);

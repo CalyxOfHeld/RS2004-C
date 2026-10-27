@@ -273,6 +273,6 @@ int main(int argc, char *argv[]) {
     SDL_DestroyWindow(window);
     SDL_Quit();
 
-    printf("[Lost City 2004 C] Shutdown complete.\n");
+    printf("[RS2004-C] Shutdown complete.\n");
     return 0;
 }

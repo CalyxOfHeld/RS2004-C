@@ -1,0 +1,175 @@
+<html>
+
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=0.6, shrink-to-fit=no">
+    <meta name="color-scheme" content="light only">
+    <title>2004Scape Game</title>
+
+    <style>
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+
+            background-color: black;
+            color: white;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 12px;
+        }
+
+        a {
+            color: white;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .gameframe-top {
+            padding-top: 2px;
+            padding-bottom: 5px;
+
+            vertical-align: top;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .caption {
+            display: block;
+        }
+
+        .gameframe {
+            display: flex;
+            flex-grow: 1;
+            width: 100%;
+            border: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .acknowledge {
+            cursor: pointer;
+            color: #ff0000;
+            font-weight: bold;
+        }
+
+        .capture-interest {
+            animation: capture-interest 2s linear 0.5s infinite normal forwards;
+            color: #ff0000;
+            font-weight: bold;
+        }
+
+        @keyframes capture-interest {
+            0% {
+                opacity: 0.3;
+            }
+
+            100% {
+                opacity: 1.0;
+            }
+        }
+    </style>
+
+    <script>
+        function hideTop() {
+            document.getElementById('gameframe-top').style.display = 'none';
+        }
+ 
+        function hideNotification() {
+            localStorage.setItem('hideNotification', true);
+            loadSettings();
+        }
+
+        function hopNotification() {
+            localStorage.setItem('hopNotification', true);
+            loadSettings();
+        }
+
+        function rightNotification() {
+            localStorage.setItem('rightNotification', true);
+            loadSettings();
+        }
+
+        function loadSettings() {
+            let multilog = localStorage.getItem('hideNotification');
+            if (multilog === 'true') {
+                document.getElementById('notification').style.display = 'none';
+
+                let hopTimer = localStorage.getItem('hopNotification');
+                if (hopTimer === 'true') {
+                    document.getElementById('hopNotification').style.display = 'none';
+
+                    let streamRights = localStorage.getItem('rightNotification');
+                    if (streamRights === 'true') {
+                        document.getElementById('rightNotification').style.display = 'none';
+                    } else {
+                        document.getElementById('rightNotification').style.display = 'block';
+                    }
+                } else {
+                    document.getElementById('hopNotification').style.display = 'block';
+                }
+            } else {
+                document.getElementById('notification').style.display = 'block';
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <center>
+        <div class="container">
+            <div class="gameframe-top align-image-text" id="gameframe-top">
+                <img width="130px" src="/img/title/rslogo.gif" onclick="hideTop();">
+
+                <div class="caption">
+                    <a href="/title">Main Menu</a> -
+                    <a onclick="window.open('/guide', 'Rules', 'width=800,height=600');">Rules</a> -
+                    <a onclick="window.open('/worldmap', 'WorldMap', 'width=800,height=600');">World Map</a> -
+                    <a onclick="window.open('/hiscores', 'Hiscores', 'width=800,height=600');">Hiscores</a> -
+                    <a onclick="window.open('https://lostcity.rs/c/2004scape/14', 'Forums', 'width=800,height=600');">Forums</a> -
+                    <a onclick="window.open('https://lostcity.markets', 'Markets', 'width=800,height=600');">Markets</a>
+                </div>
+
+                <div id="notification" style="display: none;">
+                    <br>
+                    <span class="capture-interest">No multilogging!</span><br>
+                    <strong>Do not play your alternate accounts at the same time. This is bannable.</strong>
+
+                    <div class="acknowledge" onclick="hideNotification();">[ I Understand ]</div>
+                </div>
+
+                <div id="hopNotification" style="display: none;">
+                    <br>
+                    <span class="capture-interest">World hop timer added!</span><br>
+                    <strong>There is a 45s hop for each world hop now. You will know if you're affected when you see "Login limit exceeded."</strong>
+
+                    <div class="acknowledge" onclick="hopNotification();">[ I Understand ]</div>
+                </div>
+
+                <div id="rightNotification" style="display: none;">
+                    <br>
+                    <span class="capture-interest">Right to stream!</span><br>
+                    <strong>The community has an ongoing effort to help streamers share the nostalgia with more people. <a target="_blank" href="https://twitch.uservoice.com/forums/310210-discover/suggestions/49470098-exception-for-a-game-mod-to-show-in-the-twitch-c">Show your support here!</a></strong>
+
+                    <div class="acknowledge" onclick="rightNotification();">[ Good luck ]</div>
+                </div>
+            </div>
+
+            <iframe class="gameframe" src='<%= world.address %>/rs2.cgi?plugin=<%= method %>&world=<%= world.id %>&lowmem=<%= detail %>' allowfullscreen></iframe>
+        </div>
+    </center>
+
+    <script>
+        loadSettings();
+    </script>
+</body>
+
+</html>
