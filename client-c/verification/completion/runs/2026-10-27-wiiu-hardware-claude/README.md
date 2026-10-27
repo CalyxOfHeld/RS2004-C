@@ -50,3 +50,17 @@ The SD card had Tiramisu (`default.cfg` = `tiramisu`). Tiramisu cannot launch `.
 1. Closed: the user identified the two in-game logouts as the original idle logout (no usable input on hardware yet).
 2. Performance on Espresso: profile first. Candidates are frame pacing, using the other two cores, and `-O3`/LTO; check each against Cemu's recompiler fault.
 3. Input: right-click and camera on touch (GamePad buttons). USB keyboard through SDL's Wii U keyboard driver. Controller later, as the user asked.
+
+## Step 5: controls and HOME freeze (commit 9e7cb9c)
+
+- **Touch controls.**
+  - A tap is a mouse move, then a click on the next drawn frame. Right click: long press, or L/ZL + tap.
+  - A drag is a held button. The D-pad and right stick turn the camera.
+  - Hardware: the user completed the character creator and reached Lumbridge by touch.
+- **HOME freeze.**
+  - `hw5-lumbridge-home-freeze-log.txt` ends at `entered background`. The fix skips the rest of that frame, so the next pump releases the foreground.
+  - Hardware (`hw6-home-ok-touch-log.txt`): HOME and return, then HOME → Close, all work in game.
+- **Main-thread stack.** The client runs on the main thread with a 16 MB stack, using an asm stack switch (Cemu 2.6 exits on OSSwitchFiber). Checked in Cemu: `cemu-mainthread-log.txt`.
+- **Touch.** All 5 logged taps became a `press` at the touched point. The user still finds touch imprecise; the suspected cause is low FPS.
+- **Profiling build** (uncommitted, `.wuhb` `23a583e2…d072` on the console): `[PERF]` lines every 5 s. Waiting for a hardware run.
+- **Verification.** Wii U and PC builds: 0 warnings. PC `make test`: ALL TESTS PASSED, 0 warnings (`suite.log`).

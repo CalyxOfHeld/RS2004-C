@@ -1,4 +1,59 @@
-# Wii U step 4: first real-hardware run — Claude, October 27, 2026
+# Wii U step 5: GamePad controls, HOME freeze fixed, profiling build on hardware — Claude, October 27, 2026 (in progress)
+
+Confirmed on the user's real Wii U:
+- The user completed the character creator by touch, skipped Tutorial Island and reached Lumbridge.
+- HOME and return work in game.
+- HOME → Close works in game and returns to the Wii U Menu.
+
+Commit 9e7cb9c (Wii U-only, `platform/sdl2_main.c`):
+- **Touch.** SDL touch-to-mouse is off (`SDL_HINT_TOUCH_MOUSE_EVENTS=0`). Taps are handled by our own code:
+  - A tap queues a mouse move, then the click on the next drawn frame. The click resolves against a menu built from the moved position, which is why the character-creator buttons now respond.
+  - Right click: long press (500 ms), or L/ZL + tap.
+  - A drag of more than 8 px becomes a held button.
+- **Buttons.** The D-pad and right stick rotate the camera through the held arrow keys. GamePad button indices are in the code comments.
+- **HOME freeze (root cause, same as the old close hang).** On `SDL_APP_DIDENTERBACKGROUND` the rest of the frame (update, swkbd query, draw, present) is now skipped. The next `SDL_PumpEvents` calls `ProcUIDrawDoneRelease` immediately. Every freeze log ended at `entered background`. The confirming log contains `background frame skipped`.
+- **Main-thread stack.** The client runs on the main thread with a 16 MB stack, using an asm stack-switch trampoline (`wiiu_call_on_stack`). This replaced the OSCreateThread client thread. Cemu 2.6 exits on `OSSwitchFiber`, so a fiber is not used.
+- **Touch log.** Taps write `touch down`/`touch up`/`press` lines to log.txt. This stays for now.
+
+Verification for 9e7cb9c:
+- Wii U and PC builds: 0 warnings.
+- PC `make test`: ALL TESTS PASSED, 0 warnings (`suite.log`).
+
+**Uncommitted, now on the console** (`.wuhb` SHA256 `23a583e2…d072`, read back after upload): a profiling build.
+- Every 5 s it writes `[PERF] fps= ticks/s= ms: sleep input update draw upload present` to log.txt.
+- The code is Wii U-only: the `WIIU_TIME` macro is a no-op on PC.
+- Both builds: 0 warnings.
+- Not committed yet. Commit it or reduce it once the numbers are in.
+
+User's priorities going forward:
+1. **Very low FPS.**
+2. **Touch feels imprecise; it needs many taps.**
+
+What the logs show about touch (`hw6-home-ok-touch-log.txt`):
+- All 5 recorded taps produced a `press` at the touched point (within 3 px).
+- So the touch input itself looks correct. Working theory: low FPS delays every response, because the click waits for one drawn frame. Re-check touch after the FPS work.
+
+Next:
+1. The user runs the profiling build for about a minute (standing, walking, turning the camera), then uses HOME → Close. FTPiiU stays on.
+2. Fetch log.txt from `ftp://192.168.1.136/fs/vol/external01/wiiu/apps/rs2004c/log.txt` and read the `[PERF]` lines.
+3. Optimise the dominant phase:
+   - draw: the Pix3D software rasteriser; consider the other cores and -O3.
+   - upload/present: texture format or size.
+   - update: tick catch-up.
+   Check every change against Cemu's recompiler fault (`-fno-caller-saves`).
+4. Touch: re-test after the FPS fix. If taps are still missed, log tap counts versus presses, and consider a press on the same frame when the cursor has not moved.
+5. Later: full controller, USB keyboard and mouse, MIDI synth, non-Windows map cache write, build_release.py sources.mk.
+
+Hardware workflow:
+- FTP upload of the `.wuhb` fails with 450 while the game is running.
+- Wii U IP `192.168.1.136`, PC `192.168.1.100`, server port 43595.
+- The Aroma plugin menu is L+Down+Minus.
+
+Details: client-c/verification/completion/runs/2026-10-27-wiiu-hardware-claude/README.md.
+
+Not 244.
+
+# Wii U step 4: first real-hardware run — Claude, October 27, 2026 (completed)
 
 The user logged in and joined the world on their real Wii U.
 
