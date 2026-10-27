@@ -49,6 +49,8 @@ typedef struct {
     int32_t min_depth;
     int32_t max_depth;
     int32_t obj_raise; // Original LocType.blockwalk model height for item stacks.
+    // Original Model.faceColor==null: applyLighting cleared it (no face has faceInfo&2).
+    bool colourless225;
 } Model;
 
 void   model_init_repo(Jagfile *models_jag, Arena *arena);

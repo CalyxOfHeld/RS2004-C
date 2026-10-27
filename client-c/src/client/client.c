@@ -3092,7 +3092,7 @@ bool client_draw(void) {
 #endif
             }
         }
-        if(streamer.scene_state==2)combat_multiway_draw225(&media,sync_ctx.in_multizone,(player.base.x>>7)+streamer.base_tile_x,(player.base.z>>7)+streamer.base_tile_z,VIEWPORT_X,VIEWPORT_Y);
+        if(streamer.scene_state==2)combat_location_draw225(&media,&font_p12,sync_ctx.in_multizone,(player.base.x>>7)+streamer.base_tile_x,(player.base.z>>7)+streamer.base_tile_z,VIEWPORT_X,VIEWPORT_Y);
     } else {
         // Fallback border
         pix2d_draw_rect(VIEWPORT_X - 1, VIEWPORT_Y - 1, VIEWPORT_W + 2, VIEWPORT_H + 2, 0x473B2E);

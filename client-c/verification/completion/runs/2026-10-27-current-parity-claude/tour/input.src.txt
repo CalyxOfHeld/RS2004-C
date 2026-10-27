@@ -1,0 +1,96 @@
+# World tour: same new-account setup as C5 integrated (frames 120-620), then
+# teleports to nine non-Lumbridge locations; each stop dismisses chat, then
+# walks via a minimap click so the scene is viewed static and while moving.
+# ::tele level,mapsquareX,mapsquareZ,localX,localZ
+120 move 260 293
+121 left 260 293
+122 release 260 293
+300 move 330 200
+310 right 330 200
+311 release 330 200
+315 left 330 226
+316 release 330 226
+320 move 700 300
+620 text ::setvar tutorial 1000
+620 key Return
+700 text ::tele 0,50,53,13,36
+700 key Return
+850 move 260 425
+851 left 260 425
+852 release 260 425
+900 move 694 83
+901 left 694 83
+902 release 694 83
+910 move 700 300
+1050 text ::tele 0,48,50,14,28
+1050 key Return
+1200 move 260 425
+1201 left 260 425
+1202 release 260 425
+1250 move 694 83
+1251 left 694 83
+1252 release 694 83
+1260 move 700 300
+1400 text ::tele 0,51,49,29,38
+1400 key Return
+1550 move 260 425
+1551 left 260 425
+1552 release 260 425
+1600 move 694 83
+1601 left 694 83
+1602 release 694 83
+1610 move 700 300
+1750 text ::tele 0,45,49,38,40
+1750 key Return
+1900 move 260 425
+1901 left 260 425
+1902 release 260 425
+1950 move 694 83
+1951 left 694 83
+1952 release 694 83
+1960 move 700 300
+2100 text ::tele 0,46,52,21,52
+2100 key Return
+2250 move 260 425
+2251 left 260 425
+2252 release 260 425
+2300 move 694 83
+2301 left 694 83
+2302 release 694 83
+2310 move 700 300
+2450 text ::tele 0,48,53,10,28
+2450 key Return
+2600 move 260 425
+2601 left 260 425
+2602 release 260 425
+2650 move 694 83
+2651 left 694 83
+2652 release 694 83
+2660 move 700 300
+2800 text ::tele 0,48,55,18,5
+2800 key Return
+2950 move 260 425
+2951 left 260 425
+2952 release 260 425
+3000 move 694 83
+3001 left 694 83
+3002 release 694 83
+3010 move 700 300
+3150 text ::tele 0,50,154,37,10
+3150 key Return
+3300 move 260 425
+3301 left 260 425
+3302 release 260 425
+3350 move 694 83
+3351 left 694 83
+3352 release 694 83
+3360 move 700 300
+3500 text ::tele 0,47,50,15,8
+3500 key Return
+3650 move 260 425
+3651 left 260 425
+3652 release 260 425
+3700 move 694 83
+3701 left 694 83
+3702 release 694 83
+3710 move 700 300

@@ -13,7 +13,9 @@ void camera_init(Camera *cam, int initial_x, int initial_z) {
     cam->orbit_pitch = 128; // Authentic RS2 default pitch
     cam->yaw_velocity = 0;
     cam->pitch_velocity = 0;
-    cam->pitch_clamp = 32768;
+    // client.cameraPitchClamp has no initializer (Java default 0) and only converges with
+    // integer /24 and /80 steps, so it never reaches 32768 exactly from below.
+    cam->pitch_clamp = 0;
 }
 
 int camera_get_height(int level, int x, int z, int heightmap[4][105][105], uint8_t tile_flags[4][104][104]) {

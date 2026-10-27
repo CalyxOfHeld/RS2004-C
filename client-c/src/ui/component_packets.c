@@ -44,7 +44,7 @@ void last_login_prepare225(LastLoginInfo225 *info,Component *component){
 typedef struct InterfaceModel225 {Model *model;int object;bool cached,colourless;uint64_t stamp;struct InterfaceModel225 *next;} InterfaceModel225;
 typedef struct {InterfaceModel225 *head;uint64_t clock;} InterfaceModels225;
 static InterfaceModel225 *interface_model_node225(const ComponentConfig *cfg,const Model *model){InterfaceModels225 *store=cfg?cfg->packet_models225:NULL;for(InterfaceModel225 *n=store?store->head:NULL;n;n=n->next)if(n->model==model)return n;return NULL;}
-bool component_model_colourless225(const ComponentConfig *cfg,const Model *model){InterfaceModel225 *n=interface_model_node225(cfg,model);return n && n->colourless;}
+bool component_model_colourless225(const ComponentConfig *cfg,const Model *model){if(model && model->colourless225)return true;InterfaceModel225 *n=interface_model_node225(cfg,model);return n && n->colourless;}
 void component_models_stats225(const ComponentConfig *cfg,int *owned,int *cached){*owned=*cached=0;InterfaceModels225 *store=cfg?cfg->packet_models225:NULL;for(InterfaceModel225 *n=store?store->head:NULL;n;n=n->next){(*owned)++;if(n->cached)(*cached)++;}}
 static void interface_models_collect225(ComponentConfig *cfg){InterfaceModels225 *s=cfg->packet_models225;if(!s)return;int cached=0;InterfaceModel225 *oldest=NULL;
     for(InterfaceModel225 *n=s->head;n;n=n->next)if(n->cached){cached++;if(!oldest || n->stamp<oldest->stamp)oldest=n;}

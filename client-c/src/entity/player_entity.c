@@ -111,7 +111,12 @@ Model *player_entity_get_design_model(IdkConfig *kits,const int parts[7],const i
     Model *model=model_create_composite(models,count,arena);if(!model)return NULL;
     player_recolor(model,colors);model_create_label_references(model,arena);
     model_apply_transform(model,stand_frame);
-    model_calculate_normals(model,64,850,-30,-50,-30);return model;
+    model_calculate_normals(model,64,850,-30,-50,-30);
+    // Client.updateInterfaceContent uses calculateNormals(..., true); applyLighting then
+    // clears faceColor, so Component.getModel draws this model without relighting it.
+    model->colourless225=true;
+    for(int i=0;i<model->num_faces;i++)if(model->face_render_type && (model->face_render_type[i]&2)){model->colourless225=false;break;}
+    return model;
 }
 
 static Model* player_base(PlayerEntity *p, IdkConfig *idk_cfg, ObjConfig *obj_cfg,int right,int left,Arena *arena) {

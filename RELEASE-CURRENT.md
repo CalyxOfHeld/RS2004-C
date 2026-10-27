@@ -16,3 +16,5 @@ Latest fixes include continuous music volume with direct attenuation, sound-effe
 Physical speaker/headphone confirmation of the latest audio is still pending. Historical external-host instrument tone/fade timing is not established. Recovered stair landings follow bundled map/source patterns; their precise historical tiles are not independently proven. See the package's KNOWN-LIMITS.md and CHECKS.md for evidence and scope.
 
 Normal client SHA256: `05046e6dadab75f30351d00ec504dfffbe7bda00c8b11b22fa7c2a73d8acfb56`.
+
+**Post-package update, October 27, 2026 (Claude):** three original-Java parity fixes went in after this package was built: the design-screen model no longer gets relit twice, the Wilderness level/Arena indicator is now drawn, and the camera pitch clamp starts at 0. `test_client.bat` builds the updated client from this checkout. The 2026-10-26 zip still holds the earlier 05046e6d binary. Current normal client SHA256: `a63f9ca468eda929b981d434c91f2ce308ef4eae62959233f140764e692f11b5`. Evidence: client-c/verification/completion/runs/2026-10-27-current-parity-claude/README.md.
