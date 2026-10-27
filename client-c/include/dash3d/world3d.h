@@ -77,7 +77,9 @@ typedef struct {
     TileOverlay overlay;
     bool has_overlay;
     int loc_count;
-    WorldLocation locs[5];
+    /* Native anchor storage combines the original separate buckets: five
+     * locations, two wall models, wall decoration and ground decoration. */
+    WorldLocation locs[9];
 } GroundTile;
 
 typedef struct {
@@ -90,6 +92,7 @@ typedef struct {
     int max_tile_z;
     int max_level;
     int min_level;
+    uint64_t structure_revision,build_revision;
     int heightmap[WORLD3D_MAX_LEVEL][WORLD3D_MAX_X + 1][WORLD3D_MAX_Z + 1];
     GroundTile tiles[WORLD3D_MAX_LEVEL][WORLD3D_MAX_X][WORLD3D_MAX_Z];
 

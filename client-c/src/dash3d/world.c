@@ -2,6 +2,7 @@
 #include "dash3d/location_anim.h"
 #include "gfx/pix3d.h"
 #include "core/packet.h"
+#include "core/jrandom.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -84,6 +85,7 @@ void world_reset(World *w) {
     memset(w->tile_overlay_shapes, 0, sizeof(w->tile_overlay_shapes));
     memset(w->tile_overlay_rotations, 0, sizeof(w->tile_overlay_rotations));
     memset(w->shademap, 0, sizeof(w->shademap));
+    memset(w->occludemap,0,sizeof(w->occludemap));
 }
 
 void world_load_ground(World *w, const uint8_t *data, size_t len, int x_offset, int z_offset, int base_x, int base_z) {
@@ -149,6 +151,19 @@ static bool place_location(World *w,LocConfig *loc_cfg,World3D *world3d,Collisio
     int effective_level=level-((w->tile_flags[1][tile_x][tile_z]&2) ? 1:0);
     LocType loc;
     if (loc_get(loc_cfg, loc_id, &loc)) {
+        if(w->build225){
+            if(shape>=12 && shape<=17 && shape!=13 && level>0)
+                w->occludemap[level][tile_x][tile_z]|=0x924;
+            if(loc.occlude && (shape==0 || shape==2)){
+                static const int dx[4]={0,0,1,0},dz[4]={0,1,0,0};
+                int mask=(rotation&1)?0x492:0x249;
+                w->occludemap[level][tile_x+dx[rotation]][tile_z+dz[rotation]]|=mask;
+                if(shape==2){
+                    int next=(rotation+1)&3;
+                    w->occludemap[level][tile_x+dx[next]][tile_z+dz[next]]|=(next&1)?0x492:0x249;
+                }
+            }
+        }
         if(world3d) world3d_add_map_location(world3d,(WorldMapLocation){level,tile_x,tile_z,loc_id,shape,rotation,
             loc.width,loc.length,loc.mapscene,loc.mapfunction,loc.active});
         if(shadows && loc.shadow && (shape==0 || shape==1 || shape==3)) {
@@ -280,6 +295,15 @@ void world_load_locations(World *w, const uint8_t *data, size_t len, LocConfig *
 }
 
 void world_build(World *w, World3D *world3d, FloConfig *flo_cfg, CollisionMap *cm) {
+    world3d->build_revision++;
+    if(w->build225){
+        w->random_hue_offset+=(int)(math_random()*5.0)-2;
+        if(w->random_hue_offset < -8)w->random_hue_offset=-8;
+        if(w->random_hue_offset > 8)w->random_hue_offset=8;
+        w->random_lightness_offset+=(int)(math_random()*5.0)-2;
+        if(w->random_lightness_offset < -16)w->random_lightness_offset=-16;
+        if(w->random_lightness_offset > 16)w->random_lightness_offset=16;
+    }
     if(cm) for(int level=0;level<WORLD_LEVELS;level++) for(int x=0;x<w->max_tile_x;x++) for(int z=0;z<w->max_tile_z;z++) {
         if(!(w->tile_flags[level][x][z]&1)) continue;
         int collision_level=level-((w->tile_flags[1][x][z]&2) ? 1:0);
@@ -341,7 +365,20 @@ void world_build(World *w, World3D *world3d, FloConfig *flo_cfg, CollisionMap *c
                     base=flo_hsl24to16(bh*256/bc,bs/bt,bl/bt);
                     // Neutral session hue/light offsets: both within the original
                     // client's random ranges; no per-tile fabricated variation.
-                    bg=pix3d_colour_table[underlay_color(base,96)];
+                    int display=base;
+                    if(w->build225){
+                        int lightness=bl/bt+w->random_lightness_offset;
+                        if(lightness<0)lightness=0;else if(lightness>255)lightness=255;
+                        display=flo_hsl24to16((bh*256/bc+w->random_hue_offset)&255,bs/bt,lightness);
+                    }
+                    bg=pix3d_colour_table[underlay_color(display,96)];
+                }
+                if(w->build225 && l>0){
+                    bool occlude=!(under==0 && w->tile_overlay_shapes[l][x][z]!=0);
+                    if(over>0 && over<=flo_cfg->count && !flo_cfg->instances[over-1].occlude)occlude=false;
+                    int h=w->heightmap[l][x][z];
+                    if(occlude && h==w->heightmap[l][x+1][z] && h==w->heightmap[l][x+1][z+1] && h==w->heightmap[l][x][z+1])
+                        w->occludemap[l][x][z]|=0x924;
                 }
                 int shape=0,rotation=0,texture=-1,ovl=-2,fg=0;
                 if(over>0 && over<=flo_cfg->count) {
@@ -370,6 +407,7 @@ void world_build(World *w, World3D *world3d, FloConfig *flo_cfg, CollisionMap *c
 int world_location_layer(int shape) {return shape<4 ? 0:shape<9 ? 1:shape==22 ? 3:2;}
 bool world_change_location(World *w,World3D *scene,LocConfig *cfg,CollisionMap *cm,int level,int x,int z,int id,int shape,int rotation) {
     if(!w || !scene || !cfg || level<0 || level>=4 || x<=0 || z<=0 || x>=w->max_tile_x-1 || z>=w->max_tile_z-1 || shape<0 || shape>22) return false;
+    scene->structure_revision++;
     int layer=world_location_layer(shape),plane=level-((w->tile_flags[1][x][z]&2) ? 1:0);
     int old_id=-1;
     for(size_t i=0;i<scene->map_location_count;i++) {

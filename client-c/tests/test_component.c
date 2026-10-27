@@ -9,6 +9,10 @@
 #include "gfx/pixfont.h"
 #include "ui/component.h"
 
+#include "../verification/completion/tools/interface_models_reference_control.h"
+#include "../verification/completion/tools/last_login_reference_control.h"
+#include "../verification/completion/tools/continue_reference_control.h"
+
 int main(void) {
     setbuf(stdout, NULL);
     printf("=== Test Suite: Interface Component System (Rev 225) ===\n");
@@ -92,6 +96,11 @@ int main(void) {
     printf("[INFO] Rendered interface pixels: %d\n", ui_pixels);
     assert(ui_pixels > 0);
 
+    Arena model_arena=arena_create(64*1024*1024);
+    Jagfile *model_jag=jagfile_load_file("../engine/data/pack/client/models",&model_arena),*config_jag=jagfile_load_file("../engine/data/pack/client/config",&model_arena);assert(model_jag && config_jag);model_init_repo(model_jag,&model_arena);ObjConfig objects={0};obj_unpack(&objects,config_jag,true);comp_cfg.obj_config=&objects;VarpContext varps={0};
+    const char *reference=getenv("RS2_INTERFACE_MODEL_ORACLE");interface_models_reference_run(reference && *reference?reference:"tests/fixtures/interface-models-reference.bin",&comp_cfg,&varps,&arena,NULL);component_models_clear225(&comp_cfg);obj_free(&objects);arena_free(&model_arena);
+    last_login_registered_reference(&comp_cfg);
+    continue_registered_reference(&comp_cfg);
     free(fb);
     arena_free(&arena);
     printf("=== ALL INTERFACE COMPONENT TESTS PASSED! ===\n");

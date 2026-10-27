@@ -1,4 +1,6 @@
 #include "audio/wave.h"
+#include "core/jrandom.h"
+#include "core/session_log.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +17,16 @@ static Wave *s_tracks[1000];
 static int s_delays[1000];
 static bool s_tone_inited = false;
 static SDL_AudioDeviceID s_audio_dev = 0;
+static SDL_mutex *s_wave_mutex225;
+static SDL_Thread *s_wave_worker225;
+static SDL_atomic_t s_wave_stop225;
+typedef struct WaveOutput225 {struct WaveOutput225 *next;size_t length,position;uint8_t samples[];} WaveOutput225;
+static SDL_mutex *s_output_mutex225;
+static WaveOutput225 *s_output_head225,*s_output_tail225;
+static SDL_atomic_t s_output_attenuation225;
+void audio_set_wave_volume225(int volume){if(volume==0 || volume==-400 || volume==-800 || volume==-1200)SDL_AtomicSet(&s_output_attenuation225,volume);}
+double audio_wave_gain225(void){return pow(10.0,(double)SDL_AtomicGet(&s_output_attenuation225)/2000.0);}
+float audio_scale_sample225(uint8_t sample){return (float)(((int)sample-128)*(audio_wave_gain225()/128.0));}
 
 // Envelope implementation
 void envelope_read(Envelope *env, Packet *pkt) {
@@ -82,6 +94,11 @@ void tone_init(void) {
     }
 
     s_tone_inited = true;
+}
+
+void tone_init225(void) {
+    tone_init();
+    for (int i = 0; i < 32768; i++) s_noise[i] = math_random() > 0.5 ? 1 : -1;
 }
 
 static int tone_sample(int form, int amp, int phase) {
@@ -366,7 +383,7 @@ static void write_le2(uint8_t *buf, uint16_t val) {
     buf[1] = (uint8_t)((val >> 8) & 0xFF);
 }
 
-uint8_t *wave_generate(int track_id, int loop_count, size_t *out_pcm_len, size_t *out_wav_len) {
+static uint8_t *wave_generate_inner225(int track_id, int loop_count, size_t *out_pcm_len, size_t *out_wav_len) {
     if (track_id < 0 || track_id >= 1000 || !s_tracks[track_id]) return NULL;
 
     Wave *w = s_tracks[track_id];
@@ -450,6 +467,13 @@ uint8_t *wave_generate(int track_id, int loop_count, size_t *out_pcm_len, size_t
     return s_wave_bytes;
 }
 
+uint8_t *wave_generate(int id,int loops,size_t *pcm,size_t *wav){
+    if(s_wave_mutex225)SDL_LockMutex(s_wave_mutex225);
+    uint8_t *bytes=wave_generate_inner225(id,loops,pcm,wav);
+    if(s_wave_mutex225)SDL_UnlockMutex(s_wave_mutex225);
+    return bytes;
+}
+
 void wave_free_all(void) {
     for (int i = 0; i < 1000; i++) {
         if (s_tracks[i]) {
@@ -464,6 +488,21 @@ void wave_free_all(void) {
     }
 }
 
+/* Preserve original U8 source samples in the playback FIFO. Attenuation is
+ * applied in float at playback time, never requantized into the source bytes.
+ * The callback has a separate short lock, independent of waveform generation. */
+static void SDLCALL audio_mix225(void *unused,Uint8 *stream,int bytes){
+    (void)unused;memset(stream,0,(size_t)bytes);float *output=(float*)stream;size_t count=(size_t)bytes/sizeof(float);
+    double gain=pow(10.0,(double)SDL_AtomicGet(&s_output_attenuation225)/2000.0);
+    SDL_LockMutex(s_output_mutex225);
+    for(size_t i=0;i<count && s_output_head225;i++){
+        WaveOutput225 *chunk=s_output_head225;
+        output[i]=(float)(((int)chunk->samples[chunk->position++]-128)*(gain/128.0));
+        if(chunk->position==chunk->length){s_output_head225=chunk->next;if(!s_output_head225)s_output_tail225=NULL;free(chunk);}
+    }
+    SDL_UnlockMutex(s_output_mutex225);
+}
+
 // Real-time audio via SDL2
 bool audio_init(void) {
     if (s_audio_dev != 0) return true;
@@ -471,10 +510,12 @@ bool audio_init(void) {
     SDL_AudioSpec want, have;
     memset(&want, 0, sizeof(want));
     want.freq = 22050;
-    want.format = AUDIO_U8;
+    want.format = AUDIO_F32SYS;
     want.channels = 1;
-    want.samples = 2048;
-    want.callback = NULL;
+    want.samples = 512;
+    want.callback = audio_mix225;
+    if(!s_output_mutex225)s_output_mutex225=SDL_CreateMutex();
+    if(!s_output_mutex225)return false;
 
     s_audio_dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if (s_audio_dev != 0) {
@@ -484,61 +525,116 @@ bool audio_init(void) {
     return false;
 }
 
-void audio_play(int sound_id, int loop_count) {
-    if (s_audio_dev == 0) return;
-    size_t pcm_len = 0;
-    uint8_t *wav = wave_generate(sound_id, loop_count, &pcm_len, NULL);
-    if (wav && pcm_len > 0) {
-        SDL_QueueAudio(s_audio_dev, wav + 44, (Uint32)pcm_len);
+static SoundQueue225 s_sound_queue225={.last_id=-1,.last_loops=-1};
+static uint8_t s_wave_slots225[5][441000];
+static int s_wave_sizes225[5],s_wave_pos225,s_wave_pending225,s_wave_save_length225;
+static const uint8_t *s_wave_save225;
+static uint8_t *s_midi_pending225,*s_midi_slots225[5];
+static int s_midi_sizes225[5],s_midi_pos225,s_midi_published225=-1;
+static bool s_midi_fade225;
+static bool s_midi_pending_ambient225,s_midi_ambient225[5];
+static bool ensure_wave225(void){if(!s_wave_mutex225)s_wave_mutex225=SDL_CreateMutex();return s_wave_mutex225!=NULL;}
+static void submit_wave225(const uint8_t *wav,int length){
+    if(!s_audio_dev || !wav || length<44 || length>441000)return;
+    size_t pcm=(size_t)length-44;if(!pcm)return;
+    WaveOutput225 *chunk=malloc(sizeof(*chunk)+pcm);if(!chunk)return;
+    chunk->next=NULL;chunk->length=pcm;chunk->position=0;memcpy(chunk->samples,wav+44,pcm);
+    SDL_LockMutex(s_output_mutex225);
+    if(s_output_tail225)s_output_tail225->next=chunk;else s_output_head225=chunk;
+    s_output_tail225=chunk;SDL_UnlockMutex(s_output_mutex225);
+#ifdef WAVE_PUBLICATION_OBSERVER225
+    WAVE_PUBLICATION_OBSERVER225(wav+44,pcm);
+#endif
+}
+void audio_play(int id,int loops){
+    if(!ensure_wave225())return;
+    SDL_LockMutex(s_wave_mutex225);size_t length=0;uint8_t *wav=wave_generate_inner225(id,loops,NULL,&length);if(wav)submit_wave225(wav,(int)length);SDL_UnlockMutex(s_wave_mutex225);
+}
+static uint64_t wave_hash225(const uint8_t *bytes,int length){uint64_t hash=1469598103934665603ULL;for(int i=0;i<length;i++){hash^=bytes[i];hash*=1099511628211ULL;}return hash;}
+static int wave_outcome225(int kind,int length,uint64_t hash,int result){
+    if(session_log_mode()==SESSION_LOG_REPLAY){long long k,n,h,r;if(!session_log_take("AQ") || !session_log_take_int(&k) || !session_log_take_int(&n) || !session_log_take_int(&h) || !session_log_take_int(&r) || k!=kind || n!=length || (uint64_t)h!=hash || r<0 || r>1){session_log_desync("sound request differs");return -1;}return (int)r;}
+    if(session_log_mode()==SESSION_LOG_RECORD){session_log_begin("AQ");session_log_int(kind);session_log_int(length);session_log_int((long long)hash);session_log_int(result);session_log_end();}
+    return result;
+}
+int audio_request_save225(const uint8_t *wav,int length){
+    if(!wav)return 1; /* client.saveWave(null) succeeds without a signlink request. */
+    if(length<0 || length>441000)return 0;
+    uint64_t hash=wave_hash225(wav,length);if(session_log_mode()==SESSION_LOG_REPLAY)return wave_outcome225(1,length,hash,0);
+    if(!ensure_wave225())return 0;
+    SDL_LockMutex(s_wave_mutex225);int result=0;if(!s_wave_pending225){s_wave_pos225=(s_wave_pos225+1)%5;s_wave_save225=wav;s_wave_save_length225=length;s_wave_pending225=1;result=1;}SDL_UnlockMutex(s_wave_mutex225);
+    return wave_outcome225(1,length,hash,result);
+}
+int audio_request_replay225(void){
+    if(session_log_mode()==SESSION_LOG_REPLAY)return wave_outcome225(2,0,0,0);
+    if(!ensure_wave225())return 0;
+    SDL_LockMutex(s_wave_mutex225);int result=0;if(!s_wave_pending225){s_wave_save225=NULL;s_wave_pending225=2;result=1;}SDL_UnlockMutex(s_wave_mutex225);
+    return wave_outcome225(2,0,0,result);
+}
+bool audio_request_midi225(uint8_t *bytes,int length,bool fade){
+    audio_midi_fade225(fade); /* client.saveMidi updates it even when midisave is busy. */
+    if(!bytes || length<0 || length>2000000)return false;
+    if(!ensure_wave225())return false;
+    uint64_t hash=wave_hash225(bytes,length);
+    if(session_log_mode()==SESSION_LOG_REPLAY){long long n,h,f,r;
+        if(!session_log_take("MQ") || !session_log_take_int(&n) || !session_log_take_int(&h) || !session_log_take_int(&f) || !session_log_take_int(&r) || n!=length || (uint64_t)h!=hash || f!=(fade?1:0) || r<0 || r>1){session_log_desync("MIDI request differs");return false;}
+        if(r){free(bytes);SDL_LockMutex(s_wave_mutex225);s_midi_pos225=(s_midi_pos225+1)%5;SDL_UnlockMutex(s_wave_mutex225);}
+        return r!=0;
     }
+    if(!ensure_wave225())return false;
+    SDL_LockMutex(s_wave_mutex225);bool accepted=!s_wave_pending225;
+    if(accepted){s_midi_pos225=(s_midi_pos225+1)%5;s_midi_pending225=bytes;s_midi_pending_ambient225=fade;s_wave_save_length225=length;s_wave_pending225=3;}
+    SDL_UnlockMutex(s_wave_mutex225);
+    if(session_log_mode()==SESSION_LOG_RECORD){session_log_begin("MQ");session_log_int(length);session_log_int((long long)hash);session_log_int(fade?1:0);session_log_int(accepted?1:0);session_log_end();}
+    return accepted;
 }
-
-#define MAX_QUEUED_SOUNDS 50
-
-typedef struct {
-    int sound_id;
-    int loop_count;
-    int delay_ticks;
-} QueuedSound;
-
-static QueuedSound s_sound_queue[MAX_QUEUED_SOUNDS];
-static int s_sound_queue_count = 0;
-
-void audio_queue_sound(int sound_id, int loop_count, int delay_ticks) {
-    if (sound_id < 0 || sound_id >= 1000 || !s_tracks[sound_id]) return;
-    if (s_sound_queue_count >= MAX_QUEUED_SOUNDS) return;
-
-    int total_delay = delay_ticks + s_delays[sound_id];
-    s_sound_queue[s_sound_queue_count].sound_id = sound_id;
-    s_sound_queue[s_sound_queue_count].loop_count = loop_count > 0 ? loop_count : 1;
-    s_sound_queue[s_sound_queue_count].delay_ticks = total_delay;
-    s_sound_queue_count++;
-}
-
-void audio_tick(void) {
-    for (int i = 0; i < s_sound_queue_count; i++) {
-        if (s_sound_queue[i].delay_ticks <= 0) {
-            audio_play(s_sound_queue[i].sound_id, s_sound_queue[i].loop_count);
-            // Remove from queue by shifting left
-            for (int j = i; j < s_sound_queue_count - 1; j++) {
-                s_sound_queue[j] = s_sound_queue[j + 1];
-            }
-            s_sound_queue_count--;
-            i--;
-        } else {
-            s_sound_queue[i].delay_ticks--;
-        }
+void audio_midi_fade225(bool fade){if(!ensure_wave225())return;SDL_LockMutex(s_wave_mutex225);s_midi_fade225=fade;SDL_UnlockMutex(s_wave_mutex225);}
+int audio_midi_position225(void){if(!ensure_wave225())return 0;SDL_LockMutex(s_wave_mutex225);int slot=s_midi_pos225;SDL_UnlockMutex(s_wave_mutex225);return slot;}
+bool audio_take_midi225(uint8_t **bytes,int *length,bool *fade,bool *ambient,int *slot_out){
+    if(!bytes || !length || !fade || !ambient || !slot_out)return false;
+    if(session_log_mode()==SESSION_LOG_REPLAY){const char *tag=session_log_peek();if(!tag || strcmp(tag,"MP"))return false;
+        uint8_t *copy=malloc(2000000);size_t n=0;long long f,a,slot;
+        if(!copy || !session_log_take("MP") || !session_log_take_int(&f) || f<0 || f>1 || !session_log_take_int(&a) || a<0 || a>1 || !session_log_take_int(&slot) || slot<0 || slot>4 || !session_log_take_bytes(copy,2000000,&n)){free(copy);session_log_desync("MIDI publication differs");return false;}
+        *bytes=copy;*length=(int)n;*fade=f!=0;*ambient=a!=0;*slot_out=(int)slot;return true;
     }
-}
-
-int audio_queued_count(void) {
-    return s_sound_queue_count;
-}
-
-void audio_close(void) {
-    s_sound_queue_count = 0;
-    if (s_audio_dev != 0) {
-        SDL_CloseAudioDevice(s_audio_dev);
-        s_audio_dev = 0;
+    if(!s_wave_mutex225)return false;
+    SDL_LockMutex(s_wave_mutex225);bool available=s_midi_published225>=0;
+    if(available){int slot=s_midi_published225,n=s_midi_sizes225[slot];uint8_t *copy=malloc(n?(size_t)n:1);
+        if(copy){memcpy(copy,s_midi_slots225[slot],(size_t)n);*bytes=copy;*length=n;*fade=s_midi_fade225;*ambient=s_midi_ambient225[slot];*slot_out=slot;s_midi_published225=-1;}else available=false;
     }
+    SDL_UnlockMutex(s_wave_mutex225);
+    if(available && session_log_mode()==SESSION_LOG_RECORD){session_log_begin("MP");session_log_int(*fade?1:0);session_log_int(*ambient?1:0);session_log_int(*slot_out);session_log_bytes(*bytes,(size_t)*length);session_log_end();}
+    return available;
+}
+void audio_service225(void){
+    if(!s_wave_mutex225)return;
+    SDL_LockMutex(s_wave_mutex225);
+    if(s_wave_pending225==3){free(s_midi_slots225[s_midi_pos225]);s_midi_slots225[s_midi_pos225]=s_midi_pending225;s_midi_pending225=NULL;s_midi_sizes225[s_midi_pos225]=s_wave_save_length225;s_midi_ambient225[s_midi_pos225]=s_midi_pending_ambient225;s_midi_published225=s_midi_pos225;s_wave_pending225=0;}
+    else if(s_wave_pending225){if(s_wave_pending225==1){memcpy(s_wave_slots225[s_wave_pos225],s_wave_save225,(size_t)s_wave_save_length225);s_wave_sizes225[s_wave_pos225]=s_wave_save_length225;}submit_wave225(s_wave_slots225[s_wave_pos225],s_wave_sizes225[s_wave_pos225]);s_wave_pending225=0;}
+    SDL_UnlockMutex(s_wave_mutex225);
+}
+static int wave_worker225(void *unused){(void)unused;while(!SDL_AtomicGet(&s_wave_stop225)){audio_service225();SDL_Delay(50);}return 0;}
+bool audio_start_worker225(void){if(s_wave_worker225)return true;if(!ensure_wave225())return false;SDL_AtomicSet(&s_wave_stop225,0);s_wave_worker225=SDL_CreateThread(wave_worker225,"wave225",NULL);return s_wave_worker225!=NULL;}
+void audio_queue_cold225(void){sound_queue_init225(&s_sound_queue225);if(s_wave_mutex225)SDL_LockMutex(s_wave_mutex225);s_wave_pending225=s_wave_pos225=s_wave_save_length225=0;s_wave_save225=NULL;memset(s_wave_sizes225,0,sizeof(s_wave_sizes225));free(s_midi_pending225);s_midi_pending225=NULL;for(int i=0;i<5;i++){free(s_midi_slots225[i]);s_midi_slots225[i]=NULL;s_midi_sizes225[i]=0;}s_midi_pos225=0;s_midi_published225=-1;s_midi_fade225=false;if(s_wave_mutex225)SDL_UnlockMutex(s_wave_mutex225);}
+void audio_queue_clear225(void){s_sound_queue225.count=0;}
+const SoundQueue225 *audio_queue_state225(void){return &s_sound_queue225;}
+void audio_queue_sound(int id,int loops,int delay){if(id<0 || id>=1000)return;uint32_t bits=(uint32_t)delay+(uint32_t)s_delays[id];int32_t total;memcpy(&total,&bits,4);(void)sound_queue_add225(&s_sound_queue225,id,loops,total);}
+static int queue_generate225(void *unused,int id,int loops,const uint8_t **bytes){(void)unused;size_t length=0;*bytes=wave_generate(id,loops,NULL,&length);return *bytes?(int)length:-1;}
+static int queue_save225(void *unused,const uint8_t *bytes,int length){(void)unused;return audio_request_save225(bytes,length);}
+static int queue_replay225(void *unused){(void)unused;return audio_request_replay225();}
+static int64_t queue_now225(void *user){int64_t (*clock)(void)=*(int64_t (**)(void))user;return clock();}
+void audio_tick225(int64_t (*clock)(void)){if(!clock)return;SoundQueueOps225 ops={&clock,queue_generate225,queue_now225,queue_save225,queue_replay225};(void)sound_queue_tick225(&s_sound_queue225,&ops);if(!s_wave_worker225 && session_log_mode()!=SESSION_LOG_REPLAY)audio_service225();}
+static int64_t compatibility_clock225(void){return (int64_t)SDL_GetTicks64();}
+void audio_tick(void){audio_tick225(compatibility_clock225);}
+bool audio_queue_get225(int index,AudioQueuedSound225 *out){if(!out || index<0 || index>=s_sound_queue225.count)return false;*out=s_sound_queue225.entries[index];return true;}
+int audio_queued_count(void){return s_sound_queue225.count;}
+void audio_close(void){
+    if(s_wave_worker225){SDL_AtomicSet(&s_wave_stop225,1);SDL_WaitThread(s_wave_worker225,NULL);s_wave_worker225=NULL;}
+    if(s_wave_mutex225)SDL_LockMutex(s_wave_mutex225);
+    if(s_audio_dev){SDL_CloseAudioDevice(s_audio_dev);s_audio_dev=0;}
+    if(s_output_mutex225){
+        while(s_output_head225){WaveOutput225 *next=s_output_head225->next;free(s_output_head225);s_output_head225=next;}
+        s_output_tail225=NULL;SDL_DestroyMutex(s_output_mutex225);s_output_mutex225=NULL;
+    }
+    s_wave_pending225=0;if(s_wave_mutex225){SDL_UnlockMutex(s_wave_mutex225);SDL_DestroyMutex(s_wave_mutex225);s_wave_mutex225=NULL;}
+    audio_queue_cold225();
 }

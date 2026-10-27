@@ -21,6 +21,20 @@ void pathing_entity_init(PathingEntity *e) {
     e->combat_cycle = -1000;
 }
 
+/* Original client.updateEntity bounds precede forced/ordinary movement.
+ * Locomotion frame/cycle remain untouched by the reset. */
+void pathing_entity_validate225(PathingEntity *e,bool local_player) {
+    if(!e)return;
+    int minimum=local_player?1536:128,maximum=local_player?11776:13184;
+    if(e->x<minimum || e->z<minimum || e->x>=maximum || e->z>=maximum) {
+        e->primary_seq_id=-1;e->spotanim_id=-1;
+        e->exact_end_cycle=0;e->exact_start_cycle=0;
+        e->x=e->path_tile_x[0]*128+e->size*64;
+        e->z=e->path_tile_z[0]*128+e->size*64;
+        e->path_length=0;
+    }
+}
+
 void pathing_entity_teleport(PathingEntity *e, bool clear_seq, bool queue, int tile_x, int tile_z) {
     (void)clear_seq;
     if (!queue) {
@@ -139,8 +153,9 @@ bool pathing_entity_update_exact(PathingEntity *e,const SeqConfig *sequences,int
     return true;
 }
 
-void pathing_entity_update_movement(PathingEntity *e) {
+static void update_movement(PathingEntity *e,bool original,const SeqConfig *sequences) {
     if (!e) return;
+    if(original)e->secondary_seq_id=e->seq_stand_id;
     if (e->path_length == 0) {
         if (e->secondary_seq_id != e->seq_stand_id) {
             e->secondary_seq_id = e->seq_stand_id;
@@ -151,6 +166,10 @@ void pathing_entity_update_movement(PathingEntity *e) {
         return;
     }
 
+    if(original && e->primary_seq_id>=0 && sequences && e->primary_seq_id<sequences->count &&
+        e->primary_seq_delay==0 && !sequences->instances[e->primary_seq_id].walkmerge) {
+        e->seq_trigger++;return;
+    }
     int cur_sub_x = e->x;
     int cur_sub_z = e->z;
     int target_sub_x = e->path_tile_x[e->path_length - 1] * 128 + e->size * 64;
@@ -200,7 +219,7 @@ void pathing_entity_update_movement(PathingEntity *e) {
     if (anim_id == -1) {
         anim_id = e->seq_walk_id;
     }
-    if (e->secondary_seq_id == e->seq_stand_id) {
+    if (!original && e->secondary_seq_id == e->seq_stand_id) {
         e->secondary_seq_id = anim_id;
         e->secondary_seq_frame = 0;
         e->secondary_seq_cycle = 0;
@@ -248,6 +267,12 @@ void pathing_entity_update_movement(PathingEntity *e) {
     if (e->x == target_sub_x && e->z == target_sub_z) {
         e->path_length--;
     }
+}
+
+void pathing_entity_update_movement(PathingEntity *e) {update_movement(e,false,NULL);}
+/* client.updateMovement selects locomotion without restarting its frame clock. */
+void pathing_entity_update_movement225(PathingEntity *e,const SeqConfig *sequences) {
+    update_movement(e,true,sequences);
 }
 
 void pathing_entity_update_facing(PathingEntity *e) {

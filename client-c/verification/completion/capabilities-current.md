@@ -1,3 +1,53 @@
+# Current status — software checking complete; listening pending
+
+The finite FINISH-LINE.md software plan is complete for the declared Windows225 profile. Audio/settings software, gameplay/interfaces, actual server/two-client workflows andextended play are accepted; final package technical audit passes. The full goal is NOT complete until a human verifies Windows speaker/headphone music andsound start/stop/volume. No new software task is claimed while waiting. See D-RELEASE-CANDIDATE.md and releases/2026-10-25-gate5-final-sol/README.md for candidate/checkindex/knownlimits/listening steps. The installed normal client remains unchanged; no installation or replacement occurred.
+
+Final candidate019714A43B7E21ED37E81E95EA2B45AA653BC65A78368FB96D4CAE3E291086A0. All81 freshly rebuilt objects/both executables/SDL2 reproduce SHA-exact from included555-file source archive. Gate4 discloses27m56s continuous plus8m03s supplement for natural stairs0->1->0,combatXP160/52 andnormal logout/relog/source CRC/items/stats/position. Same-candidate reconnect15 passed; memorybounded; no rendererfailure in final profile. Earlier failed candidate andhistoricalcamera exclusions retain their actuallimits. Alltestprocessesclosed,server4/5exit0;118main saves/828maps/normal/originals preserved.
+
+---
+
+## Historical checkpoint notes — superseded where they conflict with the current status above
+
+# Current overview — October 25, 2026
+
+Gate3checkpoint:actualtwo-clientservices/transferwork,buttradeconfirmationoffered-itemtextisblank;originaltype7renderingisnextconcretefix. Evidenceandresumption:runs/2026-10-25-server-workflows-sol/HANDOFF.md. Gate3isnotaccepted;gate2remainsaccepted.
+
+Currentcheckpoint: [gate2 boundedgameplay accepted](D-GAMEPLAY.md),including13,201-frame and3,301-frame exactnative replays. Gate1softwareaccepted;humanlistening andgates3–5remain. Next:isolatedtwo-client/serverworkflows. Earliernext-taskentries belowarehistorical.
+
+[Music/settings software acceptance](D-MUSIC.md) closes the automated part of finite gate1:original music state/entry paths,shared sound/MIDI requests,integrated candidate behavior,replay andnative CC7 volume adapter. Physical listening remains pending. Next is the fixed gameplay/interface checklist in [FINISH-LINE.md](FINISH-LINE.md);the overall goal remains active.
+
+Current finish line: [five acceptance gates](FINISH-LINE.md). [Sound-queue lifecycle](D-SOUND-QUEUE.md) now passes2,326 source/native/actual candidate states and ordered traces,1,740 real-cache generations,67 worker states,logged clock/outcome replay and login/logout controls. Full suite and16 compatibility regressions pass. Physical audibility remains gate1;shared sound/music request/service software is accepted in D-MUSIC.md;the remaining gameplay/server/extended-session/package gates are fixed in the plan. Do not start another open-ended edge-case audit.
+
+[Sound-effect setting](D-WAVE-SETTING.md) now has controlled acceptance:960 original/native/candidate states,72 packet12 admissions,552 encrypted candidate packets,4 actual web gains and22,048 captured SDL-adapter bytes. Off retains queued sounds/last volume. Queue/replay/retry/login lifecycle is accepted in D-SOUND-QUEUE.md;physical device qualification remains in finite gate1.
+
+[Mouse-button setting](D-MOUSE-MODE.md) now has controlled acceptance:1,744 original/native/candidate setting states,5,120 prepared-menu input states including320 original release slices,864 encrypted varp packets/24 fragments and16 actual cached setting clicks. One-button/AddFriend exception andsource menu rectangles match. The sound-setting follow-up is accepted above. Full menu pixels,successful drag swaps andsame-cycle gameplay timing remain outside this scope.
+
+[Continue-button waiting](D-CONTINUE.md) now has controlled acceptance:1,134 original/native/candidate states,48 complete panels,432 encrypted receive packets,18 fragments andactual UI click suppression. The shared waiting flag is now represented;three redraw flags andbroader interface animation/workflows remain open. The mouse-button follow-up is accepted above.
+
+[Input tracking](D-INPUT-TRACKING.md) has controlled acceptance:5,339 original states,336 receive controls,163 flush prefixes,499 actual candidate updates and760 SDL key observations. Current source inventory has71/71 incoming routes; this is not complete gameplay or release qualification. The waiting/reset follow-up is accepted above.
+
+[Last-login information](D-LAST-LOGIN.md) has controlled acceptance:2,406 original/native/candidate packet states,678 closes,24 full native panels/4,104,192 pixels and24 actual candidate foreground panels. Five source DNS-worker states preserve the original old-result/newer-request-loss behavior. At that checkpoint incoming source routes were69/71. Tracking now closes both remaining routes. Continue metadata is qualified above;redraw scheduling and broader gameplay/release qualification remain open.
+
+[Downloaded maps](D-MAP-DOWNLOAD.md) now have controlled acceptance:374 original states/367 encrypted receive packets/7 actual candidate scene rebuilds,full buffers/cache/wire/ciphers/terrain/collision,12 fragmented headers and13 malformed receive guards. Allocation/cache-I/O/corrupt-data retention and real-map recovery pass. At the map checkpoint,source routes were68/71;the last-login update advances this to69/71.
+
+Use [OVERALL-STATUS.md](OVERALL-STATUS.md), [D-REMAINING.md](D-REMAINING.md) and the corrected [coverage-map.md](coverage-map.md) for the current checking position. We are in PhaseD after bounded C5 qualification; recovery, codec/filter, chat display and incoming private/public handling have accepted reports. Real-server public/private/social workflows remain open, alongside broader workflow/release qualification. Source-route counts are not feature-completion percentages.
+
+[Player/NPC overhead rendering](D-OVERHEAD-CHAT.md) now has controlled acceptance:1426 original frames/full50-slot state/243857408 viewport pixels, actual candidate projection and setting6/draw-cycle controls, native safety and current regressions. Real-server conversation and final combined play remain open.
+
+[Outgoing private messages](D-PRIVATE-OUTBOUND.md) now have controlled acceptance:1987 original input/menu cases,1746 candidate transmissions,804 friend rows/416 menus/24 prompt images,actual friend-tab click and privacy changes. Real-account conversation remains open.
+
+[Friend/ignore actions](D-SOCIAL-ACTIONS.md) now have controlled acceptance:3266 original cases,758 sends,532 exact error histories,ignore rows and prompt pixels,all4 cached Add/Remove buttons. Server persistence and real-player workflows remain open.
+
+The older dated entries below describe their own binaries and evidence only. Their installed-binary hashes, test totals, remaining gaps and next-task wording may be superseded. The initial overview update was a documentation/source audit. A subsequent controlled outgoing public sender acceptance is indexed in D-PUBLIC-OUTBOUND.md; see that report for fresh checks and limits.
+
+[Report abuse](D-REPORT-ABUSE.md) now has controlled acceptance:2,182 original cases/2,121 transmissions/1,720 category reports,24 complete panels/4,104,192 pixels,actual footer/deferred editor/cached mute/category/cancel clicks and failure controls. Real-server report acceptance/authorization remains open.
+
+[Trade/duel request messages](D-GAME-REQUESTS.md) now have controlled acceptance:2,073 original/framed candidate states,1,385 additions,294 trades,286 duels,all100 history slots,ignore/override/raw name rules and sticky modal behavior. Fragmentation/region draw phase/malformed recovery/allocation controls pass. Real-player delivery and trade/duel execution remain separate.
+
+[Camera receive](D-CAMERA-PACKETS.md),[interface models](D-INTERFACE-MODELS.md),and[reset/multiway](D-RESET-MULTIWAY.md) now have controlled acceptance. Nine new routes reduce the missing receive list16->7 (64/71 routes present). Original comparisons,actual framed candidate controls,preview/icon pixels,faults and fresh regressions pass. Arbitrary populated-camera renderer parity,all model animation/icon-cache interleavings and final combined play remain open.
+
+---
+
 # Logout returns to the original title screen; in-client login — October 21, 2026
 
 Native SHA-256: `0510EADD01B31BC64212ABAA78D6A71B62FFE62A4095F6356ED4CA0BCFF597E4`. Installed `client-c/bin/rs2client.exe`; the launcher update `rs2client_bridge.exe` and `rs2client_decor.exe` match. Launch `play_client.bat` normally. The previous build `CD6A014A…7C4A` is preserved in this run's `before/`. New cumulative overlay: `logout-title-checkpoint.zip` with its SHA-256 sidecar.

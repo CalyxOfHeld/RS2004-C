@@ -1,0 +1,73 @@
+#---------------------------------------------------------------------------------
+# 2004scape (Revision 225) - Nintendo Wii U Makefile (WUT + SDL2)
+#---------------------------------------------------------------------------------
+
+ifeq ($(strip $(DEVKITPRO)),)
+    DEVKITPRO := c:/devkitPro
+endif
+
+ifeq ($(strip $(DEVKITPPC)),)
+    DEVKITPPC := $(DEVKITPRO)/devkitPPC
+endif
+
+WUT_ROOT := $(DEVKITPRO)/wut
+PORTLIBS := $(DEVKITPRO)/portlibs/wiiu
+
+CC      := $(DEVKITPPC)/bin/powerpc-eabi-gcc
+ELF2RPL := $(DEVKITPRO)/tools/bin/elf2rpl
+WUHBTOOL:= $(DEVKITPRO)/tools/bin/wuhbtool
+
+TARGET  := bin/rs2client
+
+CORE_SRCS   := src/core/arena.c src/core/packet.c src/core/isaac.c src/core/bzip2.c src/core/jagfile.c src/core/jstring.c
+GFX_SRCS    := src/gfx/pix2d.c src/gfx/pix8.c src/gfx/pix32.c src/gfx/pix3d.c src/gfx/model.c src/gfx/pixfont.c src/gfx/media.c src/gfx/anim.c
+CONFIG_SRCS := src/config/flo.c src/config/seq.c src/config/loc.c src/config/npc.c src/config/obj.c src/config/idk.c
+ENTITY_SRCS := src/entity/pathing_entity.c src/entity/player_entity.c src/entity/npc_entity.c
+NET_SRCS    := src/net/rsa.c src/net/client_stream.c src/net/protocol.c src/net/entity_sync.c src/net/zone_sync.c
+DASH3D_SRCS := src/dash3d/collision_map.c src/dash3d/world3d.c src/dash3d/world.c src/dash3d/minimap.c src/dash3d/pathfinder.c src/dash3d/map_streamer.c src/dash3d/camera.c
+UI_SRCS     := src/ui/client_actions.c src/ui/component_packets.c src/ui/component.c src/ui/context_menu.c src/ui/chatbox.c src/ui/mouse_picking.c src/ui/varp.c
+AUDIO_SRCS  := src/audio/wave.c
+PLAT_SRCS   := platform/sdl2_main.c
+
+ALL_SRCS    := $(CORE_SRCS) $(GFX_SRCS) $(CONFIG_SRCS) $(ENTITY_SRCS) $(NET_SRCS) $(DASH3D_SRCS) $(UI_SRCS) $(AUDIO_SRCS) $(PLAT_SRCS)
+
+BUILD_DIR   := build_wiiu
+OBJS        := $(addprefix $(BUILD_DIR)/, $(ALL_SRCS:.c=.o))
+
+MACHDEP     := -DESPRESSO -mcpu=750 -meabi -mhard-float
+RPXSPECS    := -specs=$(WUT_ROOT)/share/wut.specs
+
+INCLUDES    := -Iinclude \
+               -I$(PORTLIBS)/include \
+               -I$(PORTLIBS)/include/SDL2 \
+               -I$(WUT_ROOT)/include
+
+CFLAGS      := -std=gnu99 -D_GNU_SOURCE -O2 -Wall -Wextra $(MACHDEP) $(RPXSPECS) $(INCLUDES)
+LDFLAGS     := $(MACHDEP) $(RPXSPECS) -L$(PORTLIBS)/lib -L$(WUT_ROOT)/lib
+LIBS        := -lSDL2 -lm -lwut
+
+APP_TITLE   := "2004scape"
+APP_SHORT   := "rs2"
+APP_AUTHOR  := "LostCity"
+
+.PHONY: all clean
+
+all: $(TARGET).wuhb
+
+$(BUILD_DIR)/%.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(TARGET).elf: $(OBJS)
+	@mkdir -p bin
+	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) -o $@
+
+$(TARGET).rpx: $(TARGET).elf
+	$(ELF2RPL) $< $@
+
+$(TARGET).wuhb: $(TARGET).rpx
+	$(WUHBTOOL) $< $@ --name $(APP_TITLE) --short-name $(APP_SHORT) --author $(APP_AUTHOR)
+	@echo Successfully built $(TARGET).wuhb for Nintendo Wii U!
+
+clean:
+	@rm -rf $(BUILD_DIR) $(TARGET).elf $(TARGET).rpx $(TARGET).wuhb

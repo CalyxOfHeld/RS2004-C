@@ -24,6 +24,7 @@ void  pix8_draw(Pix8 *sprite, int32_t x, int32_t y);
 void  pix8_flip_horizontally(Pix8 *sprite, Arena *arena);
 void  pix8_flip_vertically(Pix8 *sprite, Arena *arena);
 void  pix8_crop(Pix8 *sprite, Arena *arena);
+void  pix8_shrink(Pix8 *sprite, Arena *arena);
 void  pix8_free(Pix8 *sprite);
 
 #endif // RS2_PIX8_H

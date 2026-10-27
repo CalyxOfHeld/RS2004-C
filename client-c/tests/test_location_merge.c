@@ -55,7 +55,8 @@ int main(void) {
         assert(zone_sync_apply(&zone,world,scene,&locs,collision,0,162,packet,sizeof(packet))==1 && zone.merge_count==2);
         PlayerEntity *p=slot==7?&ctx->local_player:ctx->players[42];
         int fields[]={p->loc_start_cycle,p->loc_stop_cycle,p->loc_offset_x,p->loc_offset_y,p->loc_offset_z,p->loc_min_tile_x,p->loc_max_tile_x,p->loc_min_tile_z,p->loc_max_tile_z};
-        for(int i=0;i<9;i++)assert(fields[i]==rd(f));assert((p->loc_model!=NULL)==rd(f));
+        for(int i=0;i<9;i++)assert(fields[i]==rd(f));
+        assert((p->loc_model!=NULL)==rd(f));
         int ticks=rd(f);
         for(int i=0;i<ticks;i++) {
             int tick=rd(f);p->base.x=rd(f);p->base.y=rd(f);p->base.z=rd(f);p->base.dst_yaw=yaw;

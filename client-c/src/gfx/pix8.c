@@ -121,6 +121,31 @@ void pix8_crop(Pix8 *sprite, Arena *arena) {
     sprite->crop_y = 0;
 }
 
+void pix8_shrink(Pix8 *sprite, Arena *arena) {
+    if (!sprite || sprite->crop_w < 2 || sprite->crop_h < 2) return;
+    int32_t width = sprite->crop_w / 2;
+    int32_t height = sprite->crop_h / 2;
+    uint8_t *pixels = arena ? (uint8_t *)arena_alloc_zero(arena, (size_t)width * height)
+                            : (uint8_t *)calloc((size_t)width * height, 1);
+    if (!pixels) return;
+    for (int32_t y = 0; y < sprite->height; y++) {
+        for (int32_t x = 0; x < sprite->width; x++) {
+            int32_t dst_x = (x + sprite->crop_x) >> 1;
+            int32_t dst_y = (y + sprite->crop_y) >> 1;
+            if (dst_x >= 0 && dst_x < width && dst_y >= 0 && dst_y < height)
+                pixels[dst_x + dst_y * width] = sprite->pixels[x + y * sprite->width];
+        }
+    }
+    if (!arena) free(sprite->pixels);
+    sprite->pixels = pixels;
+    sprite->width = width;
+    sprite->height = height;
+    sprite->crop_w = width;
+    sprite->crop_h = height;
+    sprite->crop_x = 0;
+    sprite->crop_y = 0;
+}
+
 void pix8_draw(Pix8 *sprite, int32_t x, int32_t y) {
     if (!sprite || !pix2d_pixels) return;
 

@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 
 Pix32 *pix32_create(int32_t width, int32_t height, Arena *arena) {
     Pix32 *sprite = arena ? (Pix32 *)arena_alloc_zero(arena, sizeof(Pix32))
@@ -316,8 +317,11 @@ void pix32_draw_rotated_masked(
     if (!sprite || !sprite->pixels || !pix2d_pixels) return;
     int32_t var12 = -mask_w / 2;
     int32_t var13 = -mask_h / 2;
-    int32_t sin_val = pix3d_sin_table[angle & 2047];
-    int32_t cos_val = pix3d_cos_table[angle & 2047];
+    // Pix32.drawRotatedMasked uses Math.sin/cos(angle / 326.11), not
+    // Pix3D's precomputed orbit table. The difference matters at hard
+    // four-pixel minimap shorelines.
+    int32_t sin_val = (int32_t)(sin((double)angle / 326.11) * 65536.0);
+    int32_t cos_val = (int32_t)(cos((double)angle / 326.11) * 65536.0);
     int32_t var24 = (sin_val * zoom) >> 8;
     int32_t var25 = (cos_val * zoom) >> 8;
     int32_t var16 = (src_cx << 16) + var13 * var24 + var12 * var25;
@@ -336,9 +340,8 @@ void pix32_draw_rotated_masked(
             int32_t py = v >> 16;
             if (px >= 0 && px < sprite->width && py >= 0 && py < sprite->height) {
                 uint32_t col = sprite->pixels[px + py * sprite->width];
-                if (col != 0) {
-                    pix2d_pixels[dst_idx] = col;
-                }
+                // Java writes the sampled pixel even when it is zero.
+                pix2d_pixels[dst_idx] = col;
             }
             dst_idx++;
             u += var25;

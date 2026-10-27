@@ -21,6 +21,8 @@ foreach ($listener in ($listeners | Sort-Object LocalPort, OwningProcess -Unique
 
 if ($occupiedPorts.Count -eq $Ports.Count -and $owners.Count -eq 1) {
     Write-Host 'All configured server ports are already in use by the same process. No second server was started.'
+    Write-Host 'The running server keeps its existing code and startup settings.'
+    Write-Host 'To load changes, stop it normally with Ctrl+C, wait for shutdown, then run start_local_server.bat again.'
     Write-Host 'If the existing server window says World ready, use play_client.bat or test_client.bat.'
     exit 2
 }

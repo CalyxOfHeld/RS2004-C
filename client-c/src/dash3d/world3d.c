@@ -61,6 +61,7 @@ void world3d_dispose(World3D *w) {
     w->location_animation_capacity=0;
 }
 bool world3d_add_map_location(World3D *w,WorldMapLocation loc) {
+    w->structure_revision++;
     if(w->map_location_count==w->map_location_capacity) {
         size_t cap=w->map_location_capacity ? w->map_location_capacity*2:1024;
         WorldMapLocation *p=realloc(w->map_locations,cap*sizeof(*p));
@@ -70,6 +71,7 @@ bool world3d_add_map_location(World3D *w,WorldMapLocation loc) {
     w->map_locations[w->map_location_count++]=loc;return true;
 }
 void world3d_reset(World3D *w) {
+    w->structure_revision++;
     w->map_location_count=0;
     w->location_animation_count=0;
     w->taking_input = false;
@@ -116,6 +118,13 @@ static inline bool world3d_point_inside_triangle(int mouse_x, int mouse_y,
     return (var9 * var11 > 0 && var11 * var10 > 0);
 }
 
+/* TileOverlay.java adds as a wrapping Java int before arithmetic >> 1. */
+static int32_t tile_midpoint225(int32_t a, int32_t b) {
+    uint32_t sum = (uint32_t)a + (uint32_t)b;
+    uint32_t shifted = (sum >> 1) | (sum & UINT32_C(0x80000000));
+    return shifted <= INT32_MAX ? (int32_t)shifted : -1 - (int32_t)(UINT32_MAX - shifted);
+}
+
 void world3d_set_tile(World3D *w, int level, int x, int z, int shape, int rotation, int texture_id,
                       int y_sw, int y_se, int y_ne, int y_nw,
                       int hsl_sw, int hsl_se, int hsl_ne, int hsl_nw,
@@ -133,9 +142,9 @@ void world3d_set_tile(World3D *w, int level, int x, int z, int shape, int rotati
         tile->underlay.southeast_color = hsl_se;
         tile->underlay.northeast_color = hsl_ne;
         tile->underlay.northwest_color = hsl_nw;
-        tile->underlay.texture_id = texture_id;
+        tile->underlay.texture_id = -1;
         tile->underlay.rgb = rgb_bg;
-        tile->underlay.flat = (y_sw == y_se && y_sw == y_ne && y_sw == y_nw);
+        tile->underlay.flat = false;
         return;
     }
 
@@ -194,27 +203,27 @@ void world3d_set_tile(World3D *w, int level, int x, int z, int shape, int rotati
         if (pt == 1) {
             vx = base_x; vz = base_z; vy = y_sw; col_u = hsl_sw; col_o = ovl_hsl_sw;
         } else if (pt == 2) {
-            vx = base_x + half_size; vz = base_z; vy = (y_sw + y_se) >> 1; col_u = (hsl_sw + hsl_se) >> 1; col_o = (ovl_hsl_sw + ovl_hsl_se) >> 1;
+            vx = base_x + half_size; vz = base_z; vy = tile_midpoint225(y_sw, y_se); col_u = tile_midpoint225(hsl_sw, hsl_se); col_o = tile_midpoint225(ovl_hsl_sw, ovl_hsl_se);
         } else if (pt == 3) {
             vx = base_x + tile_size; vz = base_z; vy = y_se; col_u = hsl_se; col_o = ovl_hsl_se;
         } else if (pt == 4) {
-            vx = base_x + tile_size; vz = base_z + half_size; vy = (y_se + y_ne) >> 1; col_u = (hsl_se + hsl_ne) >> 1; col_o = (ovl_hsl_se + ovl_hsl_ne) >> 1;
+            vx = base_x + tile_size; vz = base_z + half_size; vy = tile_midpoint225(y_se, y_ne); col_u = tile_midpoint225(hsl_se, hsl_ne); col_o = tile_midpoint225(ovl_hsl_se, ovl_hsl_ne);
         } else if (pt == 5) {
             vx = base_x + tile_size; vz = base_z + tile_size; vy = y_ne; col_u = hsl_ne; col_o = ovl_hsl_ne;
         } else if (pt == 6) {
-            vx = base_x + half_size; vz = base_z + tile_size; vy = (y_ne + y_nw) >> 1; col_u = (hsl_ne + hsl_nw) >> 1; col_o = (ovl_hsl_ne + ovl_hsl_nw) >> 1;
+            vx = base_x + half_size; vz = base_z + tile_size; vy = tile_midpoint225(y_ne, y_nw); col_u = tile_midpoint225(hsl_ne, hsl_nw); col_o = tile_midpoint225(ovl_hsl_ne, ovl_hsl_nw);
         } else if (pt == 7) {
             vx = base_x; vz = base_z + tile_size; vy = y_nw; col_u = hsl_nw; col_o = ovl_hsl_nw;
         } else if (pt == 8) {
-            vx = base_x; vz = base_z + half_size; vy = (y_nw + y_sw) >> 1; col_u = (hsl_nw + hsl_sw) >> 1; col_o = (ovl_hsl_nw + ovl_hsl_sw) >> 1;
+            vx = base_x; vz = base_z + half_size; vy = tile_midpoint225(y_nw, y_sw); col_u = tile_midpoint225(hsl_nw, hsl_sw); col_o = tile_midpoint225(ovl_hsl_nw, ovl_hsl_sw);
         } else if (pt == 9) {
-            vx = base_x + half_size; vz = base_z + q1; vy = (y_sw + y_se) >> 1; col_u = (hsl_sw + hsl_se) >> 1; col_o = (ovl_hsl_sw + ovl_hsl_se) >> 1;
+            vx = base_x + half_size; vz = base_z + q1; vy = tile_midpoint225(y_sw, y_se); col_u = tile_midpoint225(hsl_sw, hsl_se); col_o = tile_midpoint225(ovl_hsl_sw, ovl_hsl_se);
         } else if (pt == 10) {
-            vx = base_x + q3; vz = base_z + half_size; vy = (y_se + y_ne) >> 1; col_u = (hsl_se + hsl_ne) >> 1; col_o = (ovl_hsl_se + ovl_hsl_ne) >> 1;
+            vx = base_x + q3; vz = base_z + half_size; vy = tile_midpoint225(y_se, y_ne); col_u = tile_midpoint225(hsl_se, hsl_ne); col_o = tile_midpoint225(ovl_hsl_se, ovl_hsl_ne);
         } else if (pt == 11) {
-            vx = base_x + half_size; vz = base_z + q3; vy = (y_ne + y_nw) >> 1; col_u = (hsl_ne + hsl_nw) >> 1; col_o = (ovl_hsl_ne + ovl_hsl_nw) >> 1;
+            vx = base_x + half_size; vz = base_z + q3; vy = tile_midpoint225(y_ne, y_nw); col_u = tile_midpoint225(hsl_ne, hsl_nw); col_o = tile_midpoint225(ovl_hsl_ne, ovl_hsl_nw);
         } else if (pt == 12) {
-            vx = base_x + q1; vz = base_z + half_size; vy = (y_nw + y_sw) >> 1; col_u = (hsl_nw + hsl_sw) >> 1; col_o = (ovl_hsl_nw + ovl_hsl_sw) >> 1;
+            vx = base_x + q1; vz = base_z + half_size; vy = tile_midpoint225(y_nw, y_sw); col_u = tile_midpoint225(hsl_nw, hsl_sw); col_o = tile_midpoint225(ovl_hsl_nw, ovl_hsl_sw);
         } else if (pt == 13) {
             vx = base_x + q1; vz = base_z + q1; vy = y_sw; col_u = hsl_sw; col_o = ovl_hsl_sw;
         } else if (pt == 14) {
@@ -270,7 +279,7 @@ bool world3d_add_loc(World3D *w, int level, int x, int z, int y, Model *model, i
     }
 
     GroundTile *tile = &w->tiles[level][x][z];
-    if (tile->loc_count >= 5) return false;
+    if (tile->loc_count >= 9) return false;
 
     WorldLocation *loc = &tile->locs[tile->loc_count++];
     loc->level = level;

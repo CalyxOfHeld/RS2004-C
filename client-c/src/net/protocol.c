@@ -1,6 +1,7 @@
 #include "net/protocol.h"
 #include "net/rsa.h"
 #include "core/jrandom.h"
+#include "core/wordpack.h"
 #include "dash3d/pathfinder.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -123,6 +124,7 @@ LoginResponse protocol_login(GameSession *session, const char *host, int port, c
 LoginResponse protocol_login_ex(GameSession *session, const char *host, int port, const char *username, const char *password, bool low_mem, bool reconnect) {
     init_packet_sizes();
     session->in_game = false;
+    session->idle_net_cycles = 0;
     session->protocol_error = false;
     session->packet_opcode = -1;
     session->packet_header_read = session->packet_payload_read = 0;
@@ -220,7 +222,8 @@ LoginResponse protocol_login_ex(GameSession *session, const char *host, int port
 
 static int protocol_receive_error(GameSession *session, const char *reason) {
     fprintf(stderr, "[Protocol] Receive failed: %s\n", reason);
-    protocol_close_session(session);
+    /* Recovery owns the old socket until the replacement login completes. */
+    session->in_game = false;
     return -1;
 }
 
@@ -268,6 +271,7 @@ int protocol_poll_packet(GameSession *session, int *out_opcode, uint8_t *out_pay
     *out_opcode = session->packet_opcode;
     *out_len = length;
     session->packet_opcode = -1;
+    session->idle_net_cycles = 0;
     return 1;
 }
 
@@ -348,13 +352,42 @@ bool protocol_send_camera_position(GameSession *session, int pitch, int yaw, int
     return send_fixed(session, 189, b, sizeof(b));
 }
 
-bool protocol_send_map_request(GameSession *session, const uint8_t *entries, int length) {
-    if (!session || !session->in_game || length < 0 || length > 255) return false;
-    uint8_t buf[2 + 255];
-    buf[0] = (uint8_t)((150 + isaac_next(&session->out_cipher)) & 0xFF);
-    buf[1] = (uint8_t)length;
-    if (length) memcpy(buf + 2, entries, (size_t)length);
-    return client_stream_write(&session->stream, buf, (size_t)length + 2);
+bool protocol_send_map_request(GameSession *session,const uint8_t *entries,int length) {
+    if(!session || !session->in_game || length<0 || length>255 || length%3 || (length && !entries) || session->stream.out_overflow)return false;
+    uint8_t buf[257];Isaac cipher=session->out_cipher;
+    buf[0]=(uint8_t)(150+isaac_next(&cipher));buf[1]=(uint8_t)length;
+    if(length)memcpy(buf+2,entries,(size_t)length);
+    if(session->stream.buffered && (session->stream.out_len>sizeof(session->stream.out_buf) || (size_t)length+2>sizeof(session->stream.out_buf)-session->stream.out_len)){session->stream.out_overflow=true;return false;}
+    if(!client_stream_write(&session->stream,buf,(size_t)length+2))return false;
+    session->out_cipher=cipher;return true;
+}
+
+bool protocol_send_tracking(GameSession *session,const uint8_t *bytes,size_t length){
+    if(!session || !session->in_game || session->stream.out_overflow || length>500 || (length && !bytes))return false;
+    uint8_t frame[503];Isaac cipher=session->out_cipher;frame[0]=(uint8_t)(81+isaac_next(&cipher));frame[1]=(uint8_t)(length>>8);frame[2]=(uint8_t)length;if(length)memcpy(frame+3,bytes,length);
+    if(session->stream.buffered && (session->stream.out_len>sizeof(session->stream.out_buf) || length+3>sizeof(session->stream.out_buf)-session->stream.out_len)){session->stream.out_overflow=true;return false;}
+    if(!client_stream_write(&session->stream,frame,length+3))return false;
+    session->out_cipher=cipher;return true;
+}
+static bool tracking_take_send(GameSession *session,InputTracking *tracking,bool stop){
+    if(!session || !tracking)return false;
+    InputTracking next=*tracking;uint8_t bytes[500];int length=input_tracking_take(&next,stop,bytes,sizeof(bytes));if(length==-2)return false;
+    if(length>=0 && !protocol_send_tracking(session,bytes,(size_t)length))return false;
+    *tracking=next;return true;
+}
+bool protocol_flush_tracking(GameSession *session,InputTracking *tracking){return tracking_take_send(session,tracking,false);}
+int protocol_tracking_control(GameSession *session,InputTracking *tracking,int opcode,const uint8_t *payload,size_t length,int64_t now){
+    (void)payload;if(opcode!=133 && opcode!=226)return 0;
+    if(!session || !tracking || length)return -1;
+    if(opcode==226){input_tracking_enable(tracking,now);return 1;}
+    return tracking_take_send(session,tracking,true)?1:-2;
+}
+
+bool protocol_tick_network_idle(GameSession *session) {
+    if (!session || !session->in_game) return false;
+    /* client.java updateGame: ++idleNetCycles > 750. Saturate once due. */
+    if (session->idle_net_cycles <= 750) session->idle_net_cycles++;
+    return session->idle_net_cycles > 750;
 }
 
 bool protocol_send_idle(GameSession *session) {
@@ -364,27 +397,24 @@ bool protocol_send_idle(GameSession *session) {
 }
 
 bool protocol_send_button(GameSession *session, int button_id) {
-    if (!session || !session->in_game) return false;
-    uint8_t buf[3];
-    buf[0] = (uint8_t)((155 + isaac_next(&session->out_cipher)) & 0xFF);
-    buf[1] = (uint8_t)((button_id >> 8) & 0xFF);
-    buf[2] = (uint8_t)(button_id & 0xFF);
-    return client_stream_write(&session->stream, buf, 3);
+    if(!session || !session->in_game || session->stream.out_overflow || button_id<0 || button_id>65535)return false;
+    uint8_t bytes[3];Isaac cipher=session->out_cipher;bytes[0]=(uint8_t)(155+isaac_next(&cipher));bytes[1]=(uint8_t)(button_id>>8);bytes[2]=(uint8_t)button_id;
+    if(session->stream.buffered && (session->stream.out_len>sizeof(session->stream.out_buf) || 3>sizeof(session->stream.out_buf)-session->stream.out_len)){session->stream.out_overflow=true;return false;}
+    if(!client_stream_write(&session->stream,bytes,sizeof(bytes)))return false;
+    session->out_cipher=cipher;return true;
 }
 
 bool protocol_send_close_modal(GameSession *session) {
-    if (!session || !session->in_game) return false;
-    uint8_t op = (uint8_t)((231 + isaac_next(&session->out_cipher)) & 0xFF);
-    return client_stream_write(&session->stream, &op, 1);
+    return protocol_send_report(session,false,0,0,false);
 }
 
 bool protocol_send_resume_pausebutton(GameSession *session, int component_id) {
-    if (!session || !session->in_game) return false;
-    uint8_t buf[3];
-    buf[0] = (uint8_t)((235 + isaac_next(&session->out_cipher)) & 0xFF);
-    buf[1] = (uint8_t)((component_id >> 8) & 0xFF);
-    buf[2] = (uint8_t)(component_id & 0xFF);
-    return client_stream_write(&session->stream, buf, 3);
+    if(!session || !session->in_game || session->stream.out_overflow || component_id<0 || component_id>65535)return false;
+    uint8_t bytes[3];Isaac cipher=session->out_cipher;
+    bytes[0]=(uint8_t)(235+isaac_next(&cipher));bytes[1]=(uint8_t)(component_id>>8);bytes[2]=(uint8_t)component_id;
+    if(session->stream.buffered && (session->stream.out_len>sizeof(session->stream.out_buf) || 3>sizeof(session->stream.out_buf)-session->stream.out_len)){session->stream.out_overflow=true;return false;}
+    if(!client_stream_write(&session->stream,bytes,sizeof(bytes)))return false;
+    session->out_cipher=cipher;return true;
 }
 
 bool protocol_send_resume_p_countdialog(GameSession *session, int count) {
@@ -396,6 +426,58 @@ bool protocol_send_resume_p_countdialog(GameSession *session, int count) {
     buf[3] = (uint8_t)((count >> 8) & 0xFF);
     buf[4] = (uint8_t)(count & 0xFF);
     return client_stream_write(&session->stream, buf, 5);
+}
+
+bool protocol_send_public_chat(GameSession *session,const char *body,size_t length,
+    int colour,int style,bool reveal_public,int private_mode,int trade_mode) {
+    if(!session || !session->in_game || session->stream.out_overflow || (!body && length) || length>80 || colour<0 || colour>11 || style<0 || style>2 ||
+        private_mode<0 || private_mode>255 || trade_mode<0 || trade_mode>255)return false;
+    uint8_t bytes[88];Packet p=packet_wrap(bytes,sizeof(bytes));Isaac cipher=session->out_cipher;
+    p1(&p,158+isaac_next(&cipher));p1(&p,0);p1(&p,colour);p1(&p,style);
+    if(!wordpack_pack(&p,body,length,true))return false;
+    bytes[1]=(uint8_t)(p.pos-2);
+    if(reveal_public){p1(&p,244+isaac_next(&cipher));p1(&p,3);p1(&p,private_mode);p1(&p,trade_mode);}
+    if(p.error)return false;
+    if(session->stream.buffered && (session->stream.out_len>sizeof(session->stream.out_buf) ||
+        p.pos>sizeof(session->stream.out_buf)-session->stream.out_len)) {
+        session->stream.out_overflow=true;return false;
+    }
+    if(!client_stream_write(&session->stream,bytes,p.pos))return false;
+    session->out_cipher=cipher;return true;
+}
+
+bool protocol_send_private_chat(GameSession *session,uint64_t recipient,const char *body,size_t length,
+    bool reveal_private,int public_mode,int trade_mode) {
+    if(!session || !session->in_game || session->stream.out_overflow || !body || !length || length>80 ||
+        public_mode<0 || public_mode>3 || trade_mode<0 || trade_mode>2)return false;
+    uint8_t bytes[94];Packet p=packet_wrap(bytes,sizeof(bytes));Isaac cipher=session->out_cipher;
+    p1(&p,148+isaac_next(&cipher));p1(&p,0);p8(&p,(int64_t)recipient);
+    if(!wordpack_pack(&p,body,length,true))return false;
+    bytes[1]=(uint8_t)(p.pos-2);
+    if(reveal_private){p1(&p,244+isaac_next(&cipher));p1(&p,public_mode);p1(&p,1);p1(&p,trade_mode);}
+    if(p.error)return false;
+    if(session->stream.buffered && (session->stream.out_len>sizeof(session->stream.out_buf) || p.pos>sizeof(session->stream.out_buf)-session->stream.out_len)) {
+        session->stream.out_overflow=true;return false;
+    }
+    if(!client_stream_write(&session->stream,bytes,p.pos))return false;
+    session->out_cipher=cipher;return true;
+}
+
+bool protocol_send_social(GameSession *session,int opcode,uint64_t name37) {
+    if(!session || !session->in_game || session->stream.out_overflow || (opcode!=118 && opcode!=11 && opcode!=79 && opcode!=171))return false;
+    uint8_t bytes[9];Packet p=packet_wrap(bytes,9);Isaac cipher=session->out_cipher;p1(&p,opcode+isaac_next(&cipher));p8(&p,(int64_t)name37);
+    if(session->stream.buffered && (session->stream.out_len>sizeof(session->stream.out_buf) || 9>sizeof(session->stream.out_buf)-session->stream.out_len)){session->stream.out_overflow=true;return false;}
+    if(!client_stream_write(&session->stream,bytes,9))return false;
+    session->out_cipher=cipher;return true;
+}
+
+bool protocol_send_report(GameSession *session,bool send_report,uint64_t name37,int category,bool mute) {
+    if(!session || !session->in_game || session->stream.out_overflow || (send_report && (category<0 || category>11)))return false;
+    uint8_t bytes[12];Packet p=packet_wrap(bytes,sizeof(bytes));Isaac cipher=session->out_cipher;p1(&p,231+isaac_next(&cipher));
+    if(send_report){p1(&p,190+isaac_next(&cipher));p8(&p,(int64_t)name37);p1(&p,category);p1(&p,mute?1:0);}
+    if(session->stream.buffered && (session->stream.out_len>sizeof(session->stream.out_buf) || p.pos>sizeof(session->stream.out_buf)-session->stream.out_len)){session->stream.out_overflow=true;return false;}
+    if(!client_stream_write(&session->stream,bytes,p.pos))return false;
+    session->out_cipher=cipher;return true;
 }
 
 bool protocol_send_chat_setmode(GameSession *session, int public_mode, int private_mode, int trade_mode) {

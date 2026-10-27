@@ -1,3 +1,9 @@
+## Current Windows revision-225 C client
+
+See [RELEASE-CURRENT.md](RELEASE-CURRENT.md). Use `start_local_server.bat`, wait for World ready, then run the usual `test_client.bat`. Older candidate launchers and checkpoint archives are superseded. This checkout already contains the current fixes; no package extraction is needed here.
+
+---
+
 <div align="center">
     <h1>Lost City</h1>
 </div>

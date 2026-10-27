@@ -3,6 +3,7 @@
 #include "config/flo.h"
 #include "gfx/pix2d.h"
 #include "gfx/pix3d.h"
+#include "gfx/pix32.h"
 #include "gfx/media.h"
 #include "core/arena.h"
 #include "core/jagfile.h"
@@ -24,6 +25,22 @@ int main(void) {
     uint32_t *fb = (uint32_t *)malloc(765 * 503 * sizeof(uint32_t));
     pix2d_bind(fb, 765, 503);
     pix2d_fill_rect(0, 0, 765, 503, 0);
+
+    // Java Pix32.drawRotatedMasked uses angle / 326.11 and overwrites zero
+    // samples. Angle 43 separates that transform from Pix3D's orbit table.
+    uint32_t rotated_source[16*16];
+    int32_t mask_offsets[16]={0},mask_lengths[16];
+    for(int i=0;i<16*16;i++) rotated_source[i]=0x10000u+(uint32_t)i;
+    for(int i=0;i<16;i++) mask_lengths[i]=16;
+    Pix32 rotated={.pixels=rotated_source,.width=16,.height=16};
+    pix2d_fill_rect(10,10,16,16,0xABCDEF);
+    pix32_draw_rotated_masked(&rotated,43,16,mask_offsets,16,8,256,8,10,10,mask_lengths);
+    assert(fb[10*765+12]==rotated_source[1]);
+    rotated_source[1]=0;
+    pix2d_fill_rect(10,10,16,16,0xABCDEF);
+    pix32_draw_rotated_masked(&rotated,43,16,mask_offsets,16,8,256,8,10,10,mask_lengths);
+    assert(fb[10*765+12]==0);
+    pix2d_fill_rect(0,0,765,503,0);
 
     // Load archives
     Jagfile *config_jag = jagfile_load_file("../engine/data/pack/client/config", &arena);

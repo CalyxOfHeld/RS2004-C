@@ -11,9 +11,24 @@
 
 #include "client/client.h"
 #include "client/client_log.h"
+#include "client/input_tracking_sdl.h"
+#ifdef _WIN32
+#include "net/client_stream.h"
+#include <windows.h>
+#endif
 #include "core/session_log.h"
 #include "audio/wave.h"
 #include "audio/midi.h"
+
+static SDL_Renderer *recovery_renderer;
+static SDL_Texture *recovery_texture;
+static void sdl_present_recovery(const uint32_t *pixels, int width, int height) {
+    (void)height;
+    SDL_UpdateTexture(recovery_texture, NULL, pixels, width * sizeof(uint32_t));
+    SDL_RenderClear(recovery_renderer);
+    SDL_RenderCopy(recovery_renderer, recovery_texture, NULL, NULL);
+    SDL_RenderPresent(recovery_renderer);
+}
 
 // SDL2 platform layer: window, GameShell 50 Hz pacing, input translation and
 // presentation. The client itself lives in src/client/client.c.
@@ -21,6 +36,14 @@
 static uint64_t sdl_ticks(void) { return SDL_GetTicks64(); }
 // Client clock reads go into the session log when recording.
 static uint64_t sdl_now_ms(void) { return client_log_time(sdl_ticks); }
+static uint64_t tracking_wall_ms(void){
+#ifdef _WIN32
+    FILETIME time;GetSystemTimeAsFileTime(&time);uint64_t ticks=(uint64_t)time.dwHighDateTime<<32|time.dwLowDateTime;return ticks/10000-11644473600000ULL;
+#else
+    return SDL_GetTicks64();
+#endif
+}
+static uint64_t sdl_tracking_now_ms(void){return client_log_time(tracking_wall_ms);}
 
 static bool sdl_save_bmp(const char *path, const uint32_t *pixels, int width, int height) {
     SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormatFrom((void *)pixels, width, height,
@@ -67,6 +90,7 @@ static bool sdl_client_event(const SDL_Event *in, ClientEvent *out) {
         out->x = in->button.x; out->y = in->button.y; out->button = sdl_client_button(in->button.button);
         return true;
     case SDL_MOUSEWHEEL: out->type = CLIENT_EVENT_MOUSE_WHEEL; out->wheel = in->wheel.y; return true;
+    case SDL_KEYUP: out->type = CLIENT_EVENT_KEY_UP; out->key = sdl_client_key(in->key.keysym.sym); return true;
     case SDL_KEYDOWN: out->type = CLIENT_EVENT_KEY_DOWN; out->key = sdl_client_key(in->key.keysym.sym); return true;
     case SDL_TEXTINPUT:
         out->type = CLIENT_EVENT_TEXT;
@@ -108,6 +132,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     audio_init();
+    (void)audio_start_worker225();
     midi_init();
 
     SDL_Window *window = SDL_CreateWindow(
@@ -141,7 +166,8 @@ int main(int argc, char *argv[]) {
         CLIENT_HEIGHT
     );
 
-    ClientPlatform platform = { sdl_now_ms, sdl_save_bmp };
+    recovery_renderer=renderer; recovery_texture=framebuffer;
+    ClientPlatform platform = { sdl_now_ms, sdl_save_bmp, sdl_present_recovery,sdl_tracking_now_ms };
     if (!client_init(&options, &platform)) { SDL_Quit(); return 1; }
     SDL_StartTextInput();
 
@@ -190,6 +216,7 @@ int main(int argc, char *argv[]) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             ClientEvent input;
+            if(tracking_sdl_event(&event,&input)){client_log_event(&input);client_queue_event(&input);}
             if (sdl_client_event(&event, &input)) { client_log_event(&input); client_queue_event(&input); }
         }
         const uint8_t *keystates = SDL_GetKeyboardState(NULL);

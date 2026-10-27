@@ -1,4 +1,6 @@
 #include "gfx/pix3d.h"
+#include "gfx/pix3d_flat225.h"
+#include "gfx/pix3d_gouraud225.h"
 #include "gfx/pix2d.h"
 #include <math.h>
 #include <float.h>
@@ -32,6 +34,10 @@ static uint32_t gamma_correct(uint32_t rgb, double gamma) {
     if (int_b < 0) int_b = 0; else if (int_b > 255) int_b = 255;
 
     return ((uint32_t)int_r << 16) | ((uint32_t)int_g << 8) | (uint32_t)int_b;
+}
+
+uint32_t pix3d_gamma_correct(uint32_t rgb, double brightness) {
+    return gamma_correct(rgb, brightness);
 }
 
 void pix3d_init(void) {
@@ -117,6 +123,7 @@ void pix3d_set_hclip(bool hclip) {
     pix3d_hclip = hclip;
 }
 
+#if !RS2_PIX3D_REV225_FLAT
 static void flat_raster(int32_t xA, int32_t xB, uint32_t *dst, int32_t off, uint32_t colour) {
     if (xB <= pix2d_clip_left || xA >= pix2d_clip_right) return;
     if (xA < pix2d_clip_left) xA = pix2d_clip_left;
@@ -146,12 +153,16 @@ static void flat_raster(int32_t xA, int32_t xB, uint32_t *dst, int32_t off, uint
         }
     }
 }
+#endif
 
 void pix3d_flat_triangle(
     int32_t xA, int32_t xB, int32_t xC,
     int32_t yA, int32_t yB, int32_t yC,
     uint32_t colour
 ) {
+#if RS2_PIX3D_REV225_FLAT
+    pix3d225_flat_triangle(xA, xB, xC, yA, yB, yC, colour);
+#else
     // Sort vertices by Y ascending: yA <= yB <= yC
     if (yA > yB) { int32_t t = xA; xA = xB; xB = t; t = yA; yA = yB; yB = t; }
     if (yA > yC) { int32_t t = xA; xA = xC; xC = t; t = yA; yA = yC; yC = t; }
@@ -191,8 +202,10 @@ void pix3d_flat_triangle(
         curXA += dxAC;
         curXB += dxBC;
     }
+#endif
 }
 
+#if !RS2_PIX3D_REV225_GOURAUD
 static void gouraud_raster(
     int32_t xA, int32_t xB,
     int32_t colA, int32_t colB,
@@ -225,11 +238,17 @@ static void gouraud_raster(
     }
 }
 
+#endif
+
 void pix3d_gouraud_triangle(
     int32_t xA, int32_t xB, int32_t xC,
     int32_t yA, int32_t yB, int32_t yC,
     int32_t colourA, int32_t colourB, int32_t colourC
 ) {
+#if RS2_PIX3D_REV225_GOURAUD
+    /* Existing native callers pass 8.8 colours; Java takes palette indices. */
+    pix3d225_gouraud_triangle(xA,xB,xC,yA,yB,yC,colourA/256,colourB/256,colourC/256);
+#else
     // Sort vertices by Y ascending
     if (yA > yB) {
         int32_t t = xA; xA = xB; xB = t; t = yA; yA = yB; yB = t; t = colourA; colourA = colourB; colourB = t;
@@ -294,6 +313,7 @@ void pix3d_gouraud_triangle(
         curColA += dcolAC;
         curColB += dcolBC;
     }
+#endif
 }
 
 /* Shared reciprocal depth makes opaque world visibility independent of tile
@@ -311,19 +331,44 @@ static int alpha_compare(const void *a,const void *b) {
 }
 static struct { uint32_t *pixels; int w, h; } textures[50];
 static uint32_t texture_average[50];
+/* Original getAverageTextureRGB caches on first query, not palette upload.
+ * Brightness changes update only averages that have not yet been queried. */
+static struct { bool enabled,queried; int count; uint32_t palette[256]; } average225[50];
 // Reference Pix3D averages the gamma-corrected palette, not texel frequency.
 void pix3d_set_texture_palette(int id, const uint32_t *palette, int count) {
+    pix3d_set_texture_palette_gamma(id, palette, count, 0.8);
+}
+void pix3d_set_texture_palette_gamma(int id, const uint32_t *palette, int count, double brightness) {
     if(id<0 || id>=50 || !palette || count<=0) return;
+    average225[id].enabled=false;
     uint64_t r=0,g=0,b=0;
     for(int i=0;i<count;i++) {
-        uint32_t c=gamma_correct(palette[i],0.8);
+        uint32_t c=gamma_correct(palette[i],brightness);
         r+=(c>>16)&255;g+=(c>>8)&255;b+=c&255;
     }
     uint32_t rgb=(uint32_t)(r/count)<<16 | (uint32_t)(g/count)<<8 | (uint32_t)(b/count);
     texture_average[id]=gamma_correct(rgb,1.4);
     if(!texture_average[id]) texture_average[id]=1;
 }
-int pix3d_texture_average(int id) {return id>=0 && id<50 ? (int)texture_average[id]:0;}
+void pix3d_set_texture_palette_gamma225(int id,const uint32_t *palette,int count,double brightness) {
+    if(id<0 || id>=50 || !palette || count<=0 || count>256)return;
+    average225[id].count=count;
+    memcpy(average225[id].palette,palette,(size_t)count*sizeof(*palette));
+    average225[id].queried=false;
+    pix3d_set_texture_palette_gamma(id,palette,count,brightness);
+    average225[id].enabled=true;
+}
+void pix3d_texture_palette_brightness225(double brightness) {
+    for(int id=0;id<50;id++)if(average225[id].enabled && !average225[id].queried) {
+        pix3d_set_texture_palette_gamma(id,average225[id].palette,average225[id].count,brightness);
+        average225[id].enabled=true;
+    }
+}
+int pix3d_texture_average(int id) {
+    if(id<0 || id>=50)return 0;
+    if(average225[id].enabled)average225[id].queried=true;
+    return (int)texture_average[id];
+}
 
 
 void pix3d_set_texture(int id, const uint32_t *pixels, int width, int height) {

@@ -17,6 +17,8 @@ typedef struct {
     int rz;
     uint32_t land_crc;
     uint32_t loc_crc;
+    uint8_t *land_data,*loc_data;
+    size_t land_length,loc_length;
 } MapRegionDescriptor;
 
 typedef struct {
@@ -24,14 +26,22 @@ typedef struct {
     int center_zone_z;
     int base_tile_x;
     int base_tile_z;
-    int scene_state; // 0 = empty, 1 = loading, 2 = active
+    int scene_state; // 0 = waiting for map completion, 1 = ready to build, 2 = active
     int current_level;
 
+    bool source_buffers;
     int region_count;
     MapRegionDescriptor regions[MAX_STREAMED_REGIONS];
 } MapStreamer;
 
 void map_streamer_init(MapStreamer *ms);
+/* Call clear before reinitializing a streamer which owns downloaded/cache data. */
+void map_streamer_clear(MapStreamer *ms);
+/* Stage source CRC cache admission and ordered150 request entries. -1 on failure. */
+int map_streamer_prepare(MapStreamer *ms,const char *maps_dir,uint8_t *entries,int capacity);
+/* 0 unhandled;1 applied/unknown-map no-op;2 applied but cache write failed;-1 invalid.
+ * Done publishes current compressed bytes without inventing a CRC recheck. */
+int map_streamer_receive(MapStreamer *ms,int opcode,const uint8_t *payload,size_t length,const char *maps_dir);
 
 /**
  * Parses Packet 237 (REBUILD_NORMAL) matching client.java:9911-9950.

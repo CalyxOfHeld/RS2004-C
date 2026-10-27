@@ -1,0 +1,50 @@
+/* Revision 225 (May 18, 2004), bundled jagex2/graphics/Pix3D.java:
+ * flatTriangle lines 1014-1410; flatRaster lines 1413-1473.
+ * Reproduce with verification/completion/tools/port_pix3d_flat.py.
+ * Branches/edge updates retain Java names; do not sort/rewrite the vertices.
+ */
+#include "gfx/pix3d_flat225.h"
+#include "gfx/pix3d.h"
+#include "gfx/pix2d.h"
+
+/* Defined Java int arithmetic, including negative shifts and overflow. */
+static int32_t jint(uint32_t v) {
+    return v <= INT32_MAX ? (int32_t)v : -1 - (int32_t)(UINT32_MAX-v);
+}
+static int32_t jadd(int32_t a, int32_t b) { return jint((uint32_t)a+(uint32_t)b); }
+static int32_t jsub(int32_t a, int32_t b) { return jint((uint32_t)a-(uint32_t)b); }
+static int32_t jmul(int32_t a, int32_t b) { return jint((uint32_t)a*(uint32_t)b); }
+static int32_t jshl16(int32_t a) { return jint((uint32_t)a<<16); }
+static int32_t jshr16(int32_t a) {
+    uint32_t v=(uint32_t)a>>16;
+    return jint(a<0 ? v|UINT32_C(0xFFFF0000) : v);
+}
+static int32_t jdiv(int32_t a, int32_t b) {
+    return a==INT32_MIN && b==-1 ? INT32_MIN : a/b;
+}
+
+/* Original four-word groups and tail are equivalent to this sequential loop.
+ * Keep source/destination channel truncation separate. Java evaluates the
+ * destination index's postincrement before reading the RHS: blend dst[i+1]. */
+void pix3d225_flat_raster(uint32_t *dst, int32_t offset, uint32_t rgb,
+                         int32_t left, int32_t right) {
+    if (pix3d_hclip) {
+        if (right > pix2d_safe_width) right=pix2d_safe_width;
+        if (left < 0) left=0;
+    }
+    if (left >= right) return;
+    offset+=left;
+    if (pix3d_trans==0) {
+        for (int32_t i=left;i<right;i++) dst[offset++]=rgb;
+        return;
+    }
+    uint32_t alpha=(uint32_t)pix3d_trans, inv=256u-alpha;
+    uint32_t src=(((rgb & 0xFF00FFu)*inv>>8)&0xFF00FFu)
+                + (((rgb & 0xFF00u)*inv>>8)&0xFF00u);
+    for (int32_t i=left;i<right;i++,offset++) {
+        uint32_t next=dst[offset+1];
+        dst[offset]=src+(((next & 0xFF00FFu)*alpha>>8)&0xFF00FFu)
+                       + (((next & 0xFF00u)*alpha>>8)&0xFF00u);
+    }
+}
+

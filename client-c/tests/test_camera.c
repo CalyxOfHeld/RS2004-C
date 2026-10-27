@@ -7,6 +7,8 @@
 #include "dash3d/camera.h"
 #include "gfx/pix3d.h"
 
+#include "../verification/completion/tools/camera_reference_control.h"
+
 int main(void) {
     setbuf(stdout, NULL);
     printf("=== Test Suite: Viewport Camera Orbit & Tracking (Rev 225) ===\n");
@@ -96,6 +98,9 @@ int main(void) {
     printf("[PASS] Smooth camera orbit convergence verified (diff_x=%d, diff_z=%d)!\n",
            abs(cam.orbit_x - target_x), abs(cam.orbit_z - target_z));
 
+    const char *reference=getenv("RS2_CAMERA_ORACLE");
+    camera_reference_run(reference && *reference?reference:"tests/fixtures/camera-packets-reference.bin",&cam,heightmap,tile_flags,NULL);
+    camera_fault_controls();
     printf("=== ALL CAMERA TESTS PASSED! ===\n");
     return 0;
 }

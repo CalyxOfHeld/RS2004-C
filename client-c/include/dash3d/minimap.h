@@ -14,6 +14,9 @@
 typedef struct {
     const World3D *scene;
     int level;
+    bool original225;
+    int icon_count;
+    struct { int x,z,sprite; } icons[1000];
     int flag_scene_tile_x, flag_scene_tile_z; // x == 0: no destination (revision225)
     Pix32 *image_minimap; // 512x512 tile pixel buffer
     int32_t compass_mask_offsets[33];
@@ -30,6 +33,8 @@ bool minimap_click_target(int mouse_x, int mouse_y, int player_x, int player_z,
 void minimap_init(Minimap *m, Media *media, Arena *arena);
 void minimap_draw_tile(uint32_t *pixels,int offset,int stride,const GroundTile *tile);
 void minimap_build(Minimap *m, World *world, World3D *scene, Media *media, int level);
+bool minimap_build225(Minimap *m,World *world,World3D *scene,Media *media,int level,
+    LocConfig *locations,const CollisionMap *collision);
 void minimap_draw(
     Minimap *m,
     Media *media,

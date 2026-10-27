@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include "gfx/pixfont.h"
 
-#define MAX_MENU_OPTIONS 64
+#define MAX_MENU_OPTIONS 500
 
 typedef enum {
     MENU_LEGACY, MENU_CANCEL, MENU_WALK, MENU_IF_BUTTON, MENU_IF_CLOSE,
@@ -15,12 +15,14 @@ typedef enum {
     MENU_OBJ_EXAMINE, MENU_PLAYER_OP,
     MENU_ITEM_ON_NPC, MENU_ITEM_ON_LOC, MENU_ITEM_ON_OBJ, MENU_ITEM_ON_PLAYER,
     MENU_SPELL_ON_NPC, MENU_SPELL_ON_LOC, MENU_SPELL_ON_OBJ, MENU_SPELL_ON_PLAYER,
-    MENU_SPELL_ON_ITEM
+    MENU_SPELL_ON_ITEM, MENU_PRIVATE_MESSAGE, MENU_SOCIAL, MENU_REPORT
 } MenuActionType;
 typedef struct {
     MenuActionType type;
     int operation, target, component, slot, x, z;
     bool low_priority;
+    uint64_t name37;
+    char report_name[64];
 } MenuAction;
 typedef struct MenuSelection {
     bool item_selected;
@@ -43,12 +45,14 @@ typedef struct ContextMenu {
     MenuAction actions[MAX_MENU_OPTIONS];
 } ContextMenu;
 
+bool context_menu_primary_opens225(const ContextMenu *menu,int mouse_buttons_option);
 void context_menu_init(ContextMenu *menu);
 void context_menu_clear(ContextMenu *menu);
 void context_menu_add_option(ContextMenu *menu, const char *option, int action_id);
 void context_menu_add_action(ContextMenu *menu, const char *option, MenuAction action);
 bool context_menu_pick_action(ContextMenu *menu,int x,int y,MenuAction *action);
 void context_menu_prioritize(ContextMenu *menu);
+void context_menu_open225(ContextMenu *menu,int click_x,int click_y,PixFont *font);
 void context_menu_open(ContextMenu *menu, int click_x, int click_y, PixFont *font);
 void context_menu_draw(ContextMenu *menu, int mouse_x, int mouse_y, PixFont *font);
 int  context_menu_handle_click(ContextMenu *menu, int mouse_x, int mouse_y);

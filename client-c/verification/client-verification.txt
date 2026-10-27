@@ -1,0 +1,11 @@
+
+View          Grass  Road Exit
+----          -----  ---- ----
+after-default 63653 37047    0
+after-east    62578 33356    0
+after-south   55782 32049    0
+after-west    48051 29516    0
+after-rebuild 63653 37047    0
+after-walk    60372 34093    0
+
+

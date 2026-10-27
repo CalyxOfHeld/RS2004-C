@@ -130,7 +130,10 @@ typedef struct ComponentScrollDrag {
     int arrow_hold_ticks;
 } ComponentScrollDrag;
 
+struct Chatbox;
 typedef struct ComponentConfig {
+    void *packet_models225;
+    struct Chatbox *chatbox;
     int count;
     Component *instances;
     struct ObjConfig *obj_config;
@@ -139,12 +142,14 @@ typedef struct ComponentConfig {
     Pix8 *scrollbar1;
     struct VarpContext *varp_ctx;
     struct MenuSelection *selection;
+    bool pressed_continue; /* Original client.pressedContinueOption, shared by all buttonType6 widgets. */
     int mouse_x;
     int mouse_y;
     ComponentDragState drag;
     ComponentScrollDrag scroll_drag;
 } ComponentConfig;
 
+void component_continue_close225(ComponentConfig *cfg,int sidebar,int chat);
 bool component_unpack(ComponentConfig *cfg, Jagfile *media_jag, PixFont *fonts[4], Jagfile *interface_jag, Arena *arena);
 Component *component_get(ComponentConfig *cfg, int id);
 void draw_scrollbar(int x, int y, int scroll_pos, int scroll_max, int height, Pix8 *sb0, Pix8 *sb1);

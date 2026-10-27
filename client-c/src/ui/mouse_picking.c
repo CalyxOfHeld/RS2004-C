@@ -9,6 +9,8 @@ void mouse_picker_init(MousePicker *picker) {
     picker->mouse_y = -1;
     picker->picked_count = 0;
     picker->selection = NULL;
+    picker->world_x225 = picker->world_z225 = 0;
+    picker->location_present225=NULL;picker->location_user225=NULL;
 }
 
 void mouse_picker_reset(MousePicker *picker, int mouse_x, int mouse_y) {
@@ -35,12 +37,12 @@ uint32_t mouse_picker_make_bitset(int type, int id, int tile_x, int tile_z) {
            (uint32_t)(tile_x & 0x7F);
 }
 
-static const char* get_combat_level_color(int player_combat, int npc_combat) {
+static const char* get_combat_level_color(int player_combat, int npc_combat,bool original) {
     int diff = npc_combat - player_combat;
     if (diff < -9) return "@gre@";
-    if (diff < -6) return "@gr1@";
+    if (diff < -6) return original?"@gr3@":"@gr1@";
     if (diff < -3) return "@gr2@";
-    if (diff < 0)  return "@gr3@";
+    if (diff < 0)  return original?"@gr1@":"@gr3@";
     if (diff > 9)  return "@red@";
     if (diff > 6)  return "@or3@";
     if (diff > 3)  return "@or2@";
@@ -74,27 +76,29 @@ static void build_menu(MousePicker *picker,
                              ObjConfig *obj_cfg,
                              NpcEntity *npcs, int npc_count,
                              PlayerEntity *players, int player_count,
-                             int local_player_combat, EntitySyncContext *sync) {
+                             int local_player_combat, EntitySyncContext *sync,bool original,bool suppress_trade,bool append) {
     if (!menu) return;
-    context_menu_clear(menu);
-
-    // Cancel option is always at the bottom (index 0)
-    context_menu_add_action(menu,"Cancel",(MenuAction){.type=MENU_CANCEL});
-
-    // "Walk here" is the base world action (index 1)
     const MenuSelection *selection=picker?picker->selection:NULL;
-    if (!selection || (!selection->item_selected && !selection->spell_selected))
-        context_menu_add_action(menu,"Walk here",(MenuAction){.type=MENU_WALK});
-
+    if(!append) {
+        context_menu_clear(menu);
+        context_menu_add_action(menu,"Cancel",(MenuAction){.type=MENU_CANCEL});
+        if (!selection || (!selection->item_selected && !selection->spell_selected))
+            context_menu_add_action(menu,"Walk here",(MenuAction){.type=MENU_WALK,.x=original && picker?picker->mouse_x:0,.z=original && picker?picker->mouse_y:0});
+    }
     // If no picker or no entities picked, we're done
     if (!picker || picker->picked_count == 0) {
         return;
     }
 
-    // Process picked bitsets in reverse (topmost drawn has highest priority)
-    for (int i = picker->picked_count - 1; i >= 0; i--) {
+    // Original handleViewportOptions consumes generated hit order; legacy retains its reverse order.
+    uint32_t previous=UINT32_MAX;
+    for (int at=0;at<picker->picked_count;at++) {
+        int i=original?at:picker->picked_count-1-at;
         uint32_t bitset = picker->picked_bitsets[i];
+        if(original && bitset==previous)continue;
+        previous=bitset;
         int type = (bitset >> 29) & 0x3;
+        if(original && (type==0 || type==1) && menu->size>=400)continue;
         int id   = (bitset >> 14) & 0x7FFF;
 
         if (type == 1) { // NPC
@@ -113,8 +117,8 @@ static void build_menu(MousePicker *picker,
             if (found) {
                 char full_name[128];
                 if (npc_type.vislevel > 0) {
-                    snprintf(full_name, sizeof(full_name), "%s %s(level-%d)",
-                             npc_type.name, get_combat_level_color(local_player_combat, npc_type.vislevel), npc_type.vislevel);
+                    snprintf(full_name, sizeof(full_name), original?"%s%s (level-%d)":"%s %s(level-%d)",
+                             npc_type.name, get_combat_level_color(local_player_combat, npc_type.vislevel,original), npc_type.vislevel);
                 } else {
                     snprintf(full_name, sizeof(full_name), "%s", npc_type.name);
                 }
@@ -165,18 +169,47 @@ static void build_menu(MousePicker *picker,
                 players && id>=0 && id<player_count ? &players[id] : NULL;
             if (target && target->visible) {
                 char p_name[128];
-                snprintf(p_name, sizeof(p_name), "%s %s(level-%d)",
+                snprintf(p_name, sizeof(p_name), original?"%s%s (level-%d)":"%s %s(level-%d)",
                          target->name,
-                         get_combat_level_color(local_player_combat, target->combat_level),
+                         get_combat_level_color(local_player_combat, target->combat_level,original),
                          target->combat_level);
 
                 char ex_str[160];
                 if(selected_target_menu(menu,selection,0,p_name,"@whi@",id,(int)(bitset&127),(int)((bitset>>7)&127))) continue;
                 snprintf(ex_str, sizeof(ex_str), "Follow @whi@%s", p_name);
-                context_menu_add_action(menu,ex_str,(MenuAction){.type=MENU_PLAYER_OP,.operation=3,.target=id});
+                context_menu_add_action(menu,ex_str,(MenuAction){.type=MENU_PLAYER_OP,.operation=3,.target=id,.low_priority=original});
 
-                snprintf(ex_str, sizeof(ex_str), "Trade with @whi@%s", p_name);
-                context_menu_add_action(menu,ex_str,(MenuAction){.type=MENU_PLAYER_OP,.operation=4,.target=id});
+                if(!suppress_trade) {
+                    snprintf(ex_str, sizeof(ex_str), "Trade with @whi@%s", p_name);
+                    context_menu_add_action(menu,ex_str,(MenuAction){.type=MENU_PLAYER_OP,.operation=4,.target=id,.low_priority=original});
+                }
+                if (original) {
+                    /* Original drawWildyLevel and addPlayerOptions. The server
+                     * supplies no configurable player-op label in revision225. */
+                    int x = picker->world_x225, z = picker->world_z225;
+                    bool wilderness = x >= 2944 && x < 3392 &&
+                        ((z >= 3520 && z < 6400) || (z >= 9920 && z < 12800));
+                    bool arena = false;
+                    if (x >= 3328 && x < 3392 && z >= 3200 && z < 3264) {
+                        int a = x & 63, b = z & 63;
+                        arena = ((a >= 4 && a <= 29) || (a >= 36 && a <= 61)) &&
+                            ((b >= 44 && b <= 58) || (b >= 25 && b <= 39) || (b >= 6 && b <= 20));
+                    }
+                    if (wilderness) {
+                        snprintf(ex_str, sizeof(ex_str), "Attack @whi@%s", p_name);
+                        context_menu_add_action(menu,ex_str,(MenuAction){.type=MENU_PLAYER_OP,.operation=2,.target=id,.low_priority=local_player_combat < target->combat_level});
+                    }
+                    if (arena) {
+                        snprintf(ex_str, sizeof(ex_str), "Fight @whi@%s", p_name);
+                        context_menu_add_action(menu,ex_str,(MenuAction){.type=MENU_PLAYER_OP,.operation=2,.target=id});
+                    } else if (x >= 3328 && x <= 3393 && z >= 3203 && z <= 3325) {
+                        snprintf(ex_str, sizeof(ex_str), "Duel-with @whi@%s", p_name);
+                        context_menu_add_action(menu,ex_str,(MenuAction){.type=MENU_PLAYER_OP,.operation=1,.target=id,.low_priority=true});
+                    }
+                }
+                if(original)for(int row=0;row<menu->size;row++)if(menu->actions[row].type==MENU_WALK) {
+                    snprintf(menu->options[row],sizeof(menu->options[row]),"Walk here @whi@%.46s",p_name);break;
+                }
             }
         } else if (type == 3) { // Ground Item
             if (obj_cfg) {
@@ -202,15 +235,61 @@ static void build_menu(MousePicker *picker,
             }
         }
     }
-    context_menu_prioritize(menu);
+    if(!append)context_menu_prioritize(menu);
 }
 
 void mouse_picker_build_menu(MousePicker *picker,ContextMenu *menu,NpcConfig *npc_cfg,LocConfig *loc_cfg,ObjConfig *obj_cfg,
     NpcEntity *npcs,int npc_count,PlayerEntity *players,int player_count,int local_player_combat) {
-    build_menu(picker,menu,npc_cfg,loc_cfg,obj_cfg,npcs,npc_count,players,player_count,local_player_combat,NULL);
+    build_menu(picker,menu,npc_cfg,loc_cfg,obj_cfg,npcs,npc_count,players,player_count,local_player_combat,NULL,false,false,false);
 }
 void mouse_picker_build_live_menu(MousePicker *picker,ContextMenu *menu,NpcConfig *npc_cfg,LocConfig *loc_cfg,ObjConfig *obj_cfg,EntitySyncContext *sync) {
-    build_menu(picker,menu,npc_cfg,loc_cfg,obj_cfg,NULL,0,NULL,0,sync->local_player.combat_level,sync);
+    build_menu(picker,menu,npc_cfg,loc_cfg,obj_cfg,NULL,0,NULL,0,sync->local_player.combat_level,sync,false,false,false);
+}
+
+static void live_menu225(MousePicker *picker,ContextMenu *menu,NpcConfig *npc_cfg,LocConfig *loc_cfg,ObjConfig *obj_cfg,EntitySyncContext *sync,bool suppress_trade,bool append) {
+    if(!picker || !sync)return;
+    MousePicker one=*picker;one.picked_count=0;
+    if(append && menu && (!picker->selection || (!picker->selection->item_selected && !picker->selection->spell_selected)))
+        context_menu_add_action(menu,"Walk here",(MenuAction){.type=MENU_WALK,.x=picker->mouse_x,.z=picker->mouse_y});
+    build_menu(&one,menu,npc_cfg,loc_cfg,obj_cfg,NULL,0,NULL,0,sync->local_player.combat_level,sync,true,suppress_trade,append);
+    uint32_t previous=UINT32_MAX;
+    for(int at=0;at<picker->picked_count;at++) {
+        uint32_t bits=picker->picked_bitsets[at];if(bits==previous)continue;previous=bits;
+        int type=(bits>>29)&3,id=(bits>>14)&32767;
+        if(type==2 && picker->location_present225 && !picker->location_present225(picker->location_user225,bits))continue;
+        PathingEntity *base=NULL;
+        NpcEntity *npc=type==1 && id<MAX_NPCS?sync->npcs[id]:NULL;
+        PlayerEntity *p=type==0 && id<MAX_PLAYERS?(id==2047?&sync->local_player:sync->players[id]):NULL;
+        if(npc && npc->has_type && npc->type.size==1)base=&npc->base;
+        if(p)base=&p->base;
+        one.picked_count=1;
+        if(base && (base->x&127)==64 && (base->z&127)==64) {
+            for(int j=0;j<sync->npc_count;j++) {
+                int slot=sync->npc_indices[j];NpcEntity *other=sync->npcs[slot];
+                if(other && other!=npc && other->has_type && other->type.size==1 && other->base.x==base->x && other->base.z==base->z) {
+                    one.picked_bitsets[0]=(bits&0x3fff)|0x20000000u|((uint32_t)slot<<14);
+                    build_menu(&one,menu,npc_cfg,loc_cfg,obj_cfg,NULL,0,NULL,0,sync->local_player.combat_level,sync,true,suppress_trade,true);
+                }
+            }
+            if(p)for(int j=0;j<sync->player_count;j++) {
+                int slot=sync->player_indices[j];PlayerEntity *other=sync->players[slot];
+                if(other && other!=p && other->base.x==base->x && other->base.z==base->z) {
+                    one.picked_bitsets[0]=(bits&0x3fff)|((uint32_t)slot<<14);
+                    build_menu(&one,menu,npc_cfg,loc_cfg,obj_cfg,NULL,0,NULL,0,sync->local_player.combat_level,sync,true,suppress_trade,true);
+                }
+            }
+        }
+        one.picked_bitsets[0]=bits;
+        build_menu(&one,menu,npc_cfg,loc_cfg,obj_cfg,NULL,0,NULL,0,sync->local_player.combat_level,sync,true,suppress_trade,true);
+    }
+    context_menu_prioritize(menu);
+}
+
+void mouse_picker_build_live_menu225(MousePicker *picker,ContextMenu *menu,NpcConfig *npc_cfg,LocConfig *loc_cfg,ObjConfig *obj_cfg,EntitySyncContext *sync,bool suppress_trade) {
+    live_menu225(picker,menu,npc_cfg,loc_cfg,obj_cfg,sync,suppress_trade,false);
+}
+void mouse_picker_append_live_menu225(MousePicker *picker,ContextMenu *menu,NpcConfig *npc_cfg,LocConfig *loc_cfg,ObjConfig *obj_cfg,EntitySyncContext *sync,bool suppress_trade) {
+    live_menu225(picker,menu,npc_cfg,loc_cfg,obj_cfg,sync,suppress_trade,true);
 }
 
 const char* mouse_picker_get_primary_action(ContextMenu *menu) {

@@ -7,8 +7,10 @@
 #include "core/arena.h"
 #include "core/jagfile.h"
 #include "core/packet.h"
+#include "../verification/completion/tools/map_download_reference.h"
 
-int main(void) {
+int main(int argc,char **argv) {
+    if(argc>1)return map_download_reference(argv[1]);
     printf("=== Test Suite: Dynamic Map Region Streaming & Packet 237 (Rev 225) ===\n");
 
     // 1. Packet 237 REBUILD_NORMAL Decoder Test
@@ -135,6 +137,7 @@ int main(void) {
     flo_free(&flo_cfg);
     arena_free(&arena);
 
+    map_download_reference(getenv("RS2_MAP_ORACLE")?getenv("RS2_MAP_ORACLE"):"tests/fixtures/map-download-reference.bin");
     printf("=== ALL MAP STREAMING TESTS PASSED! ===\n");
     return 0;
 }

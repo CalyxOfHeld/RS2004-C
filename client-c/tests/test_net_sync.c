@@ -57,7 +57,14 @@ int main(void) {
     uint8_t color[]={19,20,124,0};
     assert(component_apply_packet(&cfg,&vars,&arena,2,color,sizeof(color))==1 && cfg.instances[4884].colour==0xf80000);
     assert(component_apply_packet(&cfg,&vars,&arena,150,small,2)==-1 && varp_get(&vars,43)==2);
-    assert(component_apply_packet(&cfg,&vars,&arena,193,NULL,0)==1 && varp_get(&vars,43)==0);
+    /* Original opcode193 restores varCache, not zeros. Local prediction must
+     * not overwrite server values; unchanged/signed/large values survive. */
+    varp_set(&vars,43,999);varp_set(&vars,44,5);varp_set(&vars,300,-7);
+    assert(vars.server_varps[43]==2 && vars.server_varps[44]==-1 && vars.server_varps[300]==100000);
+    assert(component_apply_packet(&cfg,&vars,&arena,193,NULL,0)==1);
+    assert(varp_get(&vars,43)==2 && varp_get(&vars,44)==-1 && varp_get(&vars,300)==100000);
+    assert(component_apply_packet(&cfg,&vars,&arena,193,small,1)==-1 && varp_get(&vars,43)==2);
+    assert(component_apply_packet(&cfg,&vars,&arena,193,NULL,0)==1 && varp_get(&vars,43)==2);
     assert(component_apply_packet(&cfg,&vars,&arena,237,NULL,0)==0);
     puts("PASS: actual UI receive path handles varps, stats, energy, weight, text delimiters, hide, signed offsets and RGB conversion");
     arena_free(&arena);puts("[Component packets] PASS");return 0;

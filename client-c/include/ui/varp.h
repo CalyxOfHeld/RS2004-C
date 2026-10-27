@@ -4,11 +4,19 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "ui/component.h"
+#include "core/music225.h"
 
 #define MAX_VARPS 2000
 
+struct VarpTypeConfig;
 typedef struct VarpContext {
+    const struct VarpTypeConfig *types;
+    Music225 music;
+    bool wave_enabled;
+    int wave_volume; /* Original signlink.wavevol in hundredths of a decibel. */
+    int mouse_buttons_option; /* Original updateVarp clientcode5; only value1 selects one-button mode. */
     int varps[MAX_VARPS];
+    int server_varps[MAX_VARPS]; /* original varCache, retained across reply15 */
     int skill_levels[25];
     int skill_base_levels[25];
     int skill_exp[25];
@@ -18,6 +26,7 @@ typedef struct VarpContext {
 } VarpContext;
 
 void varp_init(VarpContext *ctx);
+void varp_update225(VarpContext *ctx,int varp_id);
 void varp_set(VarpContext *ctx, int varp_id, int value);
 int  varp_get(const VarpContext *ctx, int varp_id);
 
@@ -35,6 +44,7 @@ bool varp_eval_component_triggers(const VarpContext *ctx, const ComponentConfig 
 /**
  * Handles clicking a component to toggle or update varps (client.java:5647-5701).
  */
+bool varp_handle_component_action225(VarpContext *ctx,const Component *com,int operation);
 bool varp_handle_component_click(VarpContext *ctx, const Component *com);
 
 /**

@@ -1,7 +1,9 @@
 #include "gfx/pixfont.h"
 #include "gfx/pix2d.h"
 #include "core/packet.h"
+#include "core/jrandom.h"
 #include <string.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -214,6 +216,18 @@ void pixfont_draw_string_center(PixFont *font, int x, int y, uint32_t color, con
     pixfont_draw_string(font, x - w / 2, y, color, str);
 }
 
+void pixfont_draw_centered_wave225(PixFont *font,int x,int y,uint32_t color,const char *text,int cycle) {
+    if(!font || !text)return;
+    x-=pixfont_string_width(font,text)/2;y-=font->height;
+    for(size_t i=0;text[i];i++) {
+        int ch=CHAR_LOOKUP[(uint8_t)text[i]];
+        if(ch!=94)draw_char_mask(font->char_mask[ch],x+font->char_offset_x[ch],
+            y+font->char_offset_y[ch]+(int)(sin((double)i/2.0+(double)cycle/5.0)*5.0),
+            font->char_mask_width[ch],font->char_mask_height[ch],color);
+        x+=font->char_advance[ch];
+    }
+}
+
 void pixfont_draw_string_right(PixFont *font, int x, int y, uint32_t color, const char *str) {
     if (!font || !str) return;
     int w = pixfont_string_width(font, str);
@@ -257,4 +271,33 @@ void pixfont_draw_string_taggable_center(PixFont *font, int x, int y, uint32_t d
     if (!font || !str) return;
     int w = pixfont_string_width(font, str);
     pixfont_draw_string_taggable(font, x - w / 2, y, default_color, str, shadow);
+}
+
+static void draw_char_alpha225(const uint8_t *mask,int x,int y,int width,int height,uint32_t color,int alpha){
+    if(!mask)return;
+    uint32_t lit=(((color&0xff00ffu)*(uint32_t)alpha&0xff00ff00u)+((color&0xff00u)*(uint32_t)alpha&0xff0000u))>>8;
+    uint32_t inverse=(uint32_t)(256-alpha);
+    for(int row=0;row<height;row++)for(int col=0;col<width;col++){
+        int px=x+col,py=y+row;
+        if(!mask[row*width+col] || px<pix2d_clip_left || px>=pix2d_clip_right-1 || py<pix2d_clip_top || py>=pix2d_clip_bottom-1)continue;
+        uint32_t *pixel=&pix2d_pixels[py*pix2d_width+px],old=*pixel;
+        *pixel=lit+((((old&0xff00ffu)*inverse&0xff00ff00u)+((old&0xff00u)*inverse&0xff0000u))>>8);
+    }
+}
+
+/* Original drawStringTooltip owns a java.util.Random, separate from Math. */
+void pixfont_draw_tooltip225(PixFont *font,int x,int y,uint32_t color,const char *text,int seed){
+    if(!font || !text)return;
+    JRandom random;jrandom_set_seed(&random,seed);int alpha=(jrandom_next(&random,32)&31)+192;
+    int baseline=y-font->height;size_t length=strlen(text);
+    for(size_t i=0;i<length;i++){
+        if(text[i]=='@' && i+4<length && text[i+4]=='@'){color=evaluate_tag(text+i+1);i+=4;continue;}
+        int glyph=CHAR_LOOKUP[(uint8_t)text[i]];
+        if(glyph<94){
+            int px=x+font->char_offset_x[glyph],py=baseline+font->char_offset_y[glyph];
+            draw_char_alpha225(font->char_mask[glyph],px+1,py+1,font->char_mask_width[glyph],font->char_mask_height[glyph],0,192);
+            draw_char_alpha225(font->char_mask[glyph],px,py,font->char_mask_width[glyph],font->char_mask_height[glyph],color,alpha);
+        }
+        x+=font->char_advance[glyph];if((jrandom_next(&random,32)&3)==0)x++;
+    }
 }

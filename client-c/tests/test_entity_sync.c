@@ -20,9 +20,72 @@
 #include "entity/player_entity.h"
 #include "entity/npc_entity.h"
 #include "net/entity_sync.h"
+#include "ui/chatbox.h"
+
+#include "../verification/completion/tools/reset_multiway_reference_control.h"
 
 static void put_bits(uint8_t *data,int *bit,int value,int count) {
     for(int b=count-1;b>=0;b--,(*bit)++) if((value>>b)&1) data[*bit/8]|=1<<(7-(*bit&7));
+}
+static int pub_int(FILE *f) {uint32_t v=0;for(int i=0;i<4;i++){int ch=fgetc(f);assert(ch>=0);v=v*256+(unsigned)ch;}return v<=INT32_MAX?(int)v:-(int)(UINT32_MAX-v)-1;}
+static void pub_text(FILE *f,char *out,size_t capacity,bool *is_null) {
+    int n=pub_int(f);*is_null=n==-1;assert(n>=-1 && (n<0 || (size_t)n<capacity));
+    if(n<0){out[0]=0;return;}for(int i=0;i<n;i++){int hi=fgetc(f),lo=fgetc(f);assert(hi==0 && lo>=0);out[i]=(char)lo;}out[n]=0;
+}
+typedef struct {Chatbox *chat;WordFilterTables *filter;bool override;} PublicControl;
+static void public_callback(void *user,PlayerEntity *player,bool packed,int colour,int rights,const uint8_t *text,size_t length) {
+    PublicControl *control=user;
+    if(packed)(void)chatbox_add_public_message(control->chat,control->filter,player,text,length,colour,rights,control->override);
+    else chatbox_add_message(control->chat,2,player->name,(const char*)text);
+}
+static void public_chat_controls(Arena *arena) {
+    Jagfile *jag=jagfile_load_file("../engine/data/pack/client/wordenc",arena);assert(jag);WordFilterTables tables={0};assert(wordfilter_tables_load(&tables,jag));
+    const char *path=getenv("RS2_PUBLIC_CHAT_ORACLE");FILE *f=fopen(path && *path?path:"tests/fixtures/public-chat-reference.bin","rb");assert(f);
+    assert(pub_int(f)==0x50433235);int count=pub_int(f);assert(count==3237);
+    Chatbox chat;chatbox_init(&chat,"Self");PublicControl control={&chat,&tables,false};
+    EntitySyncContext *ctx=calloc(1,sizeof(*ctx));assert(ctx);entity_sync_init(ctx,NULL);ctx->player_chat=public_callback;ctx->player_chat_user=&control;ctx->cycle=1000;
+    int additions=0;
+    for(int record=0;record<count;record++) {
+        PlayerEntity *player=&ctx->local_player;player_entity_init(player);bool null_name=false;pub_text(f,player->name,sizeof(player->name),&null_name);
+        int ignored=fgetc(f),override=pub_int(f),mask=pub_int(f),length=pub_int(f);assert(ignored>=0 && length>=0 && length<512);
+        uint8_t raw[512];assert(fread(raw,1,length,f)==(size_t)length);chat.ignore_count=ignored?1:0;chat.ignore_ids[0]=jstring_to_base37(null_name?"alice":player->name);control.override=override!=0;
+        strcpy(player->base.chat,"old");player->base.chat_color=13;player->base.chat_style=17;player->base.chat_timer=7;
+        uint8_t bytes[1024]={0};int bits=0;put_bits(bytes,&bits,1,1);put_bits(bytes,&bits,0,2);put_bits(bytes,&bits,0,8);put_bits(bytes,&bits,2047,11);
+        Packet packet=packet_wrap(bytes,sizeof(bytes));packet.pos=(bits+7)/8;p1(&packet,mask>255?(mask&255)|128:mask);if(mask>255)p1(&packet,mask>>8);
+        size_t start=packet.pos;
+        memcpy(bytes+packet.pos,raw,length);packet.pos+=(size_t)length;size_t size=packet.pos;packet.pos=0;char *previous=chat.text[0];
+        bool ok=entity_sync_player_info(ctx,&packet,size);if(!ok)fprintf(stderr,"Public mask record%d failed pos%zu size%zu\n",record,packet.pos,size);assert(ok);
+        if(chat.text[0]!=previous)additions++;
+        assert((int)(packet.pos-start)==pub_int(f));char expected[512];bool is_null;pub_text(f,expected,sizeof(expected),&is_null);
+        if(strcmp(expected,player->base.chat))fprintf(stderr,"Public actor mismatch record%d expected[%s] actual[%s]\n",record,expected,player->base.chat);
+        assert(!strcmp(expected,player->base.chat));assert(pub_int(f)==player->base.chat_color);assert(pub_int(f)==player->base.chat_style);assert(pub_int(f)==player->base.chat_timer);
+        assert(pub_int(f)==player->base.spotanim_id);assert(pub_int(f)==player->base.spotanim_height);assert(pub_int(f)==player->base.spotanim_delay);assert(pub_int(f)==player->base.spotanim_frame);assert(pub_int(f)==player->base.spotanim_cycle);
+        int messages=0;
+        for(int i=0;i<100;i++){
+            assert(pub_int(f)==chat.type[i]);pub_text(f,expected,sizeof(expected),&is_null);assert(is_null?!chat.sender[i]:(chat.sender[i] && !strcmp(expected,chat.sender[i])));
+            pub_text(f,expected,sizeof(expected),&is_null);assert(is_null?!chat.text[i]:(chat.text[i] && !strcmp(expected,chat.text[i])));if(chat.text[i])messages++;
+        }
+        assert(messages==chat.message_count);
+    }
+    assert(additions==2586);
+    ctx->players[3]=calloc(1,sizeof(PlayerEntity));ctx->players[4]=calloc(1,sizeof(PlayerEntity));ctx->npcs[2]=calloc(1,sizeof(NpcEntity));assert(ctx->players[3] && ctx->players[4] && ctx->npcs[2]);
+    ctx->player_indices[0]=3;ctx->player_count=1;ctx->npc_indices[0]=2;ctx->npc_count=1;
+    PathingEntity *actors[]={&ctx->local_player.base,&ctx->players[3]->base,&ctx->players[4]->base,&ctx->npcs[2]->base};int timers[]={150,1,19,100};
+    for(int i=0;i<4;i++){strcpy(actors[i]->chat,"text");actors[i]->chat_timer=timers[i];}
+    int ticks=pub_int(f);assert(ticks==155);
+    for(int i=0;i<ticks;i++){entity_sync_tick_chats(ctx);for(int a=0;a<4;a++){assert(pub_int(f)==actors[a]->chat_timer);int nil=fgetc(f);assert(nil>=0 && (nil!=0)==(!actors[a]->chat[0]));}}
+    assert(fgetc(f)==EOF);fclose(f);
+    /* Declared public payload must be bounded before any chat callback; later
+     * masks remain aligned even when decoder/filter fails (corpus above). */
+    ctx->player_count=0;ctx->npc_count=0;strcpy(ctx->local_player.name,"Alice");
+    uint8_t short_data[16]={0};int bits=0;put_bits(short_data,&bits,1,1);put_bits(short_data,&bits,0,2);put_bits(short_data,&bits,0,8);put_bits(short_data,&bits,2047,11);
+    Packet bad=packet_wrap(short_data,sizeof(short_data));bad.pos=(bits+7)/8;p1(&bad,64);p2(&bad,0x1234);p1(&bad,2);p1(&bad,4);p1(&bad,0);
+    size_t size=bad.pos;bad.pos=0;Chatbox before=chat;PathingEntity actor_before=ctx->local_player.base;
+    assert(!entity_sync_player_info(ctx,&bad,size));assert(!memcmp(&chat,&before,sizeof(chat)));assert(!strcmp(ctx->local_player.base.chat,actor_before.chat) && ctx->local_player.base.chat_timer==actor_before.chat_timer);
+    assert(!chatbox_add_public_message(&chat,&tables,&ctx->local_player,NULL,1,0,0,false));
+    assert(!chatbox_add_public_message(&chat,NULL,&ctx->local_player,short_data,1,0,2,false));assert(!memcmp(&chat,&before,sizeof(chat)));
+    entity_sync_cleanup(ctx);free(ctx);chatbox_free(&chat);wordfilter_tables_free(&tables);
+    printf("PASS public/forced original masks: %d actor/history/position states,2586 history-changing steps;155 expiry ticks/four actors; suppression/decode failure/suffix alignment/malformed/filter-required controls\n",count);
 }
 int main(void) {
     setbuf(stdout, NULL);
@@ -269,6 +332,37 @@ int main(void) {
     assert(sync_ctx.npcs[5]->base.path_tile_x[0] == 33); // 32 + 1
     assert(sync_ctx.npcs[5]->base.path_tile_z[0] == 51); // 48 + 3
     printf("[PASS] Packet 1 (NPC_INFO) bitstream synchronization verified! (Hans spawned at tile (33, 51))\n");
+    /* Original removal IDs are resolved after new-visible slots are decoded. */
+    NpcEntity *retained_npc=sync_ctx.npcs[5];
+    int retained_x=retained_npc->base.x,retained_z=retained_npc->base.z;
+    uint8_t reuse_bits[32]={0};int reuse_pos=0;
+    put_bits(reuse_bits,&reuse_pos,1,8); /* existing list length */
+    put_bits(reuse_bits,&reuse_pos,1,1);put_bits(reuse_bits,&reuse_pos,3,2);
+    put_bits(reuse_bits,&reuse_pos,5,13);put_bits(reuse_bits,&reuse_pos,0,11);
+    put_bits(reuse_bits,&reuse_pos,1,5);put_bits(reuse_bits,&reuse_pos,4,5);
+    put_bits(reuse_bits,&reuse_pos,0,1);put_bits(reuse_bits,&reuse_pos,8191,13);
+    Packet reuse=packet_wrap(reuse_bits,(reuse_pos+7)/8);
+    assert(entity_sync_npc_info(&sync_ctx,&reuse,reuse.length));
+    assert(sync_ctx.npc_count==1 && sync_ctx.npcs[5]==retained_npc);
+    assert(retained_npc->base.x==retained_x && retained_npc->base.z==retained_z);
+    assert(retained_npc->base.path_tile_x[0]==33 && retained_npc->base.path_tile_z[0]==52);
+    assert(retained_npc->base.path_length==1);
+    puts("PASS: same-packet NPC removal/reappearance preserves queued movement and object identity");
+    memset(reuse_bits,0,sizeof(reuse_bits));reuse_pos=0;
+    put_bits(reuse_bits,&reuse_pos,1,8);put_bits(reuse_bits,&reuse_pos,1,1);put_bits(reuse_bits,&reuse_pos,3,2);
+    put_bits(reuse_bits,&reuse_pos,8191,13);reuse=packet_wrap(reuse_bits,(reuse_pos+7)/8);
+    assert(entity_sync_npc_info(&sync_ctx,&reuse,reuse.length));
+    assert(sync_ctx.npc_count==0 && sync_ctx.npcs[5]==retained_npc);
+    memset(reuse_bits,0,sizeof(reuse_bits));reuse_pos=0;
+    put_bits(reuse_bits,&reuse_pos,0,8);put_bits(reuse_bits,&reuse_pos,5,13);put_bits(reuse_bits,&reuse_pos,0,11);
+    put_bits(reuse_bits,&reuse_pos,1,5);put_bits(reuse_bits,&reuse_pos,5,5);
+    put_bits(reuse_bits,&reuse_pos,0,1);put_bits(reuse_bits,&reuse_pos,8191,13);
+    reuse=packet_wrap(reuse_bits,(reuse_pos+7)/8);assert(entity_sync_npc_info(&sync_ctx,&reuse,reuse.length));
+    assert(sync_ctx.npcs[5]==retained_npc && retained_npc->base.x==retained_x && retained_npc->base.z==retained_z);
+    assert(retained_npc->base.path_length==2 && retained_npc->base.path_tile_z[0]==53);
+    puts("PASS: multiple NPC packets in one game cycle retain removed/reappearing actor state");
+
+
 
     // These actors came from the actual production bitstream decoder above.
     // A scene shift must preserve world positions and queued movement in both
@@ -310,6 +404,7 @@ int main(void) {
     mask=packet_wrap(masks,mask_size-1);assert(!entity_sync_npc_info(&sync_ctx,&mask,mask_size-1));
     memset(masks,0,sizeof(masks));bits=0;
     put_bits(masks,&bits,0,8);put_bits(masks,&bits,8191,13);
+    sync_ctx.cycle++; /* this removal is in a later game cycle */
     mask=packet_wrap(masks,(bits+7)/8);assert(entity_sync_npc_info(&sync_ctx,&mask,mask.length));
     assert(sync_ctx.npc_count==0 && sync_ctx.npcs[5]==NULL);
     puts("PASS: NPC face-square/spotanim mask consumption, truncation rejection and removal through shortened list");
@@ -327,6 +422,10 @@ int main(void) {
     assert(!entity_sync_npc_info(&sync_ctx,&mask,sizeof(impossible)));
     puts("PASS: player extended high masks, cached removed appearance, malformed mask and old-count rejection (decoding only)");
 
+    public_chat_controls(&arena);
+    Media reset_media={0};Jagfile *reset_media_jag=jagfile_load_file("../engine/data/pack/client/media",&arena);assert(reset_media_jag && media_load(&reset_media,reset_media_jag,&arena));
+    const char *reset_reference=getenv("RS2_RESET_ORACLE"),*multiway_reference=getenv("RS2_MULTIWAY_ORACLE");
+    reset_multiway_reference_run(reset_reference && *reset_reference?reset_reference:"tests/fixtures/reset-anims-reference.bin",multiway_reference && *multiway_reference?multiway_reference:"tests/fixtures/multiway-reference.bin",&sync_ctx,&reset_media,NULL);
     entity_sync_cleanup(&sync_ctx);
     npc_entity_free(&hans);
     idk_free(&idk_cfg);

@@ -21,7 +21,10 @@ typedef enum {
     CLIENT_EVENT_MOUSE_UP,
     CLIENT_EVENT_MOUSE_WHEEL,
     CLIENT_EVENT_KEY_DOWN,
-    CLIENT_EVENT_TEXT
+    CLIENT_EVENT_TEXT,
+    CLIENT_EVENT_KEY_UP, /* append: preserve existing recording event numbers */
+    CLIENT_EVENT_TRACK_KEY_DOWN,CLIENT_EVENT_TRACK_KEY_UP,
+    CLIENT_EVENT_FOCUS_GAIN,CLIENT_EVENT_FOCUS_LOSS,CLIENT_EVENT_MOUSE_ENTER,CLIENT_EVENT_MOUSE_EXIT
 } ClientEventType;
 
 typedef enum { CLIENT_BUTTON_NONE, CLIENT_BUTTON_LEFT, CLIENT_BUTTON_MIDDLE, CLIENT_BUTTON_RIGHT } ClientButton;
@@ -43,7 +46,7 @@ typedef struct {
     ClientEventType type;
     int x, y;        // mouse position for move/down/up
     int button;      // ClientButton for down/up
-    int key;         // ClientKey for KEY_DOWN
+    int key;         // ClientKey for UI keys; GameShell code for TRACK_KEY_*
     int wheel;       // vertical wheel delta
     char text[32];   // UTF-8 for TEXT
 } ClientEvent;
@@ -60,6 +63,10 @@ typedef struct {
     // writes a CLIENT_WIDTH x CLIENT_HEIGHT XRGB framebuffer.
     uint64_t (*now_ms)(void);
     bool (*save_bmp)(const char *path, const uint32_t *pixels, int width, int height);
+    /* Immediate retained-frame presentation during synchronous recovery. */
+    void (*present)(const uint32_t *pixels, int width, int height);
+    /* Source System.currentTimeMillis for input tracking andsound; logged by platform. */
+    uint64_t (*tracking_now_ms)(void);
 } ClientPlatform;
 
 typedef struct {

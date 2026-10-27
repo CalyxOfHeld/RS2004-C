@@ -1,4 +1,17 @@
+# Current status — software checking complete; listening pending
+
+The finite FINISH-LINE.md software plan is complete for the declared Windows225 profile. Audio/settings software, gameplay/interfaces, actual server/two-client workflows andextended play are accepted; final package technical audit passes. The full goal is NOT complete until a human verifies Windows speaker/headphone music andsound start/stop/volume. No new software task is claimed while waiting. See D-RELEASE-CANDIDATE.md and releases/2026-10-25-gate5-final-sol/README.md for candidate/checkindex/knownlimits/listening steps. The installed normal client remains unchanged; no installation or replacement occurred.
+
+Final candidate019714A43B7E21ED37E81E95EA2B45AA653BC65A78368FB96D4CAE3E291086A0. All81 freshly rebuilt objects/both executables/SDL2 reproduce SHA-exact from included555-file source archive. Gate4 discloses27m56s continuous plus8m03s supplement for natural stairs0->1->0,combatXP160/52 andnormal logout/relog/source CRC/items/stats/position. Same-candidate reconnect15 passed; memorybounded; no rendererfailure in final profile. Earlier failed candidate andhistoricalcamera exclusions retain their actuallimits. Alltestprocessesclosed,server4/5exit0;118main saves/828maps/normal/originals preserved.
+
+---
+
+## Historical checkpoint notes — superseded where they conflict with the current status above
+
 # Initial capability audit
+
+Historical snapshot: current overall position and evidence limits are indexed in [OVERALL-STATUS.md](OVERALL-STATUS.md) and [D-REMAINING.md](D-REMAINING.md). Old statuses/counts below are not fresh failures or current-suite totals.
+
 
 Evidence level: source inspection only unless explicitly stated. Historical captures do not verify gameplay.
 

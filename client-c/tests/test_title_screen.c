@@ -140,12 +140,20 @@ static LoginResponse fake_login(FakeServer *s, bool reconnect, GameSession *sess
 static void test_login_replies(void) {
     assert(client_stream_global_init());
     GameSession session; protocol_init_session(&session);
+    session.idle_net_cycles = 751; session.is_mod = true;
     FakeServer reconnect = {.replies = {15}, .count = 1};
     assert(fake_login(&reconnect, true, &session) == LOGIN_RECONNECT_SUCCESS && session.in_game && reconnect.opcodes[0] == 18);
+    assert(session.idle_net_cycles == 0 && session.is_mod);
+    protocol_close_session(&session);
+    FakeServer refused = {.replies = {5}, .count = 1};
+    assert(fake_login(&refused, true, &session) == LOGIN_ACCOUNT_LOGGED_IN);
+    assert(!session.in_game && refused.opcodes[0] == 18);
+    assert(!protocol_tick_network_idle(&session));
     protocol_close_session(&session);
     FakeServer retry = {.replies = {1, 2}, .count = 2};
     Uint64 start = SDL_GetTicks64();
     assert(fake_login(&retry, false, &session) == LOGIN_SUCCESS && session.in_game && !session.is_mod);
+    assert(session.idle_net_cycles == 0);
     assert(retry.opcodes[0] == 16 && retry.opcodes[1] == 16 && SDL_GetTicks64() - start >= 1900);
     protocol_close_session(&session);
     FakeServer busy = {.replies = {5}, .count = 1};

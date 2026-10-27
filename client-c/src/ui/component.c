@@ -1,4 +1,5 @@
 #include "ui/component.h"
+#include "ui/chatbox.h"
 #include "ui/context_menu.h"
 #include "ui/varp.h"
 #include "config/obj.h"
@@ -267,6 +268,10 @@ bool component_unpack(ComponentConfig *cfg, Jagfile *media_jag, PixFont *fonts[4
     }
 
     return true;
+}
+
+void component_continue_close225(ComponentConfig *cfg,int sidebar,int chat) {
+    if(cfg && (sidebar!=-1 || chat!=-1)) cfg->pressed_continue=false;
 }
 
 Component *component_get(ComponentConfig *cfg, int id) {
@@ -618,7 +623,9 @@ bool component_build_menu(ComponentConfig *cfg, Component *com, int mx, int my, 
             }
         } else if (mx >= vx && my >= vy && mx < vx + child->width && my < vy + child->height) {
             found = true;
-            if (child->button_type == 1 && child->option) {
+            if(child->button_type==1 && cfg->chatbox && chatbox_build_friend_menu(cfg->chatbox,child,menu)) {
+                /* Original social rows replace the ordinary interface button. */
+            } else if (child->button_type == 1 && child->option) {
                 context_menu_add_action(menu,child->option,(MenuAction){.type=MENU_IF_BUTTON,.operation=1,.component=child->id});
             } else if (child->button_type == 2 && child->action_verb && child->action &&
                 (!cfg->selection || !cfg->selection->spell_selected)) {
@@ -629,7 +636,7 @@ bool component_build_menu(ComponentConfig *cfg, Component *com, int mx, int my, 
                 context_menu_add_action(menu,"Close",(MenuAction){.type=MENU_IF_CLOSE,.operation=0,.component=child->id});
             } else if ((child->button_type == 4 || child->button_type == 5) && child->option) {
                 context_menu_add_action(menu,child->option,(MenuAction){.type=MENU_IF_BUTTON,.operation=child->button_type,.component=child->id});
-            } else if (child->button_type == 6) {
+            } else if (child->button_type == 6 && !cfg->pressed_continue) {
                 context_menu_add_action(menu,child->option ? child->option : "Click here to continue",(MenuAction){.type=MENU_IF_CONTINUE,.operation=0,.component=child->id});
             }
         }
@@ -718,11 +725,12 @@ void component_draw(ComponentConfig *cfg, Component *com, int x, int y, int scro
 
     if (com->type == COMPONENT_TYPE_TEXT) {
         if (!com->font || !com->text) return;
+        const char *raw_text=(cfg && cfg->pressed_continue && com->button_type==6)?"Please wait...":com->text;
         char formatted[512];
         if (cfg && cfg->varp_ctx) {
-            varp_format_text(cfg->varp_ctx, cfg, com, com->text, formatted, sizeof(formatted));
+            varp_format_text(cfg->varp_ctx, cfg, com, raw_text, formatted, sizeof(formatted));
         } else {
-            strncpy(formatted, com->text, sizeof(formatted) - 1);
+            strncpy(formatted, raw_text, sizeof(formatted) - 1);
             formatted[sizeof(formatted) - 1] = '\0';
         }
         const char *text = formatted;
@@ -747,6 +755,52 @@ void component_draw(ComponentConfig *cfg, Component *com, int x, int y, int scro
                 text = newline + 2;
             } else {
                 break;
+            }
+        }
+        return;
+    }
+
+    if (com->type == COMPONENT_TYPE_TEXT_LIST) {
+        if (!cfg || !cfg->obj_config || !com->font || !com->inv_slot_obj_id) return;
+        /* client.java:4436: inventory text uses the slot baseline directly,
+         * not the text-widget baseline or the icon-grid spacing. */
+        int slot = 0;
+        for (int row = 0; row < com->height; row++) {
+            for (int col = 0; col < com->width; col++, slot++) {
+                if (com->inv_slot_obj_id[slot] <= 0) continue;
+                ObjType obj;
+                if (!obj_get(cfg->obj_config, com->inv_slot_obj_id[slot] - 1, &obj)) continue;
+                int count = com->inv_slot_obj_count ? com->inv_slot_obj_count[slot] : 1;
+                char text[160];
+                snprintf(text, sizeof(text), "%s", obj.name);
+                if (obj.stackable || count != 1) {
+                    /* Original formatObjCountTagged includes a leading space
+                     * and selects K/million by the comma-formatted length. */
+                    char digits[16], grouped[24], tagged[80];
+                    snprintf(digits, sizeof(digits), "%d", count);
+                    int len = (int)strlen(digits), at = 0;
+                    for (int i = 0; i < len; i++) {
+                        grouped[at++] = digits[i];
+                        if (i < len - 1 && (len - i - 1) % 3 == 0) grouped[at++] = ',';
+                    }
+                    grouped[at] = '\0';
+                    if (at > 8) {
+                        snprintf(tagged, sizeof(tagged), " @gre@%.*s million @whi@(%s)", at - 8, grouped, grouped);
+                    } else if (at > 4) {
+                        snprintf(tagged, sizeof(tagged), " @cya@%.*sK @whi@(%s)", at - 4, grouped, grouped);
+                    } else {
+                        snprintf(tagged, sizeof(tagged), " %s", grouped);
+                    }
+                    snprintf(text, sizeof(text), "%s x%s", obj.name, tagged);
+                }
+                obj_free_entry(&obj);
+                int draw_x = x + col * (com->margin_x + 115);
+                int draw_y = y + row * (com->margin_y + 12);
+                if (com->center) {
+                    pixfont_draw_string_taggable_center(com->font, draw_x + com->width / 2, draw_y, com->colour, text, com->shadowed);
+                } else {
+                    pixfont_draw_string_taggable(com->font, draw_x, draw_y, com->colour, text, com->shadowed);
+                }
             }
         }
         return;

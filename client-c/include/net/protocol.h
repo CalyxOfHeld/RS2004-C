@@ -6,6 +6,7 @@
 #include "core/packet.h"
 #include "core/isaac.h"
 #include "net/client_stream.h"
+#include "core/input_tracking.h"
 
 typedef enum {
     LOGIN_RETRY = 1,
@@ -26,6 +27,7 @@ typedef struct {
     Isaac out_cipher;
     bool in_game;
     bool is_mod;
+    int idle_net_cycles; /* original client.idleNetCycles; complete packets only */
     bool protocol_error; /* last receive failure was a framing error, not I/O (client.java T1/T2) */
     uint32_t archive_crcs[9];
     int packet_opcode; /* -1 until the next encrypted opcode is available */
@@ -44,6 +46,9 @@ LoginResponse protocol_login_ex(GameSession *session, const char *host, int port
 int protocol_read_packet(GameSession *session, uint8_t *out_payload, size_t capacity, size_t *out_len);
 int protocol_poll_packet(GameSession *session, int *out_opcode, uint8_t *out_payload, size_t capacity, size_t *out_len);
 
+/* Call once per game cycle after polling; reconnect after cycle 750. */
+bool protocol_tick_network_idle(GameSession *session);
+
 bool protocol_send_idle(GameSession *session);
 bool protocol_send_keepalive(GameSession *session);
 /* The ANTICHEAT_CYCLELOGIC packets (ClientGameProt.ts). 2 and 6 draw Math.random. */
@@ -58,10 +63,26 @@ bool protocol_send_camera_position(GameSession *session, int pitch, int yaw, int
 /* REBUILD_NORMAL's map request (opcode 150, var-byte): (type, x, z) per missing file;
    sent even when nothing is missing. */
 bool protocol_send_map_request(GameSession *session, const uint8_t *entries, int length);
+bool protocol_send_tracking(GameSession *session,const uint8_t *bytes,size_t length);
+bool protocol_flush_tracking(GameSession *session,InputTracking *tracking);
+/* 0 unrelated,1 applied,-1 invalid,-2 output failure (state retained). */
+int protocol_tracking_control(GameSession *session,InputTracking *tracking,int opcode,
+    const uint8_t *payload,size_t length,int64_t now);
 bool protocol_send_button(GameSession *session, int button_id);
 bool protocol_send_close_modal(GameSession *session);
 bool protocol_send_resume_pausebutton(GameSession *session, int component_id);
 bool protocol_send_resume_p_countdialog(GameSession *session, int count);
+/* Stages MESSAGE_PUBLIC158 and optional mode244 with a copied ISAAC state.
+ * Buffered-capacity failure marks out_overflow but preserves bytes/cipher.
+ * Body is already prefix-stripped, explicit <=80 byte WordPack repertoire. */
+bool protocol_send_public_chat(GameSession *session,const char *body,size_t length,
+    int colour,int style,bool reveal_public,int private_mode,int trade_mode);
+/* Stages private148 and optional private-off->friends244 atomically. */
+bool protocol_send_private_chat(GameSession *session,uint64_t recipient,const char *body,size_t length,
+    bool reveal_private,int public_mode,int trade_mode);
+bool protocol_send_social(GameSession *session,int opcode,uint64_t name37);
+/* Source closeInterfaces231 then optional report190; staged copied cipher. */
+bool protocol_send_report(GameSession *session,bool send_report,uint64_t name37,int category,bool mute);
 bool protocol_send_chat_setmode(GameSession *session, int public_mode, int private_mode, int trade_mode);
 bool protocol_send_opheld(GameSession *session, int op, int item_id, int slot, int component_id);
 bool protocol_send_design(GameSession *session,int gender,const int parts[7],const int colors[5]);

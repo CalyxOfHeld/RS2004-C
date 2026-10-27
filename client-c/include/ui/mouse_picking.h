@@ -20,6 +20,11 @@ typedef struct MousePicker {
     int picked_count;
     uint32_t picked_bitsets[MAX_PICKED];
     const MenuSelection *selection;
+    int world_x225;
+    int world_z225;
+    /* Original handleViewportOptions checks scene.getInfo on currentLevel. */
+    bool (*location_present225)(void *user,uint32_t bitset);
+    void *location_user225;
 } MousePicker;
 
 void mouse_picker_init(MousePicker *picker);
@@ -38,6 +43,10 @@ void mouse_picker_build_menu(MousePicker *picker,
                              int local_player_combat);
 
 void mouse_picker_build_live_menu(MousePicker *picker,ContextMenu *menu,NpcConfig *npc_cfg,LocConfig *loc_cfg,ObjConfig *obj_cfg,EntitySyncContext *sync);
+
+void mouse_picker_build_live_menu225(MousePicker *picker,ContextMenu *menu,NpcConfig *npc_cfg,LocConfig *loc_cfg,ObjConfig *obj_cfg,EntitySyncContext *sync,bool suppress_trade);
+/* client.handleInput adds private-chat options before viewport options. */
+void mouse_picker_append_live_menu225(MousePicker *picker,ContextMenu *menu,NpcConfig *npc_cfg,LocConfig *loc_cfg,ObjConfig *obj_cfg,EntitySyncContext *sync,bool suppress_trade);
 
 const char* mouse_picker_get_primary_action(ContextMenu *menu);
 

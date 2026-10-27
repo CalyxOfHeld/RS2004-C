@@ -206,7 +206,8 @@ bool entity_sync_player_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_
         }
         if (mask & 0x8) {
             gjstr(pkt, p->base.chat, sizeof(p->base.chat));
-            p->base.chat_timer = 150;
+            p->base.chat_timer = 150;p->base.chat_color=0;p->base.chat_style=0;
+            if(!pkt->error && ctx->player_chat)ctx->player_chat(ctx->player_chat_user,p,false,0,0,(const uint8_t*)p->base.chat,strlen(p->base.chat));
         }
         if (mask & 0x10) {
             p->base.damage = g1(pkt);
@@ -221,11 +222,12 @@ bool entity_sync_player_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_
             p->base.target_tile_z = g2(pkt);
         }
         if (mask & 0x40) {
-            g2(pkt);
-            g1(pkt);
-            int text_len = g1(pkt);
-            if(pkt->pos>packet_size || (size_t)text_len>packet_size-pkt->pos) return false;
-            pkt->pos += text_len;
+            int colour=g2(pkt),rights=g1(pkt),text_len=g1(pkt);
+            if(pkt->error || pkt->pos>packet_size || (size_t)text_len>packet_size-pkt->pos)return false;
+            if(ctx->player_chat)ctx->player_chat(ctx->player_chat_user,p,true,colour,rights,pkt->data+pkt->pos,(size_t)text_len);
+            /* Original resets pos to the declared end even on suppression or
+             * a caught WordPack/filter exception. Later masks stay aligned. */
+            pkt->pos+=(size_t)text_len;
         }
         if(mask & 0x100) {
             p->base.spotanim_id=g2(pkt);uint32_t info=(uint32_t)g4(pkt);
@@ -299,16 +301,16 @@ bool entity_sync_npc_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_siz
                     extended_update_ids[extended_update_count++] = slot;
                 }
             } else if (type == 3) {
-                if (ctx->npcs[slot]) {
-                    npc_entity_free(ctx->npcs[slot]);
-                    free(ctx->npcs[slot]);
-                    ctx->npcs[slot] = NULL;
-                }
+                /* Original getNpcPos removes only after new-visible decoding.
+                 * A slot re-added in this packet retains its movement state. */
             }
         }
     }
 
-    for(int i=0;i<new_npc_count;i++) seen[new_npc_indices[i]]=true;
+    for(int i=0;i<new_npc_count;i++) {
+        int slot=new_npc_indices[i];seen[slot]=true;
+        if(ctx->npcs[slot])ctx->npcs[slot]->base.cycle=ctx->cycle;
+    }
     // 2. New NPCs Vis
     while (!pkt->error && pkt->bit_pos + 13 <= packet_size * 8) {
         int slot = gbit(pkt, 13);
@@ -321,6 +323,7 @@ bool entity_sync_npc_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_siz
             npc_entity_init(ctx->npcs[slot]);
         }
         new_npc_indices[new_npc_count++] = slot;
+        ctx->npcs[slot]->base.cycle=ctx->cycle;
 
         int type_id = gbit(pkt, 11);
         if (ctx->npc_cfg) {
@@ -411,7 +414,7 @@ bool entity_sync_npc_info(EntitySyncContext *ctx, Packet *pkt, size_t packet_siz
     if(pkt->error || pkt->pos!=packet_size) return false;
     for(int i=0;i<ctx->npc_count;i++) {
         int slot=ctx->npc_indices[i];
-        if(!seen[slot] && ctx->npcs[slot]) {npc_entity_free(ctx->npcs[slot]);free(ctx->npcs[slot]);ctx->npcs[slot]=NULL;}
+        if(!seen[slot] && ctx->npcs[slot] && ctx->npcs[slot]->base.cycle!=ctx->cycle) {npc_entity_free(ctx->npcs[slot]);free(ctx->npcs[slot]);ctx->npcs[slot]=NULL;}
     }
     memcpy(ctx->npc_indices,new_npc_indices,new_npc_count*sizeof(int));ctx->npc_count=new_npc_count;
     return true;
@@ -434,4 +437,25 @@ void entity_sync_cleanup(EntitySyncContext *ctx) {
             ctx->npcs[i] = NULL;
         }
     }
+}
+
+static void tick_chat(PathingEntity *actor) {
+    if(actor && actor->chat_timer>0 && --actor->chat_timer==0)actor->chat[0]=0;
+}
+void entity_sync_tick_chats(EntitySyncContext *ctx) {
+    if(!ctx)return;
+    tick_chat(&ctx->local_player.base);
+    for(int i=0;i<ctx->player_count;i++){int id=ctx->player_indices[i];if(id>=0 && id<MAX_PLAYERS && ctx->players[id])tick_chat(&ctx->players[id]->base);}
+    for(int i=0;i<ctx->npc_count;i++){int id=ctx->npc_indices[i];if(id>=0 && id<MAX_NPCS && ctx->npcs[id])tick_chat(&ctx->npcs[id]->base);}
+}
+
+/* Original read136 scans the full arrays,including cached inactive entities. */
+int entity_sync_control225(EntitySyncContext *ctx,int opcode,const uint8_t *payload,size_t length) {
+    if(opcode!=136 && opcode!=254)return 0;
+    if(!ctx || (opcode==136?length!=0:length!=1 || !payload))return -1;
+    if(opcode==254){ctx->in_multizone=payload[0];return 1;}
+    ctx->local_player.base.primary_seq_id=-1;
+    for(int i=0;i<MAX_PLAYERS;i++)if(ctx->players[i])ctx->players[i]->base.primary_seq_id=-1;
+    for(int i=0;i<MAX_NPCS;i++)if(ctx->npcs[i])ctx->npcs[i]->base.primary_seq_id=-1;
+    return 1;
 }

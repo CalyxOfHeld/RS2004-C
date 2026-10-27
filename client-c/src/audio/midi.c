@@ -1,63 +1,26 @@
 #include "audio/midi.h"
 #include "core/bzip2.h"
+#include "audio/wave.h"
+#include "core/session_log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#include <mmsystem.h>
-#endif
-
-static bool s_midi_inited = false;
-static bool s_is_playing = false;
-static char s_current_song[64] = {0};
-static int  s_volume = 200; // 0..255
-static unsigned s_file_serial;
-static char s_music_path[160], s_jingle_path[160];
+static bool s_midi_inited;
+static bool s_is_playing;
+static char s_current_song[64];
+static int s_attenuation225;
 static uint32_t s_current_crc, s_current_size;
 static uint16_t s_jingle_delay;
-static bool s_silent;   // no playback device: headless replay
+static bool s_silent, s_stage225;
+static char s_request_names225[5][64];
+static uint32_t s_request_crc225[5],s_request_size225[5];
+#include "midi_device225.h"
 
-void midi_set_silent(bool silent) { s_silent = silent; }
-
-static void midi_close_jingle(void) {
-#ifdef _WIN32
-    mciSendStringA("close rs2jingle", NULL, 0, NULL);
-#endif
-    if (s_jingle_path[0]) remove(s_jingle_path);
-    s_jingle_path[0] = '\0';
-    s_jingle_delay = 0;
-}
-
-#ifdef _WIN32
-static bool midi_mci_ok(MCIERROR err, const char *operation) {
-    if (err == 0) return true;
-    fprintf(stderr, "[MIDI] %s failed (MCI error %lu)\n", operation, (unsigned long)err);
-    return false;
-}
-#endif
-
-static bool midi_start_file(const char *path, const char *alias) {
-#ifdef _WIN32
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "close %s", alias);
-    mciSendStringA(cmd, NULL, 0, NULL);
-    snprintf(cmd, sizeof(cmd), "open \"%s\" type sequencer alias %s", path, alias);
-    if (!midi_mci_ok(mciSendStringA(cmd, NULL, 0, NULL), "open")) return false;
-    snprintf(cmd, sizeof(cmd), "play %s", alias);
-    if (!midi_mci_ok(mciSendStringA(cmd, NULL, 0, NULL), "play")) {
-        snprintf(cmd, sizeof(cmd), "close %s", alias);
-        mciSendStringA(cmd, NULL, 0, NULL);
-        return false;
-    }
-    return true;
-#else
-    (void)path;
-    (void)alias;
-    fprintf(stderr, "[MIDI] No sequencer backend available\n");
-    return false;
-#endif
+void midi_set_silent(bool silent) {
+    if(silent && !s_silent)md_close225();
+    s_silent=silent;
 }
 
 static const char *s_song_search_dirs[] = {
@@ -119,31 +82,9 @@ bool midi_unpack(const uint8_t *packed, size_t packed_size, uint32_t expected_cr
     return true;
 }
 
-static bool midi_save_start(const uint8_t *data, size_t size, const char *alias, char path[160]) {
-    char next[160];
-#ifdef _WIN32
-    unsigned long pid = GetCurrentProcessId();
-#else
-    unsigned long pid = (unsigned long)getpid();
-#endif
-    snprintf(next,sizeof(next),"bin/%s-%lu-%u.mid",alias,pid,s_file_serial++);
-    FILE *f = fopen(next,"wb");
-    if (!f) return false;
-    size_t written = fwrite(data,1,size,f);
-    int closed = fclose(f);
-    if (written != size || closed) { remove(next); return false; }
-    // Write a different file before closing the previous sequencer handle.
-    bool ok = midi_start_file(next,alias);
-    if (path[0]) remove(path);
-    path[0] = '\0';
-    if (!ok) { remove(next); return false; }
-    snprintf(path,160,"%s",next);
-    return true;
-}
-
 bool midi_play(const char *name, uint32_t crc, uint32_t size) {
     if (!s_midi_inited) midi_init();
-    if (s_silent && name && name[0]) return false;
+    if (s_silent && !s_stage225 && name && name[0]) return false;
     if (!name || name[0] == '\0') {
         midi_stop();
         return true;
@@ -156,9 +97,9 @@ bool midi_play(const char *name, uint32_t crc, uint32_t size) {
             name[i] == '_' || name[i] == '-' || name[i] == ' ')) return false;
 
     // A new song packet cancels the jingle's pending ambient restart.
-    midi_close_jingle();
+    if(!s_stage225)s_jingle_delay=0;
 
-    if (strcmp(s_current_song, name) == 0 && crc == s_current_crc && size == s_current_size && midi_is_playing()) {
+    if (!s_stage225 && strcmp(s_current_song, name) == 0 && crc == s_current_crc && size == s_current_size && midi_is_playing()) {
         return true;
     }
 
@@ -196,17 +137,16 @@ bool midi_play(const char *name, uint32_t crc, uint32_t size) {
     bool decoded = midi_unpack(file_data,(size_t)file_size,crc,size,&decompressed,&uncomp_len);
     free(file_data);
     if (!decoded) { fprintf(stderr,"[MIDI] Rejected song data/metadata: %s\n",name); return false; }
+    if(s_stage225){bool accepted=audio_request_midi225(decompressed,(int)uncomp_len,true);
+        if(accepted){int slot=audio_midi_position225();strcpy(s_request_names225[slot],name);s_request_crc225[slot]=crc;s_request_size225[slot]=size;}else free(decompressed);
+        return true;
+    }
 
     s_is_playing = false;
     s_current_song[0] = '\0';
-    bool started = midi_save_start(decompressed,uncomp_len,"rs2midi",s_music_path);
+    bool started = md_submit225(decompressed,uncomp_len,true,s_attenuation225);
     free(decompressed);
     if (!started) return false;
-#ifdef _WIN32
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "setaudio rs2midi volume to %d", (s_volume * 1000) / 255);
-    mciSendStringA(cmd, NULL, 0, NULL);
-#endif
 
     strncpy(s_current_song, name, sizeof(s_current_song) - 1);
     s_current_song[sizeof(s_current_song) - 1] = '\0';
@@ -221,16 +161,9 @@ bool midi_play_jingle(const uint8_t *bzip_data, int compressed_len, int uncompre
     if (compressed_len <= 0 || uncompressed_len < 4) return false;
     uint8_t *decompressed;
     if (!midi_decode_stream(bzip_data,(size_t)compressed_len,(size_t)uncompressed_len,&decompressed)) return false;
-    // The original saveMidi replaces the sequencer's current song. Keep its
-    // metadata for the original delayed setMidi restart, never mix both tracks.
-    // Windows sequencers can refuse a second play while the first is open.
-#ifdef _WIN32
-    mciSendStringA("close rs2midi", NULL, 0, NULL);
-#endif
-    if (s_music_path[0]) remove(s_music_path);
-    s_music_path[0] = '\0';
+    // One worker-owned stream: a jingle replaces ambient playback.
     s_is_playing = false;
-    bool started = midi_save_start(decompressed,(size_t)uncompressed_len,"rs2jingle",s_jingle_path);
+    bool started = md_submit225(decompressed,(size_t)uncompressed_len,false,s_attenuation225);
     free(decompressed);
     if (!started) {
         char song[sizeof(s_current_song)];memcpy(song,s_current_song,sizeof(song));
@@ -249,6 +182,14 @@ bool midi_delay_step(uint16_t *delay) {
     return *delay == 0;
 }
 
+bool midi_request_jingle225(const uint8_t *packed,int length,int decoded_length){
+    uint8_t *decoded=NULL;
+    if(length<=0 || decoded_length<4 || !midi_decode_stream(packed,(size_t)length,(size_t)decoded_length,&decoded))return false;
+    bool accepted=audio_request_midi225(decoded,decoded_length,false);
+    if(!accepted)free(decoded);
+    return true; /* Original saveMidi is void: a busy shared slot drops it. */
+}
+
 void midi_tick(void) {
     // client.java:7711-7717. A zero-delay jingle never schedules a restart.
     if (midi_delay_step(&s_jingle_delay)) {
@@ -261,53 +202,53 @@ void midi_tick(void) {
 }
 
 void midi_stop(void) {
-#ifdef _WIN32
-    if (!s_silent) {
-        mciSendStringA("stop rs2midi", NULL, 0, NULL);
-        mciSendStringA("close rs2midi", NULL, 0, NULL);
-        mciSendStringA("stop rs2jingle", NULL, 0, NULL);
-        mciSendStringA("close rs2jingle", NULL, 0, NULL);
-    }
-#endif
-    s_is_playing = false;
-    s_current_song[0] = '\0';
-    s_jingle_delay = 0;
-    if (s_music_path[0]) remove(s_music_path);
-    if (s_jingle_path[0]) remove(s_jingle_path);
-    s_music_path[0] = s_jingle_path[0] = '\0';
+    if(!s_silent)md_stop225();
+    s_is_playing=false;s_current_song[0]=0;s_jingle_delay=0;
 }
 
-void midi_set_volume(int vol_0_to_255) {
-    if (vol_0_to_255 < 0) vol_0_to_255 = 0;
-    if (vol_0_to_255 > 255) vol_0_to_255 = 255;
-    s_volume = vol_0_to_255;
-#ifdef _WIN32
-    char cmd[128];
-    snprintf(cmd, sizeof(cmd), "setaudio rs2midi volume to %d", (s_volume * 1000) / 255);
-    mciSendStringA(cmd, NULL, 0, NULL);
-#endif
+void midi_set_attenuation225(int attenuation) {
+    if(attenuation>0)attenuation=0;
+    if(attenuation < -10000)attenuation=-10000;
+    s_attenuation225=attenuation;
+    if(!s_silent)md_set_volume225(attenuation);
+}
+void midi_set_volume(int volume) {
+    if(volume<0)volume=0;
+    if(volume>255)volume=255;
+    midi_set_attenuation225(volume?(int)floor(2000.0*log10((double)volume/255.0)+0.5):-10000);
+}
+
+void midi_apply_music225(Music225 *music) {
+    if(!music)return;
+    uint8_t *published=NULL;int length=0,slot=0;bool fade=false,ambient=false;
+    if(audio_take_midi225(&published,&length,&fade,&ambient,&slot)){
+        if(!s_silent && session_log_mode()!=SESSION_LOG_REPLAY){
+            s_jingle_delay=0;
+            s_is_playing=false;
+            bool accepted=md_submit225(published,(size_t)length,ambient,s_attenuation225);
+            if(ambient){s_is_playing=accepted;strcpy(s_current_song,s_request_names225[slot]);s_current_crc=s_request_crc225[slot];s_current_size=s_request_size225[slot];}
+            midi_set_attenuation225(s_attenuation225);
+        }
+        free(published);
+    }
+    if(music->command==2){audio_midi_fade225(false);midi_stop();}
+    /* client.java setMidiVolume publishes the original signed hundredths-dB
+     * value. Do not round it through an 8-bit MIDI controller or alter CC7. */
+    if(music->volume!=s_attenuation225 || music->command==1)midi_set_attenuation225(music->volume);
+    music->command=0;
+    if(music->pending){
+        music->pending=false;
+        s_stage225=true;
+        if(!music->requested[0] || !midi_play(music->requested,music->requested_crc,music->requested_size))
+            fprintf(stderr,"[MIDI] Requested song unavailable or rejected\n");
+        s_stage225=false;
+    }
 }
 
 bool midi_is_playing(void) {
-#ifdef _WIN32
-    if (!s_is_playing) return false;
-    char mode[64] = {0};
-    if (!midi_mci_ok(mciSendStringA("status rs2midi mode", mode, sizeof(mode) - 1, NULL), "status")) {
-        s_is_playing = false;
-        s_current_song[0] = '\0';
-        return false;
-    }
-    if (strcmp(mode, "playing") == 0) return true;
-    if (strcmp(mode, "stopped") == 0) {
-        // Auto-loop ambient music
-        if (midi_mci_ok(mciSendStringA("play rs2midi from 0", NULL, 0, NULL), "loop")) return true;
-        mciSendStringA("close rs2midi", NULL, 0, NULL);
-    }
-    s_is_playing = false;
-    s_current_song[0] = '\0';
-    return false;
-#endif
-    return s_is_playing;
+    if(!s_is_playing || s_silent)return false;
+    if(md_playing225())return true;
+    s_is_playing=false;s_current_song[0]=0;return false;
 }
 
 const char* midi_current_song(void) {
@@ -316,5 +257,6 @@ const char* midi_current_song(void) {
 
 void midi_close(void) {
     midi_stop();
+    md_close225();
     s_midi_inited = false;
 }

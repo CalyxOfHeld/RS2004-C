@@ -4,6 +4,8 @@ cd /d "%~dp0engine"
 set "NODE_PORT=43595"
 set "WEB_PORT=8889"
 set "WEB_MANAGEMENT_PORT=8899"
+rem Normal play honors the client's idle logout request.
+set "NODE_DEBUG=false"
 where /q powershell.exe
 if errorlevel 1 (
     echo Windows PowerShell is required to check the local server ports.
@@ -24,6 +26,7 @@ if errorlevel 1 (
     exit /b 1
 )
 echo Starting this project's revision-225 server on port 43595.
+echo Automatic idle logout is enabled. Combat can delay logout.
 echo Keep this window open. Wait for World ready before launching the client.
 echo Use Ctrl+C here to request a normal server shutdown.
 bun run src/app.ts

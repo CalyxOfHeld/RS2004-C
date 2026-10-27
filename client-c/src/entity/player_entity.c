@@ -94,6 +94,26 @@ Model *player_with_location(Model *body,PlayerEntity *p,int cycle,int ground_y,A
     return merged ? merged:body;
 }
 
+static void player_recolor(Model *model,const int colors[5]) {
+    for(int i=0;i<5;i++)if(colors[i]!=0 && colors[i]<PLAYER_COLOR_COUNTS[i]) {
+        model_recolor(model,PLAYER_COLORS[i][0],PLAYER_COLORS[i][colors[i]]);
+        if(i==1)model_recolor(model,PLAYER_TORSO_TRIM[0],PLAYER_TORSO_TRIM[colors[1]]);
+    }
+}
+
+Model *player_entity_get_design_model(IdkConfig *kits,const int parts[7],const int colors[5],int stand_frame,Arena *arena) {
+    Model *models[7];int count=0;
+    for(int i=0;i<7;i++)if(parts[i]>=0) {
+        IdkType *kit=idk_get(kits,parts[i]);Model *model=kit?idk_get_model(kit,arena):NULL;
+        if(!model)return NULL;models[count++]=model;
+    }
+    if(!count)return NULL;
+    Model *model=model_create_composite(models,count,arena);if(!model)return NULL;
+    player_recolor(model,colors);model_create_label_references(model,arena);
+    model_apply_transform(model,stand_frame);
+    model_calculate_normals(model,64,850,-30,-50,-30);return model;
+}
+
 static Model* player_base(PlayerEntity *p, IdkConfig *idk_cfg, ObjConfig *obj_cfg,int right,int left,Arena *arena) {
     if (!p || !p->visible) return NULL;
 
@@ -128,14 +148,7 @@ static Model* player_base(PlayerEntity *p, IdkConfig *idk_cfg, ObjConfig *obj_cf
     Model *res = (part_count == 1) ? parts[0] : model_create_composite(parts, part_count, arena);
     if (!res) return NULL;
 
-    for (int i = 0; i < 5; i++) {
-        if (p->colors[i] != 0 && p->colors[i] < PLAYER_COLOR_COUNTS[i]) {
-            model_recolor(res, PLAYER_COLORS[i][0], PLAYER_COLORS[i][p->colors[i]]);
-            if (i == 1) {
-                model_recolor(res, PLAYER_TORSO_TRIM[0], PLAYER_TORSO_TRIM[p->colors[1]]);
-            }
-        }
-    }
+    player_recolor(res,p->colors);
 
     model_calculate_normals(res, 64, 850, -30, -50, -30);
     return res;
@@ -195,14 +208,7 @@ Model* player_entity_get_head_model(PlayerEntity *p, IdkConfig *idk_cfg, ObjConf
     Model *res = (part_count == 1) ? parts[0] : model_create_composite(parts, part_count, arena);
     if (!res) return NULL;
 
-    for (int i = 0; i < 5; i++) {
-        if (p->colors[i] != 0 && p->colors[i] < PLAYER_COLOR_COUNTS[i]) {
-            model_recolor(res, PLAYER_COLORS[i][0], PLAYER_COLORS[i][p->colors[i]]);
-            if (i == 1) {
-                model_recolor(res, PLAYER_TORSO_TRIM[0], PLAYER_TORSO_TRIM[p->colors[1]]);
-            }
-        }
-    }
+    player_recolor(res,p->colors);
 
     model_calculate_normals(res, 64, 850, -30, -50, -30);
     return res;

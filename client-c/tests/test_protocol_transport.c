@@ -1,4 +1,5 @@
 #include "net/protocol.h"
+#include "../verification/completion/tools/input_tracking_reference_control.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -62,12 +63,18 @@ static void receive_peer(uint8_t *out,int size) {
 int main(void) {
     assert(client_stream_global_init());
     uint8_t out[32]; size_t length; int opcode;
-    connect_pair(); memset(out,0xa5,sizeof(out));
+    connect_pair();
+    for (int cycle=1;cycle<=750;cycle++) assert(!protocol_tick_network_idle(&session));
+    assert(session.idle_net_cycles==750);
+    assert(protocol_tick_network_idle(&session));
+    assert(protocol_tick_network_idle(&session) && session.idle_net_cycles==751);
+    memset(out,0xa5,sizeof(out));
     uint8_t header[]={encrypted(98),0,5};
     transmit(header,1); uint64_t start=millis();
     assert(poll_ready(out,sizeof(out),&length,&opcode)==0); assert(millis()-start<250);
     transmit(header+1,1); assert(poll_ready(out,sizeof(out),&length,&opcode)==0);
     transmit(header+2,1); assert(poll_ready(out,sizeof(out),&length,&opcode)==0);
+    assert(session.idle_net_cycles==751); /* partial header cannot reset silence */
     const uint8_t payload[]={1,2,3,4,5};
     transmit(payload,2); assert(poll_ready(out,sizeof(out),&length,&opcode)==0);
     for(size_t i=0;i<sizeof(out);i++) assert(out[i]==0xa5);
@@ -75,6 +82,9 @@ int main(void) {
     assert(millis()-start<250);
     transmit(payload+2,3); assert(poll_ready(out,sizeof(out),&length,&opcode)==1);
     assert(opcode==98 && length==5 && !memcmp(out,payload,5));
+    assert(session.idle_net_cycles==0);
+    assert(!protocol_tick_network_idle(&session) && session.idle_net_cycles==1);
+    puts("PASS: original receive watchdog boundary 750/751; fragments retain timer, complete packet resets");
     puts("PASS NET-01: split opcode, two-byte length and payload; no output mutation or blocking while incomplete");
     uint8_t batch[]={encrypted(239),encrypted(150),0,43,2,encrypted(4),3,'o','k',10,encrypted(223),1,2,3,4,5};
     transmit(batch,sizeof(batch));
@@ -123,7 +133,7 @@ int main(void) {
     assert(wire[0]==4 && wire[1]==5 && !memcmp(wire+2,"test\n",5));
     assert(protocol_send_keepalive(&session));receive_peer(wire,1);assert(wire[0]==108);
     puts("PASS: real outgoing socket bytes match bundled operation layouts, waypoint limit, string delimiter and NO_TIMEOUT");
-    disconnect_pair();client_stream_global_cleanup();
+    disconnect_pair();tracking_registered_reference();client_stream_global_cleanup();
     puts("[Test Protocol Transport] PASS (loopback transport/codec checks; not live gameplay or visual parity)");
     return 0;
 }

@@ -67,6 +67,13 @@ public class ParityOracle {
         ByteArrayOutputStream loginIn = new ByteArrayOutputStream(), loginOut = new ByteArrayOutputStream();
     }
 
+    static void requireSupportedTrace() {
+        if (frames.stream().filter(frame -> frame.login).count() > 1 ||
+            frames.stream().anyMatch(frame -> frame.login && frame.loginOut.size() > 0 &&
+                (frame.loginOut.toByteArray()[0] & 255) == 18))
+            throw new UnsupportedOperationException("UNSUPPORTED RECOVERY TRACE: oracle has only initial-login support; reconnect/I-O/presentation/connection RNG require a recovery-aware adapter. No differential parity result is claimed.");
+    }
+
     static byte[] hex(String s) {
         if (s.equals("-")) return new byte[0];
         byte[] b = new byte[s.length() / 2];
@@ -81,6 +88,8 @@ public class ParityOracle {
 
     static List<String> args = new ArrayList<>();
     static String username;
+    static long startupSeed;
+    static boolean hasStartupSeed;
     static List<Frame> frames = new ArrayList<>();
 
     static void parse(Path log) throws IOException {
@@ -89,6 +98,7 @@ public class ParityOracle {
             if (line.isEmpty()) continue;
             String[] p = line.split(" ");
             switch (p[0]) {
+                case "S": startupSeed = Long.parseLong(p[1]); hasStartupSeed = true; break;
                 case "A": args.add(new String(hex(p[1]), "UTF-8")); break;
                 case "L": username = new String(hex(p[1]), "UTF-8"); break;
                 case "F": f = new Frame(); f.number = Integer.parseInt(p[1]); frames.add(f); cycle = null; afterDraw = false; inLogin = false; break;
@@ -100,7 +110,7 @@ public class ParityOracle {
                 case "U": cycle = new Cycle(); f.cycles.add(cycle); break;
                 case "D": f.hash = Long.parseLong(p[1]); cycle = null; afterDraw = true; break;   // hash logged signed
                 case "NC":
-                    if (f.login) throw new IllegalStateException("two connects in one frame");
+                    if (f.login) throw new UnsupportedOperationException("UNSUPPORTED RECOVERY TRACE: multiple connection attempts in one frame require recovery-aware replay");
                     f.login = true; inLogin = true; break;
                 case "NR": case "NB": {
                     byte[] data = hex(p[p.length - 1]);
@@ -374,6 +384,7 @@ public class ParityOracle {
         Files.createDirectories(out);
         String password = System.getenv("RS2_PASSWORD");
         parse(log);
+        requireSupportedTrace();
         loadScript();
         loadClientSizes(pack.toAbsolutePath().getParent().getParent().getParent().resolve("src"));
         if (args.contains("--offline")) throw new IllegalStateException("offline sessions have no original-client equivalent");
@@ -401,6 +412,12 @@ public class ParityOracle {
         final ServerSocket game = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
         if (game.getLocalPort() < 43594) throw new IllegalStateException("ephemeral port below 43594");
 
+        // Control the original startup before World class initialization. Login
+        // synchronization alone cannot reproduce pre-login palettes/colors.
+        if (!hasStartupSeed) throw new IllegalStateException("recording has no startup seed");
+        Field mathHolder = field(Class.forName("java.lang.Math$RandomNumberGeneratorHolder"), "randomNumberGenerator");
+        Random startupRandom = (Random) mathHolder.get(null);
+        startupRandom.setSeed(startupSeed);
         client.nodeId = 10; client.portOffset = game.getLocalPort() - 43594; client.members = true;
         client.setHighMemory(9);       // the C client logs in with low memory 0
         signlink.uid = 1;              // protocol.c writes uid 1
@@ -420,6 +437,12 @@ public class ParityOracle {
         set(app, "flameActive", true);   // never start the flame thread: it draws Math.random on its own clock
         startSignlink(pack);
         app.load();
+        long loadedRandom = ((java.util.concurrent.atomic.AtomicLong)field(Random.class, "seed").get(startupRandom)).get();
+        System.out.println("[BOOT225] stage=loaded random_state=" + loadedRandom
+            + " hue=" + jagex2.dash3d.World.randomHueOffset + " light=" + jagex2.dash3d.World.randomLightnessOffset);
+        int[] floorColors = new int[jagex2.config.FloType.count];
+        for (int i = 0; i < floorColors.length; i++) floorColors[i] = jagex2.config.FloType.instances[i].hsl;
+        System.out.printf("[BOOT225] palette=%08x floors=%08x%n", Arrays.hashCode(jagex2.graphics.Pix3D.colourTable), Arrays.hashCode(floorColors));
         if ((Boolean) get(app, "errorLoading") || (Boolean) get(app, "errorHost") || (Boolean) get(app, "errorStarted"))
             throw new IllegalStateException("original client failed to load");
         System.out.println("[ORACLE] original client loaded; " + frames.size() + " recorded frames");
@@ -443,6 +466,7 @@ public class ParityOracle {
                 else if (type == 5) report.println("NOTE frame " + f.number + ": mouse wheel; the original client has no wheel input");
                 else if (type == 6) clientKey(app, k);
                 else if (type == 7) text(app, f.texts.get(i));
+                else if (type == 8) app.idleCycles = 0; // GameShell.keyReleased; held-key releases are applied separately
             }
             if (f.held != null) applyHeld(app, f.held, report, f.number);
             if (in != null && f.lateIn.size() > 0) report.println("NOTE frame " + f.number + ": C read " + f.lateIn.size() + " bytes outside update cycles");
@@ -464,7 +488,43 @@ public class ParityOracle {
                 hashes.println(f.number + " " + regionName(app, m) + " " + String.format("%016x", regionHash(x, y, w, h)));
             }
             hashes.println(f.number + " screen " + String.format("%016x", regionHash(0, 0, W, H)));
-            if (dumpFrames.contains(f.number)) dump(out.resolve("java-frame-" + String.format("%06d", f.number) + ".png"));
+            if (dumpFrames.contains(f.number)) {
+                dump(out.resolve("java-frame-" + String.format("%06d", f.number) + ".png"));
+                Object mapImage=get(app,"imageMinimap");
+                BufferedImage mapDump=new BufferedImage(512,512,BufferedImage.TYPE_INT_RGB);
+                mapDump.setRGB(0,0,512,512,(int[])get(mapImage,"pixels"),0,512);
+                ImageIO.write(mapDump,"png",out.resolve("java-minimap-"+String.format("%06d",f.number)+".png").toFile());
+            }
+            if(dumpFrames.contains(f.number) || System.getenv("RS2_TRACE_ACTORS")!=null) {
+                Object tracedLocal=get(app,"localPlayer");
+                if(tracedLocal!=null)System.out.println("[LOCAL225 STATE] frame="+f.number+" pos="+getInt(tracedLocal,"x")+","+getInt(tracedLocal,"z")
+                    +" yaw="+getInt(tracedLocal,"yaw")+","+getInt(tracedLocal,"dstYaw")
+                    +" seq="+getInt(tracedLocal,"secondarySeqId")+","+getInt(tracedLocal,"secondarySeqFrame")+","+getInt(tracedLocal,"secondarySeqCycle")
+                    +" primary="+getInt(tracedLocal,"primarySeqId")+","+getInt(tracedLocal,"primarySeqFrame")+","+getInt(tracedLocal,"primarySeqCycle")
+                    +" camera="+getInt(app,"cameraX")+","+getInt(app,"cameraY")+","+getInt(app,"cameraZ")+","+getInt(app,"cameraPitch")+","+getInt(app,"cameraYaw"));
+                Object[] mapNpcs=(Object[])get(app,"npcs");
+                int[] mapNpcIds=(int[])get(app,"npcIds");
+                for(int ni=0;ni<getInt(app,"npcCount");ni++) {
+                    int slot=mapNpcIds[ni];Object n=mapNpcs[slot];if(n==null)continue;
+                    System.out.println("[NPC225 STATE] frame="+f.number+" slot="+slot+" pos="+getInt(n,"x")+","+getInt(n,"z")
+                        +" yaw="+getInt(n,"yaw")+","+getInt(n,"dstYaw")+" seq="+getInt(n,"secondarySeqId")+","+getInt(n,"secondarySeqFrame")+","+getInt(n,"secondarySeqCycle")
+                        +" primary="+getInt(n,"primarySeqId")+","+getInt(n,"primarySeqFrame")+","+getInt(n,"primarySeqCycle"));
+                }
+            }
+            if(dumpFrames.contains(f.number)) {
+                String[] menuLabels=(String[])get(app,"menuOption");
+                int[] menuActions=(int[])get(app,"menuAction"),menuTargets=(int[])get(app,"menuParamA");
+                for(int mi=0;mi<getInt(app,"menuSize");mi++)
+                    System.out.println("[MENU225] frame="+f.number+" row="+mi+" action="+menuActions[mi]+" target="+menuTargets[mi]+" label="+menuLabels[mi]);
+                Object local = get(app, "localPlayer");
+                System.out.println("[ORACLE STATE] frame=" + f.number + " base=" + getInt(app, "sceneBaseTileX") + "," + getInt(app, "sceneBaseTileZ")
+                    + " level=" + getInt(app, "currentLevel") + " local=" + getInt(local, "x") + "," + getInt(local, "z")
+                    + " path=" + ((int[])get(local, "pathTileX"))[0] + "," + ((int[])get(local, "pathTileZ"))[0]
+                    + " camera=" + getInt(app, "cameraX") + "," + getInt(app, "cameraY") + "," + getInt(app, "cameraZ")
+                    + " pitch=" + getInt(app, "cameraPitch") + " yaw=" + getInt(app, "cameraYaw")
+                    + " orbit=" + getInt(app, "orbitCameraYaw") + " map=" + getInt(app, "minimapAnticheatAngle") + "," + getInt(app, "minimapZoom")
+                    + " menu=" + get(app, "menuVisible") + " hue=" + jagex2.dash3d.World.randomHueOffset + " light=" + jagex2.dash3d.World.randomLightnessOffset);
+            }
 
             if (in != null) {
                 byte[] sent = takeCaptured();
@@ -508,6 +568,9 @@ public class ParityOracle {
                     } catch (IOException e) { }
                 });
                 server.setDaemon(true); server.start();
+                // Normal title input owns these fields; direct oracle login
+                // must populate them too (chat prompt/reconnect read them).
+                set(app,"username",username);set(app,"password",password);
                 app.login(username, password, false);
                 drainWriter(app);
                 Thread.sleep(100);

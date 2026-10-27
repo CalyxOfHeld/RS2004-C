@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <assert.h>
 #include <string.h>
 #include "ui/mouse_picking.h"
@@ -6,6 +7,10 @@
 #include "gfx/pix2d.h"
 #include "gfx/pix3d.h"
 #include "gfx/model.h"
+
+static bool reject_other_plane_location(void *user,uint32_t bitset) {
+    int *queries=user;assert(((bitset>>29)&3)==2);(*queries)++;return false;
+}
 
 int main(void) {
     printf("=== Test Suite: 3D Mouse Picking & Entity Hovering ===\n");
@@ -110,6 +115,69 @@ int main(void) {
     printf("[PASS] Pixel-perfect 3D triangle hit testing verified!\n");
 
     arena_free(&arena);
+    // Original handleViewportOptions: centered actors expand in active-list order;
+    // only adjacent SOURCE hits are deduplicated, never expanded actor options.
+    EntitySyncContext *overlap=calloc(1,sizeof(*overlap));
+    NpcEntity *group=calloc(200,sizeof(*group));
+    assert(overlap && group);
+    overlap->local_player.combat_level=3;
+    for(int i=0;i<200;i++) {
+        group[i]=hans;group[i].type.size=1;group[i].base.x=group[i].base.z=64;
+        overlap->npcs[i]=&group[i];overlap->npc_indices[i]=i;
+    }
+    overlap->npc_count=3;picker.picked_count=2;
+    picker.picked_bitsets[0]=mouse_picker_make_bitset(1,0,0,0);
+    picker.picked_bitsets[1]=mouse_picker_make_bitset(1,1,0,0);
+    mouse_picker_build_live_menu225(&picker,&menu,NULL,NULL,NULL,overlap,false);
+    const int expected_overlap[]={1,2,0,0,2,1};int seen_overlap=0;
+    for(int i=0;i<menu.size;i++)if(menu.actions[i].type==MENU_NPC_OP) {
+        assert(seen_overlap<6 && menu.actions[i].target==expected_overlap[seen_overlap]);seen_overlap++;
+    }
+    assert(menu.size==14 && seen_overlap==6);
+    /* Source var2 updates even when getInfo rejects a scenery bitset. */
+    int location_queries=0;picker.location_present225=reject_other_plane_location;
+    picker.location_user225=&location_queries;picker.picked_count=4;
+    picker.picked_bitsets[0]=mouse_picker_make_bitset(1,0,0,0);
+    picker.picked_bitsets[1]=mouse_picker_make_bitset(2,1281,0,0);
+    picker.picked_bitsets[2]=picker.picked_bitsets[1];
+    picker.picked_bitsets[3]=picker.picked_bitsets[0];
+    mouse_picker_build_live_menu225(&picker,&menu,NULL,NULL,NULL,overlap,false);
+    assert(location_queries==1 && menu.size==14);
+    for(int i=0;i<menu.size;i++)assert(menu.actions[i].type!=MENU_LOC_OP && menu.actions[i].type!=MENU_LOC_EXAMINE);
+    picker.location_present225=NULL;picker.location_user225=NULL;
+    printf("[PASS] Rejected scenery preserves source duplicate boundaries and actor expansion\n");
+    PlayerEntity *peers=calloc(2,sizeof(*peers));assert(peers);
+    for(int i=0;i<2;i++) {
+        peers[i].visible=true;peers[i].base.x=peers[i].base.z=64;peers[i].combat_level=3;
+        snprintf(peers[i].name,sizeof(peers[i].name),"Peer%d",i+1);
+        overlap->players[i+1]=&peers[i];overlap->player_indices[i]=i+1;
+    }
+    overlap->player_count=2;picker.picked_count=1;
+    picker.picked_bitsets[0]=mouse_picker_make_bitset(0,2,0,0);
+    mouse_picker_build_live_menu225(&picker,&menu,NULL,NULL,NULL,overlap,false);
+    int npc_order=0,peer_order=0;const int expected_peers[]={1,1,2,2};
+    for(int i=0;i<menu.size;i++) {
+        if(menu.actions[i].type==MENU_NPC_OP)assert(menu.actions[i].target==npc_order++);
+        if(menu.actions[i].type==MENU_PLAYER_OP) {
+            assert(peer_order<4 && menu.actions[i].target==expected_peers[peer_order]);peer_order++;
+        }
+    }
+    assert(npc_order==3 && peer_order==4 && menu.size==12);
+    context_menu_clear(&menu);
+    context_menu_add_action(&menu,"Cancel",(MenuAction){.type=MENU_CANCEL});
+    context_menu_add_option(&menu,"Add friend @whi@Alice",2406);
+    picker.picked_count=0;
+    mouse_picker_append_live_menu225(&picker,&menu,NULL,NULL,NULL,overlap,false);
+    assert(menu.size==3 && menu.action_ids[1]==2406 && menu.actions[2].type==MENU_WALK);
+    puts("[PASS] Original viewport menu appends after split-private options");
+    free(peers);overlap->player_count=0;
+    overlap->npc_count=200;picker.picked_count=1;
+    picker.picked_bitsets[0]=mouse_picker_make_bitset(1,0,0,0);
+    mouse_picker_build_live_menu225(&picker,&menu,NULL,NULL,NULL,overlap,false);
+    assert(MAX_MENU_OPTIONS==500 && menu.size==400);
+    assert(menu.actions[399].type==MENU_NPC_OP && menu.actions[399].target==199);
+    printf("[PASS] Original centered NPC expansion, duplicate options and 400-entry actor gate\n");
+    free(group);free(overlap);
     printf("=== ALL MOUSE PICKING TESTS PASSED! ===\n");
     return 0;
 }

@@ -8,6 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include "../verification/completion/tools/wave_setting_reference_control.h"
+#include "../verification/completion/tools/sound_queue_reference_control.h"
+#include "../verification/completion/tools/music_state_reference_control.h"
 
 int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -124,6 +127,9 @@ int main(void) {
     }
     midi_close();
 
+    sound_queue_registered();
+    music_reference225();
+    wave_setting_registered();
     wave_free_all();
     arena_free(&arena);
     SDL_Quit();

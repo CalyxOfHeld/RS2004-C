@@ -1,0 +1,36 @@
+.SUFFIXES:
+
+ifeq ($(strip $(DEVKITPPC)),)
+$(error "Please set DEVKITPPC in your environment. export DEVKITPPC=<path to>devkitPPC")
+endif
+
+include $(DEVKITPPC)/wii_rules
+
+TARGET := rs2client
+BUILD := build_wii
+SOURCES := src/core src/gfx src/scene src/net src/audio src/config platform/wii
+DATA :=
+
+CFLAGS = -DRENDER_SW -DWII -O2 -Wall $(MACHDEP) $(INCLUDE)
+LDFLAGS = $(MACHDEP) -Wl,-Map,$(notdir $@).map
+LIBS := -lwiikeyboard -lwiiuse -lbte -lasnd -lfat -logc -lm
+LIBDIRS :=
+
+export OUTPUT := $(CURDIR)/$(TARGET)
+export VPATH := $(foreach dir,$(SOURCES),$(CURDIR)/$(dir))
+export DEPSDIR := $(CURDIR)/$(BUILD)
+
+CFILES := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
+export LD := $(CC)
+export OFILES := $(CFILES:.c=.o)
+export INCLUDE := -I$(CURDIR)/include -I$(LIBOGC_INC)
+export LIBPATHS := -L$(LIBOGC_LIB)
+
+.PHONY: $(BUILD) clean
+
+$(BUILD):
+	@[ -d $@ ] || mkdir -p $@
+	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile.wii
+
+clean:
+	@rm -rf $(BUILD) $(OUTPUT).elf $(OUTPUT).dol

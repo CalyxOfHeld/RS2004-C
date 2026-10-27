@@ -32,5 +32,6 @@ Model *player_with_location(Model *body,PlayerEntity *player,int cycle,int groun
 void   player_entity_read_appearance(PlayerEntity *p, Packet *pkt);
 Model* player_entity_get_model(PlayerEntity *p, IdkConfig *idk_cfg, ObjConfig *obj_cfg, SeqConfig *seq_cfg, Arena *arena);
 Model* player_entity_get_head_model(PlayerEntity *p, IdkConfig *idk_cfg, ObjConfig *obj_cfg, Arena *arena);
+Model *player_entity_get_design_model(IdkConfig *kits,const int parts[7],const int colors[5],int stand_frame,Arena *arena);
 
 #endif // RS2_PLAYER_ENTITY_H

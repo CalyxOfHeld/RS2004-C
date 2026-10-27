@@ -73,5 +73,42 @@ void   model_apply_scene_lighting(Model *m,int ambient,int scale,int lx,int ly,i
 void   model_draw(Model *m, int32_t yaw, int32_t eye_pitch, int32_t eye_yaw, int32_t dx, int32_t dy, int32_t dz);
 bool   model_draw_pickable(Model *m, int32_t yaw, int32_t eye_pitch, int32_t eye_yaw, int32_t dx, int32_t dy, int32_t dz, int mouse_x, int mouse_y);
 void   model_render_obj(Model *m, int32_t pitch, int32_t yaw, int32_t roll, int32_t eye_pitch, int32_t eye_x, int32_t eye_y, int32_t eye_z);
+/* Candidate client opt-in for interface/item drawSimple calls. */
+void model_use_preview225(bool enabled);
+/* Original drawSimple contract; separate from the installed scene/preview
+ * path. Caller prepares the 225 palette/texture cache and bound surface.
+ * Returns false for unsupported capacities, invalid indices or zero depth.
+ * drawSimple does not perform near-plane clipping (unlike Model.draw). */
+bool model_render_simple225(const Model *m,int32_t pitch,int32_t yaw,int32_t roll,
+    int32_t eye_pitch,int32_t eye_x,int32_t eye_y,int32_t eye_z);
+/* Original world-space draw, with frustum tests and z=50 face clipping.
+ * Same palette/cache contract as simple225; hover/picking is not performed.
+ * A valid model culled by the frustum returns true without drawing. */
+bool model_render_world225(const Model *m,int32_t yaw,int32_t eye_pitch,
+    int32_t eye_yaw,int32_t dx,int32_t dy,int32_t dz);
+typedef struct {int32_t radius,max_y,min_depth,max_depth;} ModelBounds225;
+/* Original scene models carry bounds from cylinder/AABB/Y calculations.
+ * This entry uses the supplied original bounds without recomputing them. */
+bool model_render_world_bounds225(const Model *m,const ModelBounds225 *bounds,
+    int32_t yaw,int32_t eye_pitch,int32_t eye_yaw,int32_t dx,int32_t dy,int32_t dz);
+typedef struct {
+    bool check_hover;
+    bool pickable; // Original Model.pickable: coarse bounds alone select it.
+    int32_t mouse_x,mouse_y,bitset;
+    bool picked; // Cleared on entry; at most one selection per model draw.
+} ModelPick225;
+/* Rendering plus original hover selection. Caller appends bitset to its
+ * ordered pick list when picked is true; no global list is owned here. */
+bool model_render_world_pick225(const Model *m,int32_t yaw,int32_t eye_pitch,
+    int32_t eye_yaw,int32_t dx,int32_t dy,int32_t dz,ModelPick225 *pick);
+/* Same hover contract using the model's prepared cylinder/AABB/Y bounds. */
+bool model_render_world_bounds_pick225(const Model *m,const ModelBounds225 *bounds,
+    int32_t yaw,int32_t eye_pitch,int32_t eye_yaw,int32_t dx,int32_t dy,int32_t dz,ModelPick225 *pick);
+/* Input-script pointer resolution: same selection, no pixels or scratch change. */
+bool model_probe_world_bounds225(const Model *m,const ModelBounds225 *bounds,
+    int32_t yaw,int32_t eye_pitch,int32_t eye_yaw,int32_t dx,int32_t dy,int32_t dz,ModelPick225 *pick);
+/* Original Model.pointWithinTriangle is an inclusive face bounding box. */
+bool model_point_within_triangle225(int32_t mx,int32_t my,int32_t ya,int32_t yb,int32_t yc,
+    int32_t xa,int32_t xb,int32_t xc);
 
 #endif // RS2_MODEL_H

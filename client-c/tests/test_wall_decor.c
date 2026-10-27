@@ -16,7 +16,9 @@ int main(void) {
  for(int c=0;c<cases;c++) {
   world_reset(w);world3d_reset(s);int shape=rd(f),rot=rd(f),order=rd(f),wall=rd(f);
   w->heightmap[0][40][40]=rd(f);w->heightmap[0][41][40]=rd(f);w->heightmap[0][41][41]=rd(f);w->heightmap[0][40][41]=rd(f);
-  if(order==1)add(w,s,&locs,wall,0,rot);add(w,s,&locs,1938,shape,rot);if(order==2)add(w,s,&locs,wall,0,rot);
+  if(order==1)add(w,s,&locs,wall,0,rot);
+  add(w,s,&locs,1938,shape,rot);
+  if(order==2)add(w,s,&locs,wall,0,rot);
   WorldLocation *loc=NULL;GroundTile *t=&s->tiles[0][40][40];for(int j=0;j<t->loc_count;j++)if(t->locs[j].shape==shape)loc=&t->locs[j];assert(loc);
   assert(rd(f)==loc->x);assert(rd(f)==loc->y);assert(rd(f)==loc->z);assert(rd(f)==loc->model->num_points);
   for(int j=0;j<loc->model->num_points;j++){assert(rd(f)==loc->model->point_x[j]);assert(rd(f)==loc->model->point_y[j]);assert(rd(f)==loc->model->point_z[j]);}

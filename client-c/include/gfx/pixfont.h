@@ -22,8 +22,10 @@ bool pixfont_load(PixFont *font, Jagfile *title_jag, const char *name, Arena *ar
 int  pixfont_string_width(PixFont *font, const char *str);
 void pixfont_draw_string(PixFont *font, int x, int y, uint32_t color, const char *str);
 void pixfont_draw_string_center(PixFont *font, int x, int y, uint32_t color, const char *str);
+void pixfont_draw_centered_wave225(PixFont *font,int x,int y,uint32_t color,const char *text,int cycle);
 void pixfont_draw_string_right(PixFont *font, int x, int y, uint32_t color, const char *str);
 void pixfont_draw_string_taggable(PixFont *font, int x, int y, uint32_t default_color, const char *str, bool shadow);
 void pixfont_draw_string_taggable_center(PixFont *font, int x, int y, uint32_t default_color, const char *str, bool shadow);
+void pixfont_draw_tooltip225(PixFont *font,int x,int y,uint32_t color,const char *text,int seed);
 
 #endif // RS2_PIXFONT_H

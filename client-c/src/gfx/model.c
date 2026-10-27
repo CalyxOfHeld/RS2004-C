@@ -1,6 +1,10 @@
 #include "gfx/model.h"
 #include "gfx/pix2d.h"
 #include "gfx/pix3d.h"
+#include "gfx/pix3d_flat225.h"
+#include "gfx/pix3d_gouraud225.h"
+#include "gfx/pix3d_texture225.h"
+#include "gfx/pix3d_texture_cache225.h"
 #include "gfx/anim.h"
 #include "core/packet.h"
 #include <math.h>
@@ -322,9 +326,9 @@ static bool calculate_normals(Model *m,int32_t ambient,int32_t contrast,int32_t 
     if(!m->allocation_arena) {free(m->vertex_normals);free(m->vertex_normals_original);free(m->face_render_type_original);}
     m->vertex_normals=m->vertex_normals_original=NULL;m->face_render_type_original=NULL;
 
-    if(!m->face_colour_a) m->face_colour_a = m->allocation_arena ? arena_alloc(m->allocation_arena,m->num_faces*sizeof(int32_t)) : malloc(m->num_faces*sizeof(int32_t));
-    if(!m->face_colour_b) m->face_colour_b = m->allocation_arena ? arena_alloc(m->allocation_arena,m->num_faces*sizeof(int32_t)) : malloc(m->num_faces*sizeof(int32_t));
-    if(!m->face_colour_c) m->face_colour_c = m->allocation_arena ? arena_alloc(m->allocation_arena,m->num_faces*sizeof(int32_t)) : malloc(m->num_faces*sizeof(int32_t));
+    if(!m->face_colour_a) m->face_colour_a = m->allocation_arena ? arena_alloc_zero(m->allocation_arena,m->num_faces*sizeof(int32_t)) : calloc((size_t)m->num_faces,sizeof(int32_t));
+    if(!m->face_colour_b) m->face_colour_b = m->allocation_arena ? arena_alloc_zero(m->allocation_arena,m->num_faces*sizeof(int32_t)) : calloc((size_t)m->num_faces,sizeof(int32_t));
+    if(!m->face_colour_c) m->face_colour_c = m->allocation_arena ? arena_alloc_zero(m->allocation_arena,m->num_faces*sizeof(int32_t)) : calloc((size_t)m->num_faces,sizeof(int32_t));
     if(!m->face_colour_a || !m->face_colour_b || !m->face_colour_c) return false;
     if(deferred) {
         memset(m->face_colour_a,0,m->num_faces*sizeof(int32_t));
@@ -402,7 +406,8 @@ static bool calculate_normals(Model *m,int32_t ambient,int32_t contrast,int32_t 
         int32_t c = m->face_vertex_c[f];
         int32_t col = m->face_colour[f];
         if (m->face_render_type && (m->face_render_type[f] & 1)) {
-            m->face_colour_b[f]=m->face_colour_c[f]=m->face_colour_a[f];
+            /* Java leaves the two unused flat-face shade slots at zero. */
+            m->face_colour_b[f]=m->face_colour_c[f]=0;
             continue;
         }
 
@@ -627,8 +632,11 @@ bool model_draw_pickable(Model *m, int32_t yaw, int32_t eye_pitch, int32_t eye_y
     return false;
 }
 
+static bool preview225;
+void model_use_preview225(bool enabled){preview225=enabled;}
 void model_render_obj(Model *m, int32_t pitch, int32_t yaw, int32_t roll, int32_t eye_pitch, int32_t eye_x, int32_t eye_y, int32_t eye_z) {
     if (!m) return;
+    if(preview225){(void)model_render_simple225(m,pitch,yaw,roll,eye_pitch,eye_x,eye_y,eye_z);return;}
 
     int32_t sinPitch = pix3d_sin_table[pitch & 2047];
     int32_t cosPitch = pix3d_cos_table[pitch & 2047];
@@ -723,6 +731,327 @@ void model_render_obj(Model *m, int32_t pitch, int32_t yaw, int32_t roll, int32_
             m->face_colour_a[f] << 8, m->face_colour_b[f] << 8, m->face_colour_c[f] << 8
         );
     }
+}
+
+/* Explicit Java int operations for drawSimple projection and depth buckets. */
+static int32_t m225_int(uint32_t v) { return v<=INT32_MAX?(int32_t)v:-1-(int32_t)(UINT32_MAX-v); }
+static int32_t m225_add(int32_t a,int32_t b) { return m225_int((uint32_t)a+(uint32_t)b); }
+static int32_t m225_sub(int32_t a,int32_t b) { return m225_int((uint32_t)a-(uint32_t)b); }
+static int32_t m225_mul(int32_t a,int32_t b) { return m225_int((uint32_t)a*(uint32_t)b); }
+static int32_t m225_shr16(int32_t a) {
+    return m225_int(((uint32_t)a>>16)|(a<0?UINT32_C(0xffff0000):0));
+}
+static int32_t m225_sum(int32_t a,int32_t b,int32_t c,int32_t d) {
+    return m225_shr16(m225_add(m225_mul(a,b),m225_mul(c,d)));
+}
+static int32_t m225_diff(int32_t a,int32_t b,int32_t c,int32_t d) {
+    return m225_shr16(m225_sub(m225_mul(a,b),m225_mul(c,d)));
+}
+static int32_t m225_project(int32_t coordinate,int32_t depth) {
+    int32_t numerator=m225_int((uint32_t)coordinate<<9);
+    return numerator==INT32_MIN && depth==-1?INT32_MIN:numerator/depth;
+}
+
+/* Original Model's projection and clipping scratch survives calls. In
+ * particular, a completely hidden clipped face can inspect the previous
+ * clipped polygon before deciding whether to change Pix3D.hclip. */
+typedef struct { int32_t sx[4096],sy[4096],depth[4096],vx[4096],vy[4096],vz[4096]; } Model225Projection;
+static Model225Projection g225;
+static int32_t g225_clip_x[10],g225_clip_y[10],g225_clip_colour[10];
+
+bool model_render_simple225(const Model *m,int32_t pitch,int32_t yaw,int32_t roll,
+    int32_t eye_pitch,int32_t eye_x,int32_t eye_y,int32_t eye_z) {
+    if(!m || m->num_points<0 || m->num_points>4096 || m->num_faces<0 || m->num_faces>4096 ||
+       (m->num_points && (!m->point_x || !m->point_y || !m->point_z)) ||
+       (m->num_faces && (!m->face_vertex_a || !m->face_vertex_b || !m->face_vertex_c ||
+        !m->face_colour || !m->face_colour_a || !m->face_colour_b || !m->face_colour_c)) || !pix3d_scanline) return false;
+    int32_t sx[4096],sy[4096],depth[4096],vx[4096],vy[4096],vz[4096];
+    int32_t order[4096],face_depth[4096];
+    const uint32_t *texels[50]={0}; bool opaque[50]={false};
+    int32_t sp=pix3d_sin_table[pitch&2047],cp=pix3d_cos_table[pitch&2047];
+    int32_t sw=pix3d_sin_table[yaw&2047],cw=pix3d_cos_table[yaw&2047];
+    int32_t sr=pix3d_sin_table[roll&2047],cr=pix3d_cos_table[roll&2047];
+    int32_t se=pix3d_sin_table[eye_pitch&2047],ce=pix3d_cos_table[eye_pitch&2047];
+    int32_t origin=m225_sum(eye_y,se,eye_z,ce);
+    int32_t radius_squared=0,max_y=0,min_y=0;
+    for(int v=0;v<m->num_points;v++) {
+        int32_t x=m->point_x[v],y=m->point_y[v],z=m->point_z[v];
+        int32_t r=m225_add(m225_mul(x,x),m225_mul(z,z));
+        if(r>radius_squared) radius_squared=r;
+        int32_t negative_y=m225_sub(0,y); if(negative_y>max_y) max_y=negative_y;
+        if(y>min_y) min_y=y;
+        if(roll) { int32_t t=m225_sum(y,sr,x,cr);y=m225_diff(y,cr,x,sr);x=t; }
+        if(pitch) { int32_t t=m225_diff(y,cp,z,sp);z=m225_sum(y,sp,z,cp);y=t; }
+        if(yaw) { int32_t t=m225_sum(z,sw,x,cw);z=m225_diff(z,cw,x,sw);x=t; }
+        x=m225_add(x,eye_x);y=m225_add(y,eye_y);z=m225_add(z,eye_z);
+        int32_t t=m225_diff(y,ce,z,se);z=m225_sum(y,se,z,ce);y=t;
+        if(z==0) return false;
+        vx[v]=x;vy[v]=y;vz[v]=z;depth[v]=m225_sub(z,origin);
+        sx[v]=m225_add(pix3d_center_x,m225_project(x,z));
+        sy[v]=m225_add(pix3d_center_y,m225_project(y,z));
+        g225.sx[v]=sx[v];g225.sy[v]=sy[v];g225.depth[v]=depth[v];
+        if(m->num_t>0) {g225.vx[v]=x;g225.vy[v]=y;g225.vz[v]=z;}
+    }
+    int32_t radius=(int32_t)(sqrt((double)radius_squared)+0.99);
+    int32_t bound=m225_add(m225_mul(radius,radius),m225_mul(max_y,max_y));
+    if(bound<0) return false;
+    int32_t min_depth=(int32_t)(sqrt((double)bound)+0.99);
+    bound=m225_add(m225_mul(radius,radius),m225_mul(min_y,min_y));
+    if(bound<0) return false;
+    int32_t max_depth=min_depth+(int32_t)(sqrt((double)bound)+0.99);
+    int count=0;
+    for(int f=0;f<m->num_faces;f++) {
+        int type=m->face_render_type?m->face_render_type[f]:0;
+        if(type==-1 || type==255) continue;
+        int a=m->face_vertex_a[f],b=m->face_vertex_b[f],c=m->face_vertex_c[f];
+        if(a<0 || b<0 || c<0 || a>=m->num_points || b>=m->num_points || c>=m->num_points ||
+           (m->face_priority && (m->face_priority[f]<0 || m->face_priority[f]>11))) return false;
+        if(type&2) {
+            int axis=type>>2,id=m->face_colour[f];
+            if(axis<0 || axis>=m->num_t || id<0 || id>=50 || !m->texture_a || !m->texture_b || !m->texture_c) return false;
+            int ta=m->texture_a[axis],tb=m->texture_b[axis],tc=m->texture_c[axis];
+            if(ta<0 || tb<0 || tc<0 || ta>=m->num_points || tb>=m->num_points || tc>=m->num_points) return false;
+            if(!texels[id]) texels[id]=pix3d225_texture_cache_get(id,&opaque[id]);
+            if(!texels[id]) return false;
+        }
+        int32_t cross=m225_sub(m225_mul(m225_sub(sx[a],sx[b]),m225_sub(sy[c],sy[b])),
+                              m225_mul(m225_sub(sy[a],sy[b]),m225_sub(sx[c],sx[b])));
+        if(cross<=0) continue;
+        int32_t bucket=m225_add(m225_add(m225_add(depth[a],depth[b]),depth[c])/3,min_depth);
+        // Original draw traverses only [0,maxDepth), even when drawSimple's
+        // pitch/roll puts visible faces beyond that asymmetric cylinder.
+        if(bucket<0) return false;
+        if(bucket>=max_depth) continue;
+        order[count]=f;
+        face_depth[count]=bucket;
+        count++;
+    }
+    model_order_faces(m,order,face_depth,count);
+    for(int i=0;i<count;i++) {
+        int f=order[i],a=m->face_vertex_a[f],b=m->face_vertex_b[f],c=m->face_vertex_c[f];
+        int type=m->face_render_type?m->face_render_type[f]:0;
+        int ca=m->face_colour_a[f],cb=m->face_colour_b[f],cc=m->face_colour_c[f];
+        pix3d_set_hclip(sx[a]<0 || sx[b]<0 || sx[c]<0 || sx[a]>pix2d_safe_width || sx[b]>pix2d_safe_width || sx[c]>pix2d_safe_width);
+        pix3d_set_trans(m->face_alpha?m->face_alpha[f]:0);
+        switch(type&3) {
+        case 0: pix3d225_gouraud_triangle(sx[a],sx[b],sx[c],sy[a],sy[b],sy[c],ca,cb,cc);break;
+        case 1: pix3d225_flat_triangle(sx[a],sx[b],sx[c],sy[a],sy[b],sy[c],(uint32_t)pix3d_colour_table[ca]);break;
+        default: {
+            int axis=type>>2,ta=m->texture_a[axis],tb=m->texture_b[axis],tc=m->texture_c[axis];
+            if(type&1) cb=cc=ca;
+            int32_t args[18]={sy[a],sy[b],sy[c],sx[a],sx[b],sx[c],ca,cb,cc,
+                vx[ta],vx[tb],vx[tc],vy[ta],vy[tb],vy[tc],vz[ta],vz[tb],vz[tc]};
+            pix3d225_texture_triangle(texels[m->face_colour[f]],opaque[m->face_colour[f]],args);
+            break;
+        }
+        }
+    }
+    return true;
+}
+
+static int32_t m225_cross(int32_t ax,int32_t bx,int32_t cx,int32_t ay,int32_t by,int32_t cy) {
+    return m225_sub(m225_mul(m225_sub(ax,bx),m225_sub(cy,by)),m225_mul(m225_sub(ay,by),m225_sub(cx,bx)));
+}
+
+/* Model.drawFace's four primitive branches. Alpha and clipping are set by
+ * the caller: drawNearClippedFace deliberately inherits the existing alpha. */
+static void m225_emit(const Model *m,int f,const int32_t x[3],const int32_t y[3],
+    const int32_t shade[3],const uint32_t *const texels[50],const bool opaque[50]) {
+    int type=m->face_render_type?m->face_render_type[f]:0;
+    int ca=shade[0],cb=shade[1],cc=shade[2];
+    switch(type&3) {
+    case 0: pix3d225_gouraud_triangle(x[0],x[1],x[2],y[0],y[1],y[2],ca,cb,cc);break;
+    case 1: pix3d225_flat_triangle(x[0],x[1],x[2],y[0],y[1],y[2],(uint32_t)pix3d_colour_table[m->face_colour_a[f]]);break;
+    default: {
+        int axis=type>>2,ta=m->texture_a[axis],tb=m->texture_b[axis],tc=m->texture_c[axis];
+        if(type&1) ca=cb=cc=m->face_colour_a[f];
+        int32_t args[18]={y[0],y[1],y[2],x[0],x[1],x[2],ca,cb,cc,
+            g225.vx[ta],g225.vx[tb],g225.vx[tc],g225.vy[ta],g225.vy[tb],g225.vy[tc],g225.vz[ta],g225.vz[tb],g225.vz[tc]};
+        pix3d225_texture_triangle(texels[m->face_colour[f]],opaque[m->face_colour[f]],args);break;
+    }
+    }
+}
+
+static bool m225_clip_face(const Model *m,int f,const uint32_t *const texels[50],const bool opaque[50]) {
+    int vertices[3]={m->face_vertex_a[f],m->face_vertex_b[f],m->face_vertex_c[f]};
+    int32_t colours[3]={m->face_colour_a[f],m->face_colour_b[f],m->face_colour_c[f]};
+    int count=0;
+    for(int k=0;k<3;k++) {
+        int v=vertices[k];
+        if(g225.vz[v]>=50) {
+            g225_clip_x[count]=g225.sx[v];g225_clip_y[count]=g225.sy[v];g225_clip_colour[count++]=colours[k];
+        } else for(int side=0;side<2;side++) {
+            // Original order: previous edge then next edge at each hidden vertex.
+            int j=(k+(side==0?2:1))%3,w=vertices[j];
+            if(g225.vz[w]<50) continue;
+            int32_t distance=m225_sub(g225.vz[w],g225.vz[v]);
+            if(distance<=0 || distance>=2048) return false;
+            int32_t t=m225_mul(m225_sub(50,g225.vz[v]),pix3d_div_table2[distance]);
+            int32_t x=m225_add(g225.vx[v],m225_shr16(m225_mul(m225_sub(g225.vx[w],g225.vx[v]),t)));
+            int32_t y=m225_add(g225.vy[v],m225_shr16(m225_mul(m225_sub(g225.vy[w],g225.vy[v]),t)));
+            g225_clip_x[count]=m225_add(pix3d_center_x,m225_project(x,50));
+            g225_clip_y[count]=m225_add(pix3d_center_y,m225_project(y,50));
+            g225_clip_colour[count++]=m225_add(colours[k],m225_shr16(m225_mul(m225_sub(colours[j],colours[k]),t)));
+        }
+    }
+    if(m225_cross(g225_clip_x[0],g225_clip_x[1],g225_clip_x[2],g225_clip_y[0],g225_clip_y[1],g225_clip_y[2])<=0) return true;
+    pix3d_set_hclip(false);
+    if(count!=3 && count!=4) return true;
+    for(int k=0;k<count;k++) if(g225_clip_x[k]<0 || g225_clip_x[k]>pix2d_safe_width) pix3d_set_hclip(true);
+    m225_emit(m,f,g225_clip_x,g225_clip_y,g225_clip_colour,texels,opaque);
+    if(count==4) {
+        int32_t x[3]={g225_clip_x[0],g225_clip_x[2],g225_clip_x[3]};
+        int32_t y[3]={g225_clip_y[0],g225_clip_y[2],g225_clip_y[3]};
+        int32_t c[3]={g225_clip_colour[0],g225_clip_colour[2],g225_clip_colour[3]};
+        m225_emit(m,f,x,y,c,texels,opaque);
+    }
+    return true;
+}
+
+/* Despite its Java name, pointWithinTriangle is an inclusive face bounding
+ * box check. It intentionally precedes backface culling in Model.draw. */
+bool model_point_within_triangle225(int32_t mx,int32_t my,int32_t ya,int32_t yb,int32_t yc,
+    int32_t xa,int32_t xb,int32_t xc) {
+    if(my<ya && my<yb && my<yc)return false;
+    if(my>ya && my>yb && my>yc)return false;
+    if(mx<xa && mx<xb && mx<xc)return false;
+    return mx<=xa || mx<=xb || mx<=xc;
+}
+
+static bool m225_world(const Model *m,int32_t yaw,int32_t eye_pitch,int32_t eye_yaw,
+    int32_t dx,int32_t dy,int32_t dz,ModelPick225 *pick,const ModelBounds225 *bounds,bool draw) {
+    /* Real cache models may have vertices but no faces/face arrays. Still
+     * transform their vertices: original projection scratch survives draws. */
+    if(!m || m->num_points<0 || m->num_points>4096 || m->num_faces<0 || m->num_faces>4096 ||
+       (m->num_points && (!m->point_x || !m->point_y || !m->point_z)) ||
+       (m->num_faces && (!m->face_vertex_a || !m->face_vertex_b || !m->face_vertex_c ||
+        !m->face_colour || !m->face_colour_a || !m->face_colour_b || !m->face_colour_c)) || !pix3d_scanline) return false;
+    int32_t radius,max_y=0,min_depth,max_depth;
+    if(bounds){
+        radius=bounds->radius;max_y=bounds->max_y;min_depth=bounds->min_depth;max_depth=bounds->max_depth;
+        if(radius<0 || max_y<0 || min_depth<0 || max_depth<min_depth)return false;
+    }else{
+        int32_t radius_squared=0,min_y=0;
+        for(int v=0;v<m->num_points;v++) {
+            int32_t x=m->point_x[v],y=m->point_y[v],z=m->point_z[v];
+            int32_t r=m225_add(m225_mul(x,x),m225_mul(z,z));
+            if(r>radius_squared)radius_squared=r;
+            int32_t ny=m225_sub(0,y);if(ny>max_y)max_y=ny;if(y>min_y)min_y=y;
+        }
+        radius=(int32_t)(sqrt((double)radius_squared)+0.99);
+        int32_t bound=m225_add(m225_mul(radius,radius),m225_mul(max_y,max_y));if(bound<0)return false;
+        min_depth=(int32_t)(sqrt((double)bound)+0.99);
+        bound=m225_add(m225_mul(radius,radius),m225_mul(min_y,min_y));if(bound<0)return false;
+        max_depth=min_depth+(int32_t)(sqrt((double)bound)+0.99);
+    }
+    int32_t sp=pix3d_sin_table[eye_pitch&2047],cp=pix3d_cos_table[eye_pitch&2047];
+    int32_t sw=pix3d_sin_table[eye_yaw&2047],cw=pix3d_cos_table[eye_yaw&2047];
+    int32_t base_z=m225_diff(dz,cw,dx,sw),origin=m225_sum(dy,sp,base_z,cp);
+    int32_t radius_z=m225_shr16(m225_mul(radius,cp)),far_z=m225_add(origin,radius_z);
+    if(far_z<=50 || origin>=3500) return true;
+    int32_t base_x=m225_sum(dz,sw,dx,cw);
+    if(m225_project(m225_sub(base_x,radius),far_z)>=pix2d_center_x) return true;
+    if(m225_project(m225_add(base_x,radius),far_z)<=-pix2d_center_x) return true;
+    int32_t base_y=m225_diff(dy,cp,base_z,sp),radius_y=m225_shr16(m225_mul(radius,sp));
+    if(m225_project(m225_add(base_y,radius_y),far_z)<=-pix2d_center_y) return true;
+    int32_t height=m225_add(radius_y,m225_shr16(m225_mul(max_y,cp)));
+    if(m225_project(m225_sub(base_y,height),far_z)>=pix2d_center_y) return true;
+    int32_t near_extent=m225_add(radius_z,m225_shr16(m225_mul(max_y,sp)));
+    bool near=m225_sub(origin,near_extent)<=50;
+    bool check_faces=false;
+    if(pick && pick->bitset>0 && pick->check_hover) {
+        int32_t near_z=m225_sub(origin,radius_z);if(near_z<=50)near_z=50;
+        int32_t left=m225_project(m225_sub(base_x,radius),base_x>0?far_z:near_z);
+        int32_t right=m225_project(m225_add(base_x,radius),base_x>0?near_z:far_z);
+        int32_t top=m225_project(m225_sub(base_y,height),base_y>0?far_z:near_z);
+        int32_t bottom=m225_project(m225_add(base_y,radius_y),base_y>0?near_z:far_z);
+        int32_t mx=m225_sub(pick->mouse_x,pix3d_center_x),my=m225_sub(pick->mouse_y,pix3d_center_y);
+        if(mx>left && mx<right && my>top && my<bottom) {
+            if(pick->pickable)pick->picked=true;
+            else check_faces=true;
+        }
+    }
+    int32_t sm=pix3d_sin_table[yaw&2047],cm=pix3d_cos_table[yaw&2047];
+    for(int v=0;v<m->num_points;v++) {
+        int32_t x=m->point_x[v],y=m->point_y[v],z=m->point_z[v];
+        if(yaw) {int32_t t=m225_sum(z,sm,x,cm);z=m225_diff(z,cm,x,sm);x=t;}
+        x=m225_add(x,dx);y=m225_add(y,dy);z=m225_add(z,dz);
+        int32_t t=m225_sum(z,sw,x,cw);z=m225_diff(z,cw,x,sw);x=t;
+        t=m225_diff(y,cp,z,sp);z=m225_sum(y,sp,z,cp);y=t;
+        g225.depth[v]=m225_sub(z,origin);
+        if(z>=50) {g225.sx[v]=m225_add(pix3d_center_x,m225_project(x,z));g225.sy[v]=m225_add(pix3d_center_y,m225_project(y,z));}
+        else {g225.sx[v]=-5000;near=true;}
+        if(near || m->num_t>0) {g225.vx[v]=x;g225.vy[v]=y;g225.vz[v]=z;}
+    }
+    int32_t order[4096],face_depth[4096];bool clipped[4096];int count=0;
+    const uint32_t *texels[50]={0};bool opaque[50]={false};
+    for(int f=0;f<m->num_faces;f++) {
+        int type=m->face_render_type?m->face_render_type[f]:0;if(type==-1 || type==255)continue;
+        int a=m->face_vertex_a[f],b=m->face_vertex_b[f],c=m->face_vertex_c[f];
+        if(a<0 || b<0 || c<0 || a>=m->num_points || b>=m->num_points || c>=m->num_points ||
+           (m->face_priority && (m->face_priority[f]<0 || m->face_priority[f]>11))) return false;
+        clipped[f]=near && (g225.sx[a]==-5000 || g225.sx[b]==-5000 || g225.sx[c]==-5000);
+        if(!clipped[f] && check_faces && model_point_within_triangle225(pick->mouse_x,pick->mouse_y,
+            g225.sy[a],g225.sy[b],g225.sy[c],g225.sx[a],g225.sx[b],g225.sx[c])) {
+            pick->picked=true;check_faces=false;
+        }
+        if(!clipped[f] && m225_cross(g225.sx[a],g225.sx[b],g225.sx[c],g225.sy[a],g225.sy[b],g225.sy[c])<=0) continue;
+        int32_t bucket=m225_add(m225_add(m225_add(g225.depth[a],g225.depth[b]),g225.depth[c])/3,min_depth);
+        if(bucket<0)return false;
+        if(bucket>=max_depth)continue;
+        if((type&2) && draw) {
+            int axis=type>>2,id=m->face_colour[f];
+            if(axis<0 || axis>=m->num_t || id<0 || id>=50 || !m->texture_a || !m->texture_b || !m->texture_c)return false;
+            int ta=m->texture_a[axis],tb=m->texture_b[axis],tc=m->texture_c[axis];
+            if(ta<0 || tb<0 || tc<0 || ta>=m->num_points || tb>=m->num_points || tc>=m->num_points)return false;
+            if(!texels[id])texels[id]=pix3d225_texture_cache_get(id,&opaque[id]);
+            if(!texels[id])return false;
+        }
+        order[count]=f;face_depth[count++]=bucket;
+    }
+    if(!draw)return true;
+    model_order_faces(m,order,face_depth,count);
+    for(int i=0;i<count;i++) {
+        int f=order[i];
+        if(clipped[f]) {if(!m225_clip_face(m,f,texels,opaque))return false;continue;}
+        int a=m->face_vertex_a[f],b=m->face_vertex_b[f],c=m->face_vertex_c[f];
+        int32_t x[3]={g225.sx[a],g225.sx[b],g225.sx[c]},y[3]={g225.sy[a],g225.sy[b],g225.sy[c]};
+        int32_t shade[3]={m->face_colour_a[f],m->face_colour_b[f],m->face_colour_c[f]};
+        pix3d_set_hclip(x[0]<0 || x[1]<0 || x[2]<0 || x[0]>pix2d_safe_width || x[1]>pix2d_safe_width || x[2]>pix2d_safe_width);
+        pix3d_set_trans(m->face_alpha?m->face_alpha[f]:0);
+        m225_emit(m,f,x,y,shade,texels,opaque);
+    }
+    return true;
+}
+
+bool model_render_world225(const Model *m,int32_t yaw,int32_t eye_pitch,int32_t eye_yaw,
+    int32_t dx,int32_t dy,int32_t dz) {
+    return m225_world(m,yaw,eye_pitch,eye_yaw,dx,dy,dz,NULL,NULL,true);
+}
+bool model_render_world_bounds225(const Model *m,const ModelBounds225 *bounds,
+    int32_t yaw,int32_t eye_pitch,int32_t eye_yaw,int32_t dx,int32_t dy,int32_t dz) {
+    if(!bounds)return false;
+    return m225_world(m,yaw,eye_pitch,eye_yaw,dx,dy,dz,NULL,bounds,true);
+}
+
+bool model_render_world_pick225(const Model *m,int32_t yaw,int32_t eye_pitch,int32_t eye_yaw,
+    int32_t dx,int32_t dy,int32_t dz,ModelPick225 *pick) {
+    if(pick)pick->picked=false;
+    return m225_world(m,yaw,eye_pitch,eye_yaw,dx,dy,dz,pick,NULL,true);
+}
+
+bool model_render_world_bounds_pick225(const Model *m,const ModelBounds225 *bounds,
+    int32_t yaw,int32_t eye_pitch,int32_t eye_yaw,int32_t dx,int32_t dy,int32_t dz,ModelPick225 *pick) {
+    if(pick)pick->picked=false;
+    if(!bounds)return false;
+    return m225_world(m,yaw,eye_pitch,eye_yaw,dx,dy,dz,pick,bounds,true);
+}
+bool model_probe_world_bounds225(const Model *m,const ModelBounds225 *bounds,
+    int32_t yaw,int32_t eye_pitch,int32_t eye_yaw,int32_t dx,int32_t dy,int32_t dz,ModelPick225 *pick){
+    if(!pick || !bounds)return false;
+    pick->picked=false;
+    Model225Projection saved=g225;
+    bool ok=m225_world(m,yaw,eye_pitch,eye_yaw,dx,dy,dz,pick,bounds,false);g225=saved;return ok;
 }
 
 void model_recolor(Model *m, int32_t src_color, int32_t dst_color) {

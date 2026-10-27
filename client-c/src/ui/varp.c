@@ -1,4 +1,6 @@
 #include "ui/varp.h"
+#include "config/varp_type.h"
+#include "audio/wave.h"
 #include "gfx/pix2d.h"
 #include "gfx/pix3d.h"
 #include "gfx/model.h"
@@ -23,6 +25,8 @@ void varp_init(VarpContext *ctx) {
     if (!ctx) return;
     init_level_exp();
     memset(ctx, 0, sizeof(VarpContext));
+    music_init225(&ctx->music);
+    ctx->wave_enabled=true;
     for (int i = 0; i < 25; i++) {
         ctx->skill_levels[i] = 1;
         ctx->skill_base_levels[i] = 1;
@@ -36,9 +40,19 @@ void varp_init(VarpContext *ctx) {
     }
 }
 
+void varp_update225(VarpContext *ctx,int id) {
+    if(!ctx || id<0 || id>=MAX_VARPS)return;
+    int code=varp_type_clientcode(ctx->types,id),value=ctx->varps[id];
+    if(code==3)music_setting225(&ctx->music,value);
+    if(code==5)ctx->mouse_buttons_option=value;
+    if(code==4){if(value>=0 && value<=3){ctx->wave_enabled=true;ctx->wave_volume=-400*value;audio_set_wave_volume225(ctx->wave_volume);}else if(value==4)ctx->wave_enabled=false;}
+}
+
 void varp_set(VarpContext *ctx, int varp_id, int value) {
     if (!ctx || varp_id < 0 || varp_id >= MAX_VARPS) return;
+    bool changed=ctx->varps[varp_id]!=value;
     ctx->varps[varp_id] = value;
+    if(changed)varp_update225(ctx,varp_id);
 }
 
 int varp_get(const VarpContext *ctx, int varp_id) {
@@ -173,22 +187,22 @@ bool varp_eval_component_triggers(const VarpContext *ctx, const ComponentConfig 
     return true;
 }
 
-bool varp_handle_component_click(VarpContext *ctx, const Component *com) {
-    if (!ctx || !com) return false;
-    if (com->script_count > 0 && com->scripts && com->scripts[0] && com->script_lengths[0] >= 2) {
-        if (com->scripts[0][0] == 5) { // Varp operation
-            int varp_id = com->scripts[0][1];
-            if (varp_id >= 0 && varp_id < MAX_VARPS) {
-                if (com->script_comparator_count > 0 && com->script_operand) {
-                    ctx->varps[varp_id] = com->script_operand[0];
-                } else {
-                    ctx->varps[varp_id] = 1 - ctx->varps[varp_id]; // Toggle 0/1
-                }
-                return true;
-            }
-        }
+bool varp_handle_component_action225(VarpContext *ctx,const Component *com,int operation) {
+    if(!ctx || !com || (operation!=4 && operation!=5) || com->script_count<=0 || !com->scripts || !com->script_lengths || com->script_lengths[0]<2 || !com->scripts[0] || com->scripts[0][0]!=5)return false;
+    int id=com->scripts[0][1];if(id<0 || id>=MAX_VARPS)return false;
+    if(operation==4){
+        int32_t value;uint32_t bits=1u-(uint32_t)ctx->varps[id];memcpy(&value,&bits,sizeof(value));
+        ctx->varps[id]=value; /* Toggle always invokes updateVarp, unlike a set-to-same-value action. */
+        varp_update225(ctx,id);
+    }else {
+        if(com->script_comparator_count<=0 || !com->script_operand)return false;
+        varp_set(ctx,id,com->script_operand[0]);
     }
-    return false;
+    return true;
+}
+bool varp_handle_component_click(VarpContext *ctx,const Component *com) {
+    if(!com)return false;
+    return varp_handle_component_action225(ctx,com,com->button_type==4 || com->button_type==5?com->button_type:com->script_comparator_count>0 && com->script_operand?5:4);
 }
 
 void varp_format_text(const VarpContext *ctx, const ComponentConfig *cfg, const Component *com, const char *raw_text, char *out_buf, size_t out_sz) {
@@ -335,12 +349,14 @@ void component_draw_with_varps(ComponentConfig *cfg, Component *com, int x, int 
     if (com->type == COMPONENT_TYPE_TEXT) {
         if (!com->font) return;
         const char *raw_text = (active && com->active_text) ? com->active_text : com->text;
+        bool waiting=cfg && cfg->pressed_continue && com->button_type==6;
+        if(waiting) raw_text="Please wait...";
         if (!raw_text) return;
 
         char formatted[512];
         varp_format_text(varps, cfg, com, raw_text, formatted, sizeof(formatted));
 
-        uint32_t col = active ? com->active_colour : com->colour;
+        uint32_t col = active && !waiting ? com->active_colour : com->colour;
         char line_buf[256];
         int draw_y = y + com->font->height;
         const char *text = formatted;

@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$Log,      # session log recorded with rs2client --record --trace
     [Parameter(Mandatory = $true)][string]$OutDir,
-    [int[]]$DumpFrame = @()
+    [int[]]$DumpFrame = @(),
+    [string]$Replay = ""
 )
 # Differential parity run: the C client (rs2replay) and the unchanged Java
 # client (ParityOracle on javaclient/build/libs/rs2client.jar) consume the same
@@ -13,7 +14,8 @@ if ((Select-String -Path $Log -Pattern "^L " -Quiet) -and -not $env:RS2_PASSWORD
 $root = (Resolve-Path "$PSScriptRoot\..\..\..\..").Path
 $jar = "$root\javaclient\build\libs\rs2client.jar"
 $classes = "$OutDir\oracle-classes"
-$replay = "$root\client-c\bin\rs2replay.exe"
+if (-not $Replay) { $Replay = "$root\client-c\bin\rs2replay.exe" }
+$replay = (Resolve-Path -LiteralPath $Replay).Path
 New-Item -ItemType Directory -Force "$OutDir\c", "$OutDir\java", $classes | Out-Null
 $Log = (Resolve-Path $Log).Path; $OutDir = (Resolve-Path $OutDir).Path; $classes = "$OutDir\oracle-classes"
 # The C client resolves the cache relative to its working directory.

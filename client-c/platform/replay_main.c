@@ -27,6 +27,9 @@
 // hash of every rectangle is written to OUT for the Java parity oracle.
 //
 // RS2_PASSWORD supplies the password for a recorded login; it is not logged.
+// --allow-frame-differences continues through pixel differences while preserving
+// stream/cycle checks, for comparing a new renderer against Java region hashes.
+// It reports PASS STREAM REPLAY, never a claim of exact framebuffer reproduction.
 
 static char out_dir[1024];
 
@@ -73,13 +76,29 @@ static bool replay_save_bmp(const char *path, const uint32_t *pixels, int width,
 static const char *redirect(const char *path, char *buffer, size_t size) {
     const char *base = path;
     for (const char *p = path; *p; p++) if (*p == '/' || *p == '\\') base = p + 1;
-    snprintf(buffer, size, "%s/%s", out_dir, base);
+    size_t directory_length = strlen(out_dir), base_length = strlen(base);
+    if (directory_length >= size || base_length >= size - directory_length - 1) {
+        fprintf(stderr, "Replay capture path exceeds output buffer\n");
+        exit(EXIT_FAILURE);
+    }
+    memcpy(buffer, out_dir, directory_length);
+    buffer[directory_length] = '/';
+    memcpy(buffer + directory_length + 1, base, base_length + 1);
     return buffer;
+}
+
+static int presentation_count;
+static void replay_present_recovery(const uint32_t *pixels, int width, int height) {
+    char path[1100];
+    snprintf(path, sizeof(path), "%s/reconnect-present-%03d.bmp", out_dir, presentation_count++);
+    if (!replay_save_bmp(path, pixels, width, height)) session_log_desync("cannot save intermediate recovery frame");
+    printf("[PRESENT] reconnect frame=%d image=%s\n", client_rendered_frames(), path);
 }
 
 int main(int argc, char *argv[]) {
     const char *log_path = NULL;
     int dump_every = 0;
+    bool allow_frame_differences = false;
     int dump_frames[64], dump_count = 0;
     const char *regions_path = NULL, *region_out_path = NULL;
     snprintf(out_dir, sizeof(out_dir), ".");
@@ -89,10 +108,11 @@ int main(int argc, char *argv[]) {
         else if (!strcmp(argv[i], "--dump-frame") && i + 1 < argc && dump_count < 64) dump_frames[dump_count++] = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--regions") && i + 1 < argc) regions_path = argv[++i];
         else if (!strcmp(argv[i], "--region-hashes") && i + 1 < argc) region_out_path = argv[++i];
+        else if (!strcmp(argv[i], "--allow-frame-differences")) allow_frame_differences = true;
         else if (!log_path && argv[i][0] != '-') log_path = argv[i];
         else { fprintf(stderr, "Unknown or incomplete option: %s\n", argv[i]); return 2; }
     }
-    if (!log_path) { fprintf(stderr, "usage: rs2replay <log> [--out DIR] [--dump-every N] [--dump-frame N]...\n"); return 2; }
+    if (!log_path) { fprintf(stderr, "usage: rs2replay <log> [--out DIR] [--dump-every N] [--dump-frame N]... [--allow-frame-differences]\n"); return 2; }
     if (!regions_path != !region_out_path) { fprintf(stderr, "--regions and --region-hashes go together\n"); return 2; }
     if (regions_path && !load_regions(regions_path)) { fprintf(stderr, "Cannot read regions %s\n", regions_path); return 2; }
     FILE *region_out = NULL;
@@ -126,10 +146,12 @@ int main(int argc, char *argv[]) {
     if (directory_result != 0) { perror("Cannot enter client directory"); return 2; }
 
     midi_set_silent(true);
-    ClientPlatform platform = { replay_now_ms, replay_save_bmp };
+    ClientPlatform platform = { replay_now_ms, replay_save_bmp, replay_present_recovery,replay_now_ms };
     if (!client_init(&options, &platform)) return 2;
 
     int frames = 0;
+    int frame_differences = 0;
+    long long first_frame_difference = -1;
     uint64_t last_hash = 0;
     while (client_running() && !session_log_failed()) {
         long long frame = -1;
@@ -154,7 +176,14 @@ int main(int argc, char *argv[]) {
         long long recorded = 0;
         if (!session_log_take("D") || !session_log_take_int(&recorded)) break;
         last_hash = client_frame_hash();
-        if ((uint64_t)recorded != last_hash) {
+        bool first_difference = false;
+        if ((uint64_t)recorded != last_hash && allow_frame_differences) {
+            first_difference = frame_differences++ == 0;
+            if (first_difference) {
+                first_frame_difference = frame;
+                printf("[RENDER COMPARE] first framebuffer difference at frame %lld\n", frame);
+            }
+        } else if ((uint64_t)recorded != last_hash) {
             char what[128];
             snprintf(what, sizeof(what), "frame %lld framebuffer hash %016llx, recorded %016llx",
                 frame, (unsigned long long)last_hash, (unsigned long long)recorded);
@@ -166,7 +195,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < dump_count; i++) dump |= dump_frames[i] == frame;
         const char *capture_path = client_frame_capture_path();
         if (capture_path) { replay_save_bmp(capture_path, client_pixels(), CLIENT_WIDTH, CLIENT_HEIGHT); printf("[CAPTURE] replay -> %s\n", capture_path); }
-        if (dump || session_log_failed()) {
+        if (dump || first_difference || session_log_failed()) {
             char path[1100];
             snprintf(path, sizeof(path), "%s/replay-frame-%06lld.bmp", out_dir, frame);
             replay_save_bmp(path, client_pixels(), CLIENT_WIDTH, CLIENT_HEIGHT);
@@ -184,7 +213,10 @@ int main(int argc, char *argv[]) {
     session_log_close();
     if (region_out) fclose(region_out);
     client_log_free_header(&header);
-    if (ok) printf("PASS REPLAY: %d frames reproduced (%ld log lines), final hash %016llx\n", frames, line, (unsigned long long)last_hash);
+    if (ok && allow_frame_differences)
+        printf("PASS STREAM REPLAY: %d frames (%ld log lines); framebuffer differences=%d, first=%lld, final hash %016llx\n",
+            frames, line, frame_differences, first_frame_difference, (unsigned long long)last_hash);
+    else if (ok) printf("PASS REPLAY: %d frames reproduced (%ld log lines), final hash %016llx\n", frames, line, (unsigned long long)last_hash);
     else printf("FAIL REPLAY: diverged after %d frames at log line %ld\n", frames, line);
     return ok ? 0 : 1;
 }

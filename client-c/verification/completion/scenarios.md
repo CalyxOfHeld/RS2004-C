@@ -1,5 +1,8 @@
 # Acceptance scenarios
 
+Historical snapshot: current overall position and evidence limits are indexed in [OVERALL-STATUS.md](OVERALL-STATUS.md) and [D-REMAINING.md](D-REMAINING.md). Old statuses/counts below are not fresh failures or current-suite totals.
+
+
 All statuses start UNVERIFIED. Test fixtures are explicitly identified and do not count as live gameplay.
 
 | ID | Setup/input | Required observed result | Evidence layer |

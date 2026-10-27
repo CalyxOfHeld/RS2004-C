@@ -8,6 +8,7 @@
 #include "gfx/pix2d.h"
 #include "gfx/pixfont.h"
 #include "ui/context_menu.h"
+#include "../verification/completion/tools/mouse_mode_reference_control.h"
 
 int main(void) {
     setbuf(stdout, NULL);
@@ -78,6 +79,23 @@ int main(void) {
     assert(!menu.visible);
     printf("[PASS] Click outside dismisses Context Menu\n");
 
+    // Original Java uses the same strict bounds for highlighting and clicking.
+    // The last highlighted pixel of the top row must not pick the next row.
+    MenuAction action;
+    context_menu_open(&menu, 200, 150, &font_b12);
+    assert(context_menu_pick_action(&menu, menu.x + 20, menu.y + 33, &action));
+    assert(action.target == 3);
+    context_menu_open(&menu, 200, 150, &font_b12);
+    assert(context_menu_handle_click(&menu, menu.x + 20, menu.y + 33) == 3);
+    context_menu_open(&menu, 200, 150, &font_b12);
+    assert(context_menu_handle_click(&menu, menu.x + 20, menu.y + 34) == 2);
+    context_menu_open(&menu, 200, 150, &font_b12);
+    assert(!context_menu_pick_action(&menu, menu.x + 20, menu.y + 18, &action));
+    context_menu_open(&menu, 200, 150, &font_b12);
+    assert(context_menu_handle_click(&menu, menu.x, menu.y + 25) == -1);
+    puts("[PASS] Menu row/header/left-border hit boundaries match original Java");
+
+    mouse_mode_registered(&font_b12);
     free(fb);
     arena_free(&arena);
     printf("=== ALL CONTEXT MENU TESTS PASSED! ===\n");

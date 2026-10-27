@@ -12,7 +12,7 @@
 #include "net/entity_sync.h"
 #include "dash3d/pathfinder.h"
 #include "dash3d/map_streamer.h"
-typedef struct {int gender,parts[7],colors[5];bool initialized;} ClientDesign;
+typedef struct {int gender,parts[7],colors[5];bool initialized;Pix32 *gender_images[2];} ClientDesign;
 typedef struct {
     GameSession *session;
     ComponentConfig *components;
@@ -39,5 +39,7 @@ typedef struct {
 typedef enum { ACTION_UNAVAILABLE, ACTION_LOCAL, ACTION_SENT, ACTION_WALK, ACTION_FAILED } ActionResult;
 void client_design_init(ClientDesign *design,IdkConfig *kits);
 void client_design_prepare(ClientActions *ctx,Component *root,Arena *frame,int cycle);
+void client_design_prepare225(ClientActions *ctx,Component *root,Arena *frame,int cycle);
+ActionResult client_report_open(ClientActions *ctx,const char *name,bool menu_action);
 ActionResult client_action_dispatch(ClientActions *ctx,MenuAction action);
 #endif

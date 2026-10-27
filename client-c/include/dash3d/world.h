@@ -23,6 +23,10 @@ typedef struct {
     uint8_t tile_overlay_rotations[WORLD_LEVELS][WORLD_SIZE_X][WORLD_SIZE_Z];
     int8_t  shademap[WORLD_LEVELS][WORLD_SIZE_X + 1][WORLD_SIZE_Z + 1];
     int blend_direction_map[WORLD_LEVELS][WORLD_SIZE_X][WORLD_SIZE_Z];
+    /* Opt-in original construction; legacy runtime remains neutral. */
+    bool build225;
+    int random_hue_offset,random_lightness_offset;
+    int occludemap[WORLD_LEVELS][WORLD_SIZE_X+1][WORLD_SIZE_Z+1];
 } World;
 
 void world_init(World *w, int max_x, int max_z);
