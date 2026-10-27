@@ -47,6 +47,6 @@ The SD card had Tiramisu (`default.cfg` = `tiramisu`). Tiramisu cannot launch `.
 
 ## Next
 
-1. Investigate the two in-game logouts during the second run (`hw2-home-freeze-log.txt`): user action, or a server timeout caused by the low frame rate?
+1. Closed: the user identified the two in-game logouts as the original idle logout (no usable input on hardware yet).
 2. Performance on Espresso: profile first. Candidates are frame pacing, using the other two cores, and `-O3`/LTO; check each against Cemu's recompiler fault.
 3. Input: right-click and camera on touch (GamePad buttons). USB keyboard through SDL's Wii U keyboard driver. Controller later, as the user asked.

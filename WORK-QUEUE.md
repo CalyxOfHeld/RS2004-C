@@ -23,9 +23,8 @@ Verification:
 Details: client-c/verification/completion/runs/2026-10-27-wiiu-hardware-claude/README.md.
 
 Next:
-1. check whether the two in-game logouts were caused by the low frame rate
-2. hardware performance profiling
-3. touch right-click/camera and USB keyboard
+1. hardware performance profiling
+2. hardware input (touch right-click/camera, GamePad buttons, USB keyboard, controller); the user has deferred this until later
 4. software MIDI synth
 5. non-Windows map cache write
 6. build_release.py sources.mk
