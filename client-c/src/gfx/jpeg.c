@@ -121,7 +121,7 @@ static int jpeg_decode_huffman(JpegDecoder *d, const JpegHuffman *table) {
 }
 
 static int jpeg_extend(int v, int s) {
-    return v < (1 << (s - 1)) ? v + ((-1) << s) + 1 : v;
+    return v < (1 << (s - 1)) ? v - (1 << s) + 1 : v;
 }
 
 #define CONST_BITS 13

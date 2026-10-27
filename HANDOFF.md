@@ -1,3 +1,32 @@
+# Wii U port step 1: byte-order / PowerPC audit — Claude, October 27, 2026 (completed)
+
+User approved the order Wii U, then Wii, then another revision, and said "go" on step 1. Report: client-c/verification/completion/runs/2026-10-27-wiiu-endian-claude/README.md.
+
+- **Byte order and `char` signedness: no defects.** All binary reads are byte-wise Packet accessors, pixels and audio are native-word formats, and signed bytes use explicit int8_t.
+- **Fixed, no behaviour change:**
+  - chatbox.c used POSIX `strdup`, a hard error under newlib -std=c99; replaced with a local `chat_strdup`.
+  - Five warnings that only GCC reports: jpeg.c `(-1)<<s` changed to `-(1<<s)`, plus four misleading-indentation one-liners split.
+- **Evidence:**
+  - full suite with -funsigned-char: pass, 0 warnings
+  - full suite as 32-bit i686 plus unsigned char: pass, 0 warnings
+  - all 81 objects with devkitPPC powerpc-eabi-gcc and wut headers: 0 diagnostics
+  - normal make test: pass, 0 warnings
+  - both Oct 27 recordings on the patched rs2replay: PARITY MATCH
+- **Not done:**
+  - The rs2client.exe link was blocked by the user's running client, which was not stopped. The next test_client.bat links the patched code.
+  - No big-endian runtime test yet; it needs Cemu or hardware.
+- **Already installed here:** devkitPro with devkitPPC, wut, Wii U SDL2, wuhbtool and libogc. Makefile.wiiu is stale (October 20 source list).
+- **Next (step 2):** regenerate Makefile.wiiu, add a data-root prefix (client data is 6.1 MB, to bundle in /vol/content), link .rpx/.wuhb, and reach the title screen in Cemu. Installing Cemu needs user confirmation.
+- **Known port work:**
+  - Windows-only music (needs a software synth)
+  - map cache write, DNS and wall clock stubs
+  - display scaling
+  - GamePad touch plus swkbd
+  - LAN server address
+- Not 244.
+
+---
+
 # Release rebuilt: 2026-10-27-current-225-claude.zip — Claude, October 27, 2026 (completed)
 
 User asked to rebuild the release zip with the new binary. Current package is client-c/verification/completion/releases/2026-10-27-current-225-claude.zip: 148,473,108 bytes, 244 members, SHA256 ecfc067ec0921da32d25174405a730aa7e1070589ad1684872d2f2fb0c49b801. The sidecar .sha256.json and the expanded folder are kept. It supersedes 2026-10-26-current-225-sol.zip, which is preserved unchanged.

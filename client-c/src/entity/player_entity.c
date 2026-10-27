@@ -105,7 +105,8 @@ Model *player_entity_get_design_model(IdkConfig *kits,const int parts[7],const i
     Model *models[7];int count=0;
     for(int i=0;i<7;i++)if(parts[i]>=0) {
         IdkType *kit=idk_get(kits,parts[i]);Model *model=kit?idk_get_model(kit,arena):NULL;
-        if(!model)return NULL;models[count++]=model;
+        if(!model)return NULL;
+        models[count++]=model;
     }
     if(!count)return NULL;
     Model *model=model_create_composite(models,count,arena);if(!model)return NULL;
@@ -171,7 +172,8 @@ Model* player_entity_get_model(PlayerEntity *p,IdkConfig *idk_cfg,ObjConfig *obj
     Model *rest=actor_model_cached(true,key);
     if(!rest) {
         Arena *scratch=actor_model_scratch();Model *base=player_base(p,idk_cfg,obj_cfg,right,left,scratch);
-        if(!base)return NULL;model_create_label_references(base,scratch);rest=actor_model_store(true,key,base);
+        if(!base)return NULL;
+        model_create_label_references(base,scratch);rest=actor_model_store(true,key,base);
     }
     Model *model=model_copy(rest,arena);if(!model)return NULL;
     model_share_alpha(model,rest);

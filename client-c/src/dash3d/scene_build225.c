@@ -246,13 +246,15 @@ SceneBuild225 *world3d_construct225(World *world,World3D *native,LocConfig *loca
     return b;
 }
 void world3d_destroy_scene225(SceneBuild225 *b){
-    if(!b)return;free(b->scene.grounds);free(b->scene.locations);free(b->scene.grid);
+    if(!b)return;
+    free(b->scene.grounds);free(b->scene.locations);free(b->scene.grid);
     free(b->scene.occlusion.tile_cycles);free(b->geometry);free(b->models);free(b->bindings);free(b);
 }
 SceneTraversal225 *world3d_scene225(SceneBuild225 *b){return b?&b->scene:NULL;}
 const SceneGeometry225 *world3d_scene_geometry225(SceneBuild225 *b){return b?b->geometry:NULL;}
 Occluder225 *world3d_scene_pool225(SceneBuild225 *b,int32_t level,size_t *count){
-    if(!b || level<0 || level>=4 || !count)return NULL;*count=b->pool_counts[level];return b->pools[level];
+    if(!b || level<0 || level>=4 || !count)return NULL;
+    *count=b->pool_counts[level];return b->pools[level];
 }
 static bool current_height(SceneBuild225 *b,const uint8_t key[32],int32_t *height){
     static const uint8_t empty[32]={0};if(!memcmp(key,empty,32)){*height=0;return true;}

@@ -11,6 +11,9 @@
 #include <string.h>
 #include <limits.h>
 
+// strdup is POSIX, not C99; newlib (Wii U) does not declare it under -std=c99.
+static char *chat_strdup(const char *s){size_t n=strlen(s)+1;char *copy=malloc(n);if(copy)memcpy(copy,s,n);return copy;}
+
 int chatbox_count_value(const Chatbox *chat) {
     // Original Integer.parseInt rejects overflow and submits zero on failure.
     if(!chat) return 0;
@@ -54,7 +57,7 @@ static void publish_message(Chatbox *chat,int type,char *sender,char *text) {
 }
 static bool push_message(Chatbox *chat,int type,const char *sender,const char *text) {
     if(!chat || !text)return false;
-    char *new_text=strdup(text),*new_sender=sender && *sender?strdup(sender):NULL;
+    char *new_text=chat_strdup(text),*new_sender=sender && *sender?chat_strdup(sender):NULL;
     if(!new_text || (sender && *sender && !new_sender)){free(new_text);free(new_sender);return false;}
     publish_message(chat,type,new_sender,new_text);return true;
 }
@@ -133,7 +136,7 @@ bool chatbox_send_public(Chatbox *chat,const WordFilterTables *tables,PlayerEnti
     if(!wordfilter_apply(tables,sentence,length,filtered,81,&result))return false;
     char text[81];for(size_t i=0;i<result;i++)text[i]=(char)filtered[i];
     text[result]=0;
-    char *new_text=strdup(text),*new_sender=player->name[0]?strdup(player->name):NULL;
+    char *new_text=chat_strdup(text),*new_sender=player->name[0]?chat_strdup(player->name):NULL;
     if(!new_text || (player->name[0] && !new_sender)){free(new_text);free(new_sender);return false;}
     bool reveal=chat->public_mode==2;
     if(!protocol_send_public_chat(session,body,length,colour,style,reveal,chat->private_mode,chat->trade_mode)){free(new_text);free(new_sender);return false;}
@@ -172,7 +175,7 @@ bool chatbox_social_action(Chatbox *chat,GameSession *session,int action,uint64_
         if(!error[0])for(size_t i=0;i<count;i++)if((friend?chat->friend_ids[i]:chat->ignore_ids[i])==id){snprintf(error,sizeof(error),"%s is already on your %s list",name,friend?"friend":"ignore");break;}
         if(!error[0])for(size_t i=0;i<(friend?chat->ignore_count:(size_t)chat->friend_count);i++)if((friend?chat->ignore_ids[i]:chat->friend_ids[i])==id){snprintf(error,sizeof(error),"Please remove %s from your %s list first",name,friend?"ignore":"friend");break;}
         if(error[0]){
-            char *new_text=strdup(error),*new_sender=strdup("");
+            char *new_text=chat_strdup(error),*new_sender=chat_strdup("");
             if(!new_text || !new_sender){free(new_text);free(new_sender);return false;}
             publish_message(chat,0,new_sender,new_text);return true;
         }
@@ -225,7 +228,7 @@ bool chatbox_send_private(Chatbox *chat,const WordFilterTables *tables,GameSessi
     if(!wordfilter_apply(tables,sentence,length,filtered,81,&result))return false;
     char text[81],name[32];for(size_t i=0;i<result;i++)text[i]=(char)filtered[i];text[result]=0;
     jstring_from_base37(chat->private_recipient,name,sizeof(name));jstring_format_name(name);
-    char *new_text=strdup(text),*new_sender=strdup(name);
+    char *new_text=chat_strdup(text),*new_sender=chat_strdup(name);
     if(!new_text || !new_sender){free(new_text);free(new_sender);return false;}
     bool reveal=chat->private_mode==2;
     if(!protocol_send_private_chat(session,chat->private_recipient,chat->private_input,length,reveal,chat->public_mode,chat->trade_mode)){free(new_text);free(new_sender);return false;}
@@ -282,7 +285,7 @@ bool chatbox_add_game_message225(Chatbox *chat,const uint8_t *payload,size_t len
         for(size_t i=0;i<chat->ignore_count;i++)if(chat->ignore_ids[i]==name)return true;
         if(override_chat)return true;
     }
-    char *new_text=strdup(text),*new_sender=strdup(sender);
+    char *new_text=chat_strdup(text),*new_sender=chat_strdup(sender);
     if(!new_text || !new_sender){free(new_text);free(new_sender);return false;}
     publish_message(chat,type,new_sender,new_text);if(added)*added=true;return true;
 }
