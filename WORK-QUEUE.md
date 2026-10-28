@@ -1,3 +1,21 @@
+# GitHub: three public repos — Claude, October 28, 2026
+
+At the user's request, each project now has its own public repo under the GitHub account **CalyxOfHeld**:
+- **RS2004-C** (this workspace): https://github.com/CalyxOfHeld/RS2004-C, a fork of LostCityRS/Server.
+  - `main` is this `master`, with the same commit IDs.
+  - `lostcity-main` is LostCity's own branch.
+  - `pre-git-history` replays the October 20-21 checkpoint zips as commits.
+  - Local `master` tracks `origin/main`.
+- **Client3 Wii U build:** https://github.com/CalyxOfHeld/Client3, a fork of lesleyrs/Client3. The default branch `wiiu` is upstream `53c4cf8` plus the Wii U setup (cache, login CRC, big-endian sound, SD log).
+- **First-person fork:** https://github.com/CalyxOfHeld/client3-fps.
+
+The Wii U steps 6-14 work and these docs are committed (`6467e1f`). `.gitignore` now leaves out about 35 GB that stays on disk:
+- the pre-git zips and copied server/client trees;
+- build output, SDL2 libs and `tests/fixtures`;
+- `verification/completion/runs/` and `releases/`.
+
+Add new evidence with `git add -f`. Still pending the user's approval: a `pre-git-checkpoints` release holding the full zips (README.md already links to it).
+
 # Wii U Client3: music and sound effects working — Claude, October 28, 2026
 
 Changes in the build copy `C:\Users\USER\Documents\client3-wiiu\`; its README has the details, and `Client3-main/` is unchanged:
