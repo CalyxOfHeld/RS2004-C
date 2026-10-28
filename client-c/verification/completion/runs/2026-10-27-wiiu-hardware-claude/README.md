@@ -51,7 +51,7 @@ The SD card had Tiramisu (`default.cfg` = `tiramisu`). Tiramisu cannot launch `.
 2. Performance on Espresso: profile first. Candidates are frame pacing, using the other two cores, and `-O3`/LTO; check each against Cemu's recompiler fault.
 3. Input: right-click and camera on touch (GamePad buttons). USB keyboard through SDL's Wii U keyboard driver. Controller later, as the user asked.
 
-## Step 5: controls and HOME freeze (commit 9e7cb9c)
+## Step 5: controls and HOME freeze (commit fd49af6)
 
 - **Touch controls.**
   - A tap is a mouse move, then a click on the next drawn frame. Right click: long press, or L/ZL + tap.

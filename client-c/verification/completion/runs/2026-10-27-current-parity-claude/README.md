@@ -1,6 +1,6 @@
 # Current-build frame parity + world tour — Claude, October 27, 2026
 
-Scope: requested by the user after checkpoint commit 273f6ea. (1) Re-record one integrated scenario on the current normal build and strict-replay it against the original Java client, comparing the whole screen. (2) Run a "world tour" comparison at non-Lumbridge locations. Not 244. No human-play items.
+Scope: requested by the user after checkpoint commit 9742d72. (1) Re-record one integrated scenario on the current normal build and strict-replay it against the original Java client, comparing the whole screen. (2) Run a "world tour" comparison at non-Lumbridge locations. Not 244. No human-play items.
 
 Tools: existing `tools/record_live.ps1` and `tools/parity.ps1` (ParityOracle on original rs2client.jar + strict rs2replay). Disposable auto-created accounts are listed in each `account.txt`. Passwords were supplied through the process environment only. Every recording reports `saves changed: none`.
 

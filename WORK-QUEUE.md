@@ -2,14 +2,14 @@
 
 At the user's request, each project now has its own public repo under the GitHub account **CalyxOfHeld**:
 - **RS2004-C** (this workspace): https://github.com/CalyxOfHeld/RS2004-C, a fork of LostCityRS/Server.
-  - `main` is this `master`, with the same commit IDs.
+  - `main` is this `master`. The commit IDs changed on October 28, when the history was rewritten to replace the commit email with the GitHub noreply address and the Windows username in paths with `%USERPROFILE%` (or `USER`). The commit IDs quoted in these docs have been updated to match.
   - `lostcity-main` is LostCity's own branch.
   - `pre-git-history` replays the October 20-21 checkpoint zips as commits.
   - Local `master` tracks `origin/main`.
 - **Client3 Wii U build:** https://github.com/CalyxOfHeld/Client3, a fork of lesleyrs/Client3. The default branch `wiiu` is upstream `53c4cf8` plus the Wii U setup (cache, login CRC, big-endian sound, SD log).
 - **First-person fork:** https://github.com/CalyxOfHeld/client3-fps.
 
-The Wii U steps 6-14 work and these docs are committed (`6467e1f`). `.gitignore` now leaves out about 35 GB that stays on disk:
+The Wii U steps 6-14 work and these docs are committed (`7d09b25`). `.gitignore` now leaves out about 35 GB that stays on disk:
 - the pre-git zips and copied server/client trees;
 - build output, SDL2 libs and `tests/fixtures`;
 - `verification/completion/runs/` and `releases/`.
@@ -366,7 +366,7 @@ Confirmed on the user's real Wii U:
 - HOME and return work in game.
 - HOME → Close works in game and returns to the Wii U Menu.
 
-Commit 9e7cb9c (Wii U-only, `platform/sdl2_main.c`):
+Commit fd49af6 (Wii U-only, `platform/sdl2_main.c`):
 - **Touch.** SDL touch-to-mouse is off (`SDL_HINT_TOUCH_MOUSE_EVENTS=0`). Taps are handled by our own code:
   - A tap queues a mouse move, then the click on the next drawn frame. The click resolves against a menu built from the moved position, which is why the character-creator buttons now respond.
   - Right click: long press (500 ms), or L/ZL + tap.
@@ -376,7 +376,7 @@ Commit 9e7cb9c (Wii U-only, `platform/sdl2_main.c`):
 - **Main-thread stack.** The client runs on the main thread with a 16 MB stack, using an asm stack-switch trampoline (`wiiu_call_on_stack`). This replaced the OSCreateThread client thread. Cemu 2.6 exits on `OSSwitchFiber`, so a fiber is not used.
 - **Touch log.** Taps write `touch down`/`touch up`/`press` lines to log.txt. This stays for now.
 
-Verification for 9e7cb9c:
+Verification for fd49af6:
 - Wii U and PC builds: 0 warnings.
 - PC `make test`: ALL TESTS PASSED, 0 warnings (`suite.log`).
 
@@ -537,7 +537,7 @@ User asked to rebuild the release zip with the new binary. Current package is cl
 Packaged binary:
 - rs2client.exe ff10df0c1aa457d7ce15a087a6044b316f12a5c0bb5c04e039b8efe29c1a250f
 - rs2replay.exe 1da5cdc1674cea82358c0806fce00372c119535c76da9d31b187d7b865463caf
-- Built by Codex's completed RS2004-C branding task. Source is commit 92b8847 plus three console printf strings (client.c, sdl2_main.c).
+- Built by Codex's completed RS2004-C branding task. Source is commit c379ffb plus three console printf strings (client.c, sdl2_main.c).
 
 Parity on the packaged binary: both October 27 recordings strictly replayed again and give PARITY MATCH (integrated 3099 frames, tour 3849 frames).
 
@@ -568,7 +568,7 @@ User requested local website banner and all visible Lost City branding become RS
 
 # Current-build frame parity + world tour + doc archive — Claude, October 27, 2026 (completed)
 
-User authorized after checkpoint commit 273f6ea: (1) integrated-scenario re-record plus strict Java whole-screen parity on the current build; (2) a non-Lumbridge world tour comparison; (3) archive of historical doc sections. Not 244. No human play. All three are DONE.
+User authorized after checkpoint commit 9742d72: (1) integrated-scenario re-record plus strict Java whole-screen parity on the current build; (2) a non-Lumbridge world tour comparison; (3) archive of historical doc sections. Not 244. No human play. All three are DONE.
 
 - Archive: archive/*-history-through-2026-10-25.md.
 - Parity: three Java-sourced fixes (design-model double lighting, Wilderness/Arena indicator, cameraPitchClamp initial 0). integrated-final 3099/3099 and tour-final 3849/3849 frames PARITY MATCH. make test passed with 0 warnings.
