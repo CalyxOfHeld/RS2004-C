@@ -1,0 +1,25 @@
+[Lost City 2004 C] Starting RS2 Revision 225 Client...
+[INFO] Loading 2004scape cache...
+[Textures] Loaded 50 cache textures
+[PASS] Audio synthesizer online (sounds.dat unpacked)
+[INFO] Cache loaded: 78 flo, 1027 seq, 3387 loc, 1017 npc, 2886 obj, 82 idk
+[PASS] 229 Animation Bases & 7783 Frames loaded from models cache
+[PASS] 2004scape Bitmap Fonts loaded (p11, p12, b12, q8)
+[PASS] 2004scape Media artwork loaded (frames, tabs, compass, icons)
+[PASS] 7386 UI Components unpacked from interface.jag
+[INFO] Building Lumbridge 3D scene (m50_50 / l50_50)...
+[PASS] 3D Scene built successfully!
+[PASS] Minimap radar & compass needle initialized
+[INFO] Entering main render loop. Controls:
+       [Arrow Keys] Rotate camera Pitch & Yaw
+       [W, A, S, D] Move Player in 3D world
+       [Left Click] Walk to tile / Interact / Select tab
+       [Right Click] Open Context Menu (Walk here, Talk-to Hans, etc.)
+       [ESC] Exit
+[INFO] Checking for live 2004scape server at 127.0.0.1:43594...
+[INFO] Server offline (code -1). Starting in standalone Lumbridge simulation mode.
+[CAPTURE] camera=(4160,-612,3251) pitch=128 yaw=0 -> C:\Users\USER\Documents\2004scape-LostCityRS\2004scape C Rewrite\client-c\verification\scenery\after-default.bmp.terrain.bmp
+[VERIFY] player tile=(32,32) sequence=808 frame=0
+[CAPTURE] SDL renderer -> C:\Users\USER\Documents\2004scape-LostCityRS\2004scape C Rewrite\client-c\verification\scenery\after-default.bmp
+[Lost City 2004 C] Shutting down...
+[Lost City 2004 C] Shutdown complete.

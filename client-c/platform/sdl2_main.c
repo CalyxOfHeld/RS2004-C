@@ -18,13 +18,55 @@
 #endif
 #include "core/session_log.h"
 #include "audio/wave.h"
+#ifdef __WIIU__
+#include "dash3d/scene_runtime225.h"
+#include <coreinit/core.h>
+#endif
 #include "audio/midi.h"
+
+// The client frame is 0x00RRGGBB per pixel (SDL RGB888). The Wii U GX2 renderer
+// has no RGB888 texture, so SDL converted every frame through its generic blitter
+// (19 ms, October 28 hardware log), and ARGB8888 drew pixels with a zero top byte
+// black. There the texture is RGBX8888 (0xRRGGBBxx), filled by one shift per pixel.
+#ifdef __WIIU__
+#define SDL_FRAME_FORMAT SDL_PIXELFORMAT_RGBX8888
+#else
+#define SDL_FRAME_FORMAT SDL_PIXELFORMAT_RGB888
+#endif
+#ifdef __WIIU__
+static uint64_t wiiu_shift_sum;
+#endif
+static void sdl_upload_frame(SDL_Texture *texture, const uint32_t *pixels, int width, int height) {
+#ifdef __WIIU__
+    // Shifting straight into the locked texture took 17-22 ms a frame (that
+    // memory appears uncached). Shift into a cached buffer instead, allocating
+    // each destination line with dcbz so it is not read first, then hand the
+    // matching RGBX8888 rows to SDL_UpdateTexture. Times are logged as shift
+    // and the rest of upload.
+    static uint32_t shifted[CLIENT_WIDTH * CLIENT_HEIGHT] __attribute__((aligned(32)));
+    uint64_t start = SDL_GetPerformanceCounter();
+    size_t count = (size_t)width * (size_t)height, i = 0;
+    if (count > sizeof shifted / sizeof shifted[0]) return;
+    for (; i + 8 <= count; i += 8) {
+        __asm__ volatile("dcbz 0,%0" : : "r"(shifted + i) : "memory");
+        uint32_t a = pixels[i], b = pixels[i + 1], c = pixels[i + 2], d = pixels[i + 3];
+        uint32_t e = pixels[i + 4], f = pixels[i + 5], g = pixels[i + 6], h = pixels[i + 7];
+        shifted[i] = a << 8; shifted[i + 1] = b << 8; shifted[i + 2] = c << 8; shifted[i + 3] = d << 8;
+        shifted[i + 4] = e << 8; shifted[i + 5] = f << 8; shifted[i + 6] = g << 8; shifted[i + 7] = h << 8;
+    }
+    for (; i < count; i++) shifted[i] = pixels[i] << 8;
+    wiiu_shift_sum += SDL_GetPerformanceCounter() - start;
+    SDL_UpdateTexture(texture, NULL, shifted, width * sizeof(uint32_t));
+#else
+    (void)height;
+    SDL_UpdateTexture(texture, NULL, pixels, width * sizeof(uint32_t));
+#endif
+}
 
 static SDL_Renderer *recovery_renderer;
 static SDL_Texture *recovery_texture;
 static void sdl_present_recovery(const uint32_t *pixels, int width, int height) {
-    (void)height;
-    SDL_UpdateTexture(recovery_texture, NULL, pixels, width * sizeof(uint32_t));
+    sdl_upload_frame(recovery_texture, pixels, width, height);
     SDL_RenderClear(recovery_renderer);
     SDL_RenderCopy(recovery_renderer, recovery_texture, NULL, NULL);
     SDL_RenderPresent(recovery_renderer);
@@ -125,6 +167,133 @@ static ClientTextTarget wiiu_kbd_target = CLIENT_TEXT_NONE;
 static bool wiiu_kbd_shown, wiiu_kbd_pending, wiiu_chat_tapped;
 static int wiiu_kbd_hidden_frames;
 static bool wiiu_background;
+static SDL_Window *wiiu_kbd_window; // for the [INPUT] keyboard state
+// Frame-phase timing for hardware profiling: averages every 5 s to log.txt.
+// Draw is split by scene_perf_mark225 (client.c, scene_runtime225.c): pre (camera,
+// setup), sync (scene clear, world sync, ground objects), actors (entity models), prepare (visibility), raster (scene traversal and
+// rasterising), overlay (viewport copy, picking, overheads, menus); "ui" is the rest
+// of the draw (shell, minimap, panels, text), or all of it on the title screen.
+enum { WIIU_T_SLEEP, WIIU_T_INPUT, WIIU_T_UPDATE, WIIU_T_PRE, WIIU_T_SYNC, WIIU_T_ACTORS, WIIU_T_PREPARE,
+       WIIU_T_RASTER, WIIU_T_OVERLAY, WIIU_T_DRAW, WIIU_T_UPLOAD, WIIU_T_PRESENT, WIIU_T_COUNT };
+static uint64_t wiiu_t_sum[WIIU_T_COUNT], wiiu_t_last, wiiu_t_window;
+static int wiiu_t_frames, wiiu_t_ticks;
+// Input diagnostics per window: finger and swkbd (SDL_SYSWMEVENT) events seen.
+static int wiiu_n_finger, wiiu_n_syswm;
+static void wiiu_time(int phase) {
+    uint64_t now = SDL_GetPerformanceCounter();
+    wiiu_t_sum[phase] += now - wiiu_t_last;
+    wiiu_t_last = now;
+}
+static void wiiu_time_frame(void) {
+    uint64_t freq = SDL_GetPerformanceFrequency();
+    wiiu_t_frames++;
+    if (wiiu_t_window == 0) wiiu_t_window = wiiu_t_last;
+    if (wiiu_t_last - wiiu_t_window < freq * 5) return;
+    double ms = 1000.0 / (double)freq / wiiu_t_frames, secs = (double)(wiiu_t_last - wiiu_t_window) / (double)freq;
+    printf("[PERF] fps=%.1f ticks/s=%.1f ms: sleep=%.1f input=%.1f update=%.1f | pre=%.1f sync=%.1f actors=%.1f prepare=%.1f "
+        "raster=%.1f overlay=%.1f ui=%.1f | upload=%.1f (shift=%.1f) present=%.1f\n",
+        wiiu_t_frames / secs, wiiu_t_ticks / secs, wiiu_t_sum[0] * ms, wiiu_t_sum[1] * ms, wiiu_t_sum[2] * ms,
+        wiiu_t_sum[3] * ms, wiiu_t_sum[4] * ms, wiiu_t_sum[5] * ms, wiiu_t_sum[6] * ms, wiiu_t_sum[7] * ms,
+        wiiu_t_sum[8] * ms, wiiu_t_sum[9] * ms, wiiu_t_sum[10] * ms, wiiu_shift_sum * ms, wiiu_t_sum[11] * ms);
+    printf("[INPUT] fingers=%d syswm=%d kbd_shown=%d kbd_visible=%d text_input=%d target=%d\n",
+        wiiu_n_finger, wiiu_n_syswm, wiiu_kbd_shown, (wiiu_kbd_window && SDL_IsScreenKeyboardShown(wiiu_kbd_window)) ? 1 : 0,
+        SDL_IsTextInputActive() ? 1 : 0, (int)client_text_field().target);
+    wiiu_n_finger = wiiu_n_syswm = 0;
+    fflush(stdout);
+    memset(wiiu_t_sum, 0, sizeof wiiu_t_sum); wiiu_shift_sum = 0;
+    wiiu_t_frames = wiiu_t_ticks = 0;
+    wiiu_t_window = wiiu_t_last;
+}
+#define WIIU_TIME(phase) wiiu_time(phase)
+// Sampling profiler: a 1 kHz periodic alarm on the client's core records the
+// interrupted PC and LR while in game (from the first scene draw) until the
+// buffer is full; samples.bin is written at exit. The address of
+// wiiu_profile_reference lets the PC map samples onto rs2004c.elf symbols.
+#include <coreinit/alarm.h>
+#include <coreinit/time.h>
+enum { WIIU_PROFILE_MAX = 131072 };
+static uint32_t wiiu_profile_samples[WIIU_PROFILE_MAX][2];
+static volatile uint32_t wiiu_profile_count;
+static volatile bool wiiu_profile_on;
+static OSAlarm wiiu_profile_alarm;
+void wiiu_profile_reference(void) {}
+static void wiiu_profile_tick(OSAlarm *alarm, OSContext *context) {
+    (void)alarm;
+    if (!wiiu_profile_on || !context || wiiu_profile_count >= WIIU_PROFILE_MAX) return;
+    wiiu_profile_samples[wiiu_profile_count][0] = context->srr0;
+    wiiu_profile_samples[wiiu_profile_count][1] = context->lr;
+    wiiu_profile_count++;
+}
+// Addresses of system library functions, so profile samples outside
+// rs2004c.elf can be matched to the nearest export.
+#include <coreinit/dynload.h>
+static void wiiu_profile_exports(void) {
+    static const char *const libs[] = { "coreinit.rpl", "gx2.rpl" };
+    static const char *const names[2][24] = {
+        { "OSBlockSet", "OSBlockMove", "memset", "memcpy", "memmove", "DCFlushRange", "DCStoreRange",
+          "DCInvalidateRange", "DCZeroRange", "OSSleepTicks", "OSYieldThread", "OSWaitEvent", "OSLockMutex",
+          "OSFastMutex_Lock", "OSUninterruptibleSpinLock_Acquire", "MEMAllocFromExpHeapEx", "MEMFreeToExpHeap",
+          "MEMAllocFromFrmHeapEx", "OSGetTime", "OSGetSystemTime", "OSDisableInterrupts", "OSRestoreInterrupts",
+          "OSSwitchSecCodeGenMode", NULL },
+        { "GX2DrawDone", "GX2WaitForVsync", "GX2WaitForFlip", "GX2SwapScanBuffers", "GX2Flush", "GX2Invalidate",
+          "GX2CopyColorBufferToScanBuffer", "GX2SetContextState", "GX2WaitTimeStamp", "GX2GetLastSubmittedTimeStamp",
+          "GX2CopySurface", NULL } };
+    for (int l = 0; l < 2; l++) {
+        OSDynLoad_Module module;
+        if (OSDynLoad_Acquire(libs[l], &module) != OS_DYNLOAD_OK) continue;
+        for (int i = 0; names[l][i]; i++) {
+            void *address = NULL;
+            if (OSDynLoad_FindExport(module, OS_DYNLOAD_EXPORT_FUNC, names[l][i], &address) == OS_DYNLOAD_OK)
+                printf("[EXPORT] %08x %s %s\n", (unsigned)(uintptr_t)address, libs[l], names[l][i]);
+        }
+        OSDynLoad_Release(module);
+    }
+    fflush(stdout);
+}
+static void wiiu_profile_start(void) {
+    wiiu_profile_exports();
+    OSCreateAlarm(&wiiu_profile_alarm);
+    OSSetPeriodicAlarm(&wiiu_profile_alarm, OSMillisecondsToTicks(1), OSMicrosecondsToTicks(1000), wiiu_profile_tick);
+}
+static void wiiu_profile_stop(void) {
+    wiiu_profile_on = false;
+    OSCancelAlarm(&wiiu_profile_alarm);
+    FILE *file = fopen(WIIU_APP_DIR "/samples.bin", "wb");
+    if (!file) return;
+    uint32_t header[3] = { 0x52505246u, (uint32_t)(uintptr_t)&wiiu_profile_reference, wiiu_profile_count };
+    fwrite(header, sizeof header, 1, file);
+    fwrite(wiiu_profile_samples, sizeof wiiu_profile_samples[0], wiiu_profile_count, file);
+    fclose(file);
+    printf("[PROFILE] %u samples written, reference=%08x\n", (unsigned)header[2], (unsigned)header[1]);
+    fflush(stdout);
+}
+static void wiiu_scene_mark(int phase) { wiiu_profile_on = true; wiiu_time(WIIU_T_PRE + phase); }
+// Startup check: memset/memcpy speed on frame-sized (765x503x4) buffers and a
+// plain integer loop, to tell slow memory apart from slow code.
+static uint32_t wiiu_bench_static[CLIENT_WIDTH * CLIENT_HEIGHT];
+static void wiiu_memory_benchmark(void) {
+    const size_t bytes = sizeof(wiiu_bench_static);
+    uint32_t *heap = malloc(bytes);
+    if (!heap) return;
+    double freq = (double)SDL_GetPerformanceFrequency();
+    uint64_t t0 = SDL_GetPerformanceCounter();
+    for (int i = 0; i < 10; i++) memset(wiiu_bench_static, i, bytes);
+    uint64_t t1 = SDL_GetPerformanceCounter();
+    volatile uint32_t sum = 0;
+    // Read back after each pass: GCC drops stores to a buffer that is only freed.
+    for (int i = 0; i < 10; i++) { memset(heap, i, bytes); sum += heap[i * 997]; }
+    uint64_t t2 = SDL_GetPerformanceCounter();
+    for (int i = 0; i < 10; i++) { memcpy(heap, wiiu_bench_static, bytes); sum += heap[i * 991]; }
+    uint64_t t3 = SDL_GetPerformanceCounter();
+    for (uint32_t i = 0; i < 10000000u; i++) sum += i ^ (sum >> 3);
+    uint64_t t4 = SDL_GetPerformanceCounter();
+    double mb = 10.0 * (double)bytes / (1024.0 * 1024.0);
+    printf("[BENCH] memset static=%.0f MB/s heap=%.0f MB/s memcpy=%.0f MB/s; 10M int loop=%.1f ms; core=%d\n",
+        mb / ((t1 - t0) / freq), mb / ((t2 - t1) / freq), mb / ((t3 - t2) / freq),
+        (t4 - t3) * 1000.0 / freq, (int)OSGetCoreId());
+    fflush(stdout);
+    free(heap);
+}
 
 static void wiiu_queue_key(int key) {
     ClientEvent e;
@@ -192,6 +361,7 @@ static bool wiiu_pad_button(int button) {
 
 static bool wiiu_touch_event(const SDL_Event *event) {
     if (event->type != SDL_FINGERDOWN && event->type != SDL_FINGERMOTION && event->type != SDL_FINGERUP) return false;
+    wiiu_n_finger++;
     int x = (int)(event->tfinger.x * CLIENT_WIDTH), y = (int)(event->tfinger.y * CLIENT_HEIGHT);
     if (x >= CLIENT_WIDTH) x = CLIENT_WIDTH - 1;
     if (y >= CLIENT_HEIGHT) y = CLIENT_HEIGHT - 1;
@@ -267,12 +437,14 @@ static void wiiu_keyboard_open(const ClientTextField *field) {
     if (field->target == CLIENT_TEXT_AMOUNT) SDL_WiiUSetSWKBDKeyboardMode(SDL_WIIU_SWKBD_KEYBOARD_MODE_NUMPAD);
     if (field->target == CLIENT_TEXT_PASSWORD) SDL_WiiUSetSWKBDPasswordMode(SDL_WIIU_SWKBD_PASSWORD_MODE_FADE);
     wiiu_kbd_target = field->target;
+    wiiu_input_log("keyboard open", (int)field->target, 0, 1);
     wiiu_kbd_shown = true;
     wiiu_kbd_hidden_frames = 0;
     SDL_StartTextInput();
 }
 
 static void wiiu_keyboard_closed(void) {
+    wiiu_input_log("keyboard closed", (int)wiiu_kbd_target, 0, wiiu_kbd_hidden_frames);
     SDL_StopTextInput();
     wiiu_kbd_shown = false;
 }
@@ -280,6 +452,7 @@ static void wiiu_keyboard_closed(void) {
 // Handles swkbd OK/cancel notifications; returns true when the event was one.
 static bool wiiu_keyboard_event(const SDL_Event *event) {
     if (event->type != SDL_SYSWMEVENT || event->syswm.msg->subsystem != SDL_SYSWM_WIIU) return false;
+    wiiu_n_syswm++;
     unsigned what = event->syswm.msg->msg.wiiu.event;
     // Cemu keeps IsDecideOkButton true after OK until the next appear, so SDL
     // repeats OK_START/OK_FINISH on every pump; only the first one, while our
@@ -304,6 +477,7 @@ static bool wiiu_keyboard_event(const SDL_Event *event) {
 // waits until the previous keyboard is hidden, and a keyboard of ours that has
 // not been visible for a second is treated as closed.
 static void wiiu_keyboard_frame(SDL_Window *window) {
+    wiiu_kbd_window = window;
     ClientTextField field = client_text_field();
     bool visible = SDL_IsScreenKeyboardShown(window);
     if (wiiu_kbd_shown) {
@@ -347,6 +521,9 @@ static void wiiu_read_autologin(ClientOptions *options) {
     }
     fclose(file);
 }
+#endif
+#ifndef __WIIU__
+#define WIIU_TIME(phase) ((void)0)
 #endif
 
 #ifdef __WIIU__
@@ -500,13 +677,37 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "SDL joystick init failed: %s\n", SDL_GetError());
     }
 #endif
+    const Uint32 framebuffer_format = SDL_FRAME_FORMAT;
     SDL_Texture *framebuffer = SDL_CreateTexture(
         renderer,
-        SDL_PIXELFORMAT_RGB888,
+        framebuffer_format,
         SDL_TEXTUREACCESS_STREAMING,
         CLIENT_WIDTH,
         CLIENT_HEIGHT
     );
+#ifdef __WIIU__
+    // Hardware profiling: upload took 20 ms per frame. Log what the GX2 renderer
+    // offers, and alternate two textures so an update never waits for the GPU to
+    // finish drawing the texture presented last frame.
+    {
+        SDL_RendererInfo info;
+        if (SDL_GetRendererInfo(renderer, &info) == 0) {
+            printf("[WIIU] renderer %s flags=0x%x max=%dx%d formats:", info.name, (unsigned)info.flags,
+                info.max_texture_width, info.max_texture_height);
+            for (Uint32 i = 0; i < info.num_texture_formats; i++)
+                printf(" %s", SDL_GetPixelFormatName(info.texture_formats[i]));
+            printf("\n");
+            fflush(stdout);
+        }
+    }
+    SDL_Texture *wiiu_framebuffers[2] = { framebuffer,
+        SDL_CreateTexture(renderer, framebuffer_format, SDL_TEXTUREACCESS_STREAMING, CLIENT_WIDTH, CLIENT_HEIGHT) };
+    for (int i = 0; i < 2; i++) if (wiiu_framebuffers[i]) SDL_SetTextureBlendMode(wiiu_framebuffers[i], SDL_BLENDMODE_NONE);
+    wiiu_memory_benchmark();
+    int wiiu_framebuffer_next = 0;
+    scene_perf_mark225 = wiiu_scene_mark;
+    wiiu_profile_start();
+#endif
 
     recovery_renderer=renderer; recovery_texture=framebuffer;
     ClientPlatform platform = { sdl_now_ms, sdl_save_bmp, sdl_present_recovery,sdl_tracking_now_ms };
@@ -528,6 +729,9 @@ int main(int argc, char *argv[]) {
     int var6 = 0;
     const int deltime = 20; // 50 Hz client tick
     const int mindel = 1;
+#ifdef __WIIU__
+    wiiu_t_last = SDL_GetPerformanceCounter();
+#endif
 
     while (client_running()) {
         // 1. Frame pacing & sleep calculation (GameShell.java:166-199)
@@ -557,6 +761,7 @@ int main(int argc, char *argv[]) {
         if (var5 < mindel) var5 = mindel;
         if (options.fixed_step) var4 = 256;
         else SDL_Delay(var5);
+        WIIU_TIME(WIIU_T_SLEEP);
 
         client_log_frame(client_rendered_frames());
         client_begin_frame();
@@ -615,23 +820,33 @@ int main(int argc, char *argv[]) {
         client_log_held(&held);
         client_set_held_keys(&held);
         client_process_events();
+        WIIU_TIME(WIIU_T_INPUT);
 
         // 50 Hz Client Logic Tick Accumulator (matching GameShell.java:200-206)
         while (var6 < 256) {
             client_log_update();
             if (!client_update()) break;
+#ifdef __WIIU__
+            wiiu_t_ticks++;
+#endif
             var6 += var4;
         }
         var6 &= 0xFF;
 #ifdef __WIIU__
         wiiu_keyboard_frame(window);
 #endif
+        WIIU_TIME(WIIU_T_UPDATE);
 
         if (!client_draw()) return 1;
         if (session_log_mode() == SESSION_LOG_RECORD) client_log_draw(client_frame_hash());
+        WIIU_TIME(WIIU_T_DRAW);
 
         // Update SDL texture & present
-        SDL_UpdateTexture(framebuffer, NULL, client_pixels(), CLIENT_WIDTH * sizeof(uint32_t));
+#ifdef __WIIU__
+        if (wiiu_framebuffers[1]) { framebuffer = wiiu_framebuffers[wiiu_framebuffer_next]; wiiu_framebuffer_next ^= 1; }
+#endif
+        sdl_upload_frame(framebuffer, client_pixels(), CLIENT_WIDTH, CLIENT_HEIGHT);
+        WIIU_TIME(WIIU_T_UPLOAD);
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, framebuffer, NULL, NULL);
         const char *capture = client_frame_capture_path();
@@ -646,10 +861,17 @@ int main(int argc, char *argv[]) {
             printf("[CAPTURE] SDL renderer -> %s\n", capture);
         }
         SDL_RenderPresent(renderer);
+#ifdef __WIIU__
+        wiiu_time(WIIU_T_PRESENT);
+        wiiu_time_frame();
+#endif
         client_end_frame();
     }
 
     WIIU_STAGE("main loop ended");
+#ifdef __WIIU__
+    wiiu_profile_stop();
+#endif
     audio_close();
     WIIU_STAGE("audio closed");
     midi_close();

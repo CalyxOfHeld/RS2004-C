@@ -29,7 +29,8 @@ DATA_SRC  := ../engine/data/pack/client
 OBJS := $(ALL_SRCS:%.c=$(BUILD_DIR)/%.o) \
         $(BUILD_DIR)/src/client/client225.o \
         $(BUILD_DIR)/src/client/client_log.o \
-        $(BUILD_DIR)/platform/sdl2_main.o
+        $(BUILD_DIR)/platform/sdl2_main.o \
+        $(BUILD_DIR)/platform/wiiu_mem.o
 
 MACHDEP := -DESPRESSO -mcpu=750 -meabi -mhard-float
 # -fno-caller-saves: with GCC's -O2 caller-saves, Cemu 2.6's PPC recompiler loses
@@ -39,7 +40,8 @@ CFLAGS  := -std=c99 -Wall -Wextra -O2 -fno-caller-saves -ffunction-sections $(MA
            -D__WIIU__ -D__WUT__ -Iinclude \
            -I$(PORTLIBS)/wiiu/include -I$(PORTLIBS)/wiiu/include/SDL2 \
            -I$(PORTLIBS)/ppc/include -I$(WUT_ROOT)/include
-LDFLAGS := $(MACHDEP) -specs=$(WUT_ROOT)/share/wut.specs -Wl,--gc-sections \
+# wiiu_mem.c: cache-line memset/memcpy for large blocks (October 28 profile).
+LDFLAGS := $(MACHDEP) -specs=$(WUT_ROOT)/share/wut.specs -Wl,--gc-sections -Wl,--wrap=memset,--wrap=memcpy \
            -L$(PORTLIBS)/wiiu/lib -L$(PORTLIBS)/ppc/lib -L$(WUT_ROOT)/lib
 LIBS    := -lSDL2 -lm -lwut
 

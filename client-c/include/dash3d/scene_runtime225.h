@@ -23,4 +23,8 @@ SceneBuild225 *scene_runtime225_build(SceneRuntime225 *runtime);
 const SceneRaster225 *scene_runtime225_result(SceneRuntime225 *runtime);
 int scene_runtime225_top_level(const World *world,int level,int eye_x,int eye_z,
     int player_x,int player_z,int pitch);
+/* Optional frame-phase timing hook (Wii U hardware profiling); NULL on PC. */
+enum { PERF225_PRE, PERF225_SYNC, PERF225_ACTORS, PERF225_PREPARE, PERF225_RASTER, PERF225_OVERLAY };
+extern void (*scene_perf_mark225)(int phase);
+#define SCENE_PERF225(phase) do{if(scene_perf_mark225)scene_perf_mark225(phase);}while(0)
 #endif

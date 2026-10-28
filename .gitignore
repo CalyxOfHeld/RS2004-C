@@ -2,3 +2,42 @@ node_modules/
 .DS_Store
 
 server.json
+
+# Checkpoint archives from before git (October 20-21, 2026); kept as release assets
+/*.zip
+/*.sha256
+
+# Other projects' trees copied in for local runs (not RS2004-C work)
+/engine/
+/content/
+/webclient/
+/javaclient/
+/OSRS/
+/Client3-main/
+/Dockerfile
+/.dockerignore
+/bun.lock
+/.vscode/
+
+# Build output, local tools and downloaded SDL2 (see client-c/Makefile)
+/client-c/build/
+/client-c/build_wiiu/
+/client-c/bin/
+/client-c/lib/
+/client-c/SDL2.dll
+/client-c/*.log
+/client-c/*.mid
+
+# Generated reference fixtures (1.4 GB) and bulk run output (31 GB). The curated
+# evidence under verification/ is tracked; add new evidence with git add -f.
+/client-c/tests/fixtures/
+/client-c/verification/completion/runs/
+/client-c/verification/completion/releases/
+/client-c/verification/*.bmp
+/client-c/verification/*.png
+/client-c/verification/*.log
+/wii u/
+__pycache__/
+*.pid
+/client-c/verification/completion/reference/classes/
+/client-c/verification/completion/baseline/*.exe

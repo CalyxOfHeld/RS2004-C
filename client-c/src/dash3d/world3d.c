@@ -6,6 +6,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+uint32_t world3d_next_model_serial(void) {
+    static uint32_t serial;
+    return ++serial;
+}
+
 static const int SHAPE_POINTS[13][8] = {
     { 1, 3, 5, 7, 0, 0, 0, 0 },
     { 1, 3, 5, 7, 0, 0, 0, 0 },
@@ -287,6 +292,7 @@ bool world3d_add_loc(World3D *w, int level, int x, int z, int y, Model *model, i
     loc->z = z * 128 + (length * 128) / 2;
     loc->y = y;
     loc->model = model;
+    loc->model_serial = world3d_next_model_serial();
     loc->bitset = bitset;
     loc->shape=10;loc->rotation=0;loc->owns_model=false;loc->yaw=0;
     loc->min_tile_x = x;

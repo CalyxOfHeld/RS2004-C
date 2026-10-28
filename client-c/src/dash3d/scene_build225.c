@@ -8,7 +8,8 @@
 
 #define CELLS (4*104*104)
 #define CAPACITY (CELLS+104*104)
-typedef struct {WorldLocation *owner;int bitset,shape,rotation;bool shared,skew;} ModelBinding225;
+/* model/serial: the owner's model when bounds were last computed. */
+typedef struct {WorldLocation *owner;int bitset,shape,rotation;bool shared,skew;Model *model;uint32_t serial;} ModelBinding225;
 typedef struct {int location,model;SceneEntityDraw225 draw;void *user;} Temporary225;
 struct SceneBuild225 {
     SceneTraversal225 scene;
@@ -22,6 +23,10 @@ struct SceneBuild225 {
     int object_ground[CELLS];size_t object_count;
     Occluder225 pools[4][500];size_t pool_counts[4];
     int extra;
+    /* Heights that copy a base model's bounds.max_y (wall, decor, ground decor,
+     * base location), grouped by model: model i's are height_target
+     * [height_start[i]..height_start[i+1]). Built by the first refresh. */
+    int32_t **height_target;size_t *height_start;bool heights_indexed;
 };
 static int cell(int l,int x,int z){return (l*104+x)*104+z;}
 static int32_t jint(uint32_t value){return value<=INT32_MAX?(int32_t)value:-1-(int32_t)(UINT32_MAX-value);}
@@ -71,7 +76,7 @@ static bool model_key(SceneBuild225 *b,WorldLocation *owner,const LocType *loc,u
     if(!owner || !owner->model){memset(key,0,32);*max_y=0;return true;}
     if(b->model_count>=b->model_capacity)return false;
     SceneModel225 *out=&b->models[b->model_count];model_bounds(out,owner->model,loc->sharelight,loc->hillskew);
-    b->bindings[b->model_count]=(ModelBinding225){owner,owner->bitset,owner->shape,owner->rotation,loc->sharelight,loc->hillskew};
+    b->bindings[b->model_count]=(ModelBinding225){owner,owner->bitset,owner->shape,owner->rotation,loc->sharelight,loc->hillskew,owner->model,owner->model_serial};
     encode_key(key,(uint32_t)++b->model_count,0);*max_y=out->bounds.max_y;return true;
 }
 const SceneModel225 *world3d_scene_resolve225(void *context,const uint8_t key[32]){
@@ -248,7 +253,8 @@ SceneBuild225 *world3d_construct225(World *world,World3D *native,LocConfig *loca
 void world3d_destroy_scene225(SceneBuild225 *b){
     if(!b)return;
     free(b->scene.grounds);free(b->scene.locations);free(b->scene.grid);
-    free(b->scene.occlusion.tile_cycles);free(b->geometry);free(b->models);free(b->bindings);free(b);
+    free(b->scene.occlusion.tile_cycles);free(b->geometry);free(b->models);free(b->bindings);
+    free(b->height_target);free(b->height_start);free(b);
 }
 SceneTraversal225 *world3d_scene225(SceneBuild225 *b){return b?&b->scene:NULL;}
 const SceneGeometry225 *world3d_scene_geometry225(SceneBuild225 *b){return b?b->geometry:NULL;}
@@ -261,13 +267,51 @@ static bool current_height(SceneBuild225 *b,const uint8_t key[32],int32_t *heigh
     const SceneModel225 *model=world3d_scene_resolve225(b,key);if(!model || !model->model)return false;
     *height=model->bounds.max_y;return true;
 }
+/* Base model index a non-empty key names, or -1. */
+static long base_model_index(const SceneBuild225 *b,const uint8_t key[32]){
+    static const uint8_t empty[32]={0};if(!memcmp(key,empty,32))return -1;
+    uint32_t id=0;for(int i=0;i<4;i++)id|=(uint32_t)key[i]<<(8*i);
+    return id && id<=b->base_models?(long)id-1:-1;
+}
+static void index_height(SceneBuild225 *b,const uint8_t key[32],int32_t *height,bool fill){
+    long m=base_model_index(b,key);if(m<0)return;
+    if(fill)b->height_target[b->height_start[m+1]++]=height;else b->height_start[m+2]++;
+}
+/* After a full refresh: index every height by the base model it copies, so
+ * later refreshes update only the heights of models whose bounds changed. */
+static void index_heights(SceneBuild225 *b){
+    b->height_start=calloc(b->base_models+2,sizeof(*b->height_start));if(!b->height_start)return;
+    for(int fill=0;fill<2;fill++){
+        for(size_t i=0;i<b->scene.ground_count;i++){
+            SceneGround225 *g=&b->scene.grounds[i];
+            if(g->wall.present){index_height(b,g->wall.model_a,&g->wall.max_y_a,fill);index_height(b,g->wall.model_b,&g->wall.max_y_b,fill);}
+            if(g->decor.present)index_height(b,g->decor.model,&g->decor.max_y,fill);
+            if(g->ground_decor.present)index_height(b,g->ground_decor.model,&g->ground_decor.max_y,fill);
+        }
+        for(size_t i=0;i<b->base_locations;i++)index_height(b,b->scene.locations[i].model,&b->scene.locations[i].max_y,fill);
+        if(!fill){
+            for(size_t m=0;m<b->base_models;m++)b->height_start[m+2]+=b->height_start[m+1];
+            b->height_target=malloc((b->height_start[b->base_models+1]+1)*sizeof(*b->height_target));
+            if(!b->height_target){free(b->height_start);b->height_start=NULL;return;}
+        }
+    }
+    b->heights_indexed=true;
+}
 bool world3d_scene_refresh225(SceneBuild225 *b){
     if(!b)return false;
     for(size_t i=0;i<b->base_models;i++){
         ModelBinding225 *binding=&b->bindings[i];WorldLocation *loc=binding->owner;
         if(!loc || !loc->model || loc->bitset!=binding->bitset || loc->shape!=binding->shape || loc->rotation!=binding->rotation)return false;
+        /* Bounds depend only on the model's points; recompute them only when
+         * the location was given another model (e.g. an animation frame). */
+        if(loc->model==binding->model && loc->model_serial==binding->serial)continue;
         model_bounds(&b->models[i],loc->model,binding->shared,binding->skew);
+        binding->model=loc->model;binding->serial=loc->model_serial;
+        if(b->heights_indexed)for(size_t k=b->height_start[i];k<b->height_start[i+1];k++)*b->height_target[k]=b->models[i].bounds.max_y;
     }
+    /* Indexed: every key resolved at the first refresh and keys never change
+     * within a build, so only the heights updated above can differ. */
+    if(b->heights_indexed)return true;
     for(size_t i=0;i<b->scene.ground_count;i++){
         SceneGround225 *g=&b->scene.grounds[i];
         if(g->wall.present && (!current_height(b,g->wall.model_a,&g->wall.max_y_a) || !current_height(b,g->wall.model_b,&g->wall.max_y_b)))return false;
@@ -275,7 +319,7 @@ bool world3d_scene_refresh225(SceneBuild225 *b){
         if(g->ground_decor.present && !current_height(b,g->ground_decor.model,&g->ground_decor.max_y))return false;
     }
     for(size_t i=0;i<b->base_locations;i++)if(!current_height(b,b->scene.locations[i].model,&b->scene.locations[i].max_y))return false;
-    return true;
+    index_heights(b);return true;
 }
 static bool temporary_model(void *context,const SceneLocation225 *location,uint8_t key[32],int32_t *max_y){
     SceneBuild225 *b=context;

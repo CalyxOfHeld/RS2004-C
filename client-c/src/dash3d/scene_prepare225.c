@@ -9,10 +9,12 @@ bool world3d_prepare_scene225(SceneTraversal225 *s,const Visibility225 *visibili
        s->grid_x<1 || s->grid_x>104 || s->grid_z<1 || s->grid_z>104 ||
        s->max_level<1 || s->max_level>4)return false;
     size_t count=(size_t)s->max_level*s->grid_x*s->grid_z;
-    SceneTileState225 *tiles=calloc(count,sizeof(*tiles));if(!tiles)return false;
+    /* Reused each frame (a 1 MB calloc and free per frame showed in the Wii U
+     * profile); absent entries are cleared here instead. */
+    static SceneTileState225 tiles[4*104*104];
     bool valid=true;
     for(size_t index=0;index<count;index++){
-        int id=s->grid[index];if(id==-1)continue;
+        int id=s->grid[index];if(id==-1){tiles[index]=(SceneTileState225){0};continue;}
         if(id<0 || (size_t)id>=s->ground_count){valid=false;break;}
         SceneGround225 *g=&s->grounds[id];
         int z=(int)(index%s->grid_z),x=(int)(index/s->grid_z%s->grid_x);
@@ -41,5 +43,5 @@ bool world3d_prepare_scene225(SceneTraversal225 *s,const Visibility225 *visibili
         g->visible=tiles[index].visible;g->update=tiles[index].update;
         g->contains_locs=tiles[index].contains_locs;g->check_loc_spans=tiles[index].check_loc_spans;
     }
-    free(tiles);return ok;
+    return ok;
 }

@@ -2579,6 +2579,7 @@ bool client_draw(void) {
     location_anim_tick(world3d,&loc_cfg,game_ticks-location_anim_cycle);
     location_anim_cycle=game_ticks;
 #if RS2_SCENE225_RUNTIME
+    SCENE_PERF225(PERF225_PRE);
     if(!client_scene225(eye_x,eye_y,eye_z,camera_pitch,camera_yaw))return false;
 #else
     world3d_render(world3d,eye_x,eye_y,eye_z,camera_pitch,camera_yaw,0,sync_ctx.current_plane);
@@ -3000,6 +3001,9 @@ bool client_draw(void) {
     pix3d_center_y = CLIENT_HEIGHT / 2;
 
     if(has_media) click_feedback_draw(&click_feedback,&media,VIEWPORT_X,VIEWPORT_Y,VIEWPORT_W,VIEWPORT_H);
+#if RS2_SCENE225_RUNTIME
+    SCENE_PERF225(PERF225_OVERLAY);
+#endif
 
     // 2. Draw authentic 2004scape UI Shell & Frame Artwork
     if (has_media) {

@@ -1,3 +1,346 @@
+# Wii U Client3: music and sound effects working — Claude, October 28, 2026
+
+Changes in the build copy `C:\Users\USER\Documents\client3-wiiu\`; its README has the details, and `Client3-main/` is unchanged:
+- `src/thirdparty/tsf.h`: SF2 fields and samples are byte-swapped on big-endian CPUs.
+- `src/platform/sdl2.c`:
+  - The MIDI output is opened as `AUDIO_F32SYS` (it was `AUDIO_F32`, which is little-endian).
+  - Sound effects are mixed into the MIDI output. The Wii U SDL driver allows only one audio device ("Audio device already open"), so the separate wave device never opened.
+  - SDL_Log is written to `rom/log.txt` on the SD card.
+- User results on hardware: "music played fine", then "sfx work". Logs: `logs/run1-log.txt`, `logs/run2-log.txt`.
+- Current `.wuhb`: SHA256 `789da63b…`.
+
+Not 244.
+
+# Wii U decision: Client3 is the Wii U client — user decision, October 28, 2026
+
+The user decided: **"lets go with client3 on the wii u"**.
+- Client3 ran at about 20 fps in game; RS2004-C at 9.8 fps.
+- The user considers Client3 likely more authentic. Its parity has not been measured. The user declined a screenshot comparison as insufficient.
+
+Build setup: `C:\Users\USER\Documents\client3-wiiu\`. It is space-free because the devkitPro makefile breaks on the space in "2004scape C Rewrite". Its `README.md` lists:
+- the changes from `Client3-main`:
+  - the media CRC at `src/entry/client.c:185`
+  - the server cache in `rom/cache/client`
+  - the `config.ini` settings
+- the build, install and controls
+
+`Client3-main/` itself is unchanged.
+
+RS2004-C's Wii U work (steps 6–12, the diagnostics and the speed-ups) remains uncommitted.
+- The shared-code speed-ups are verified on PC: strict replay and Java parity.
+  - scene bounds cache
+  - incremental heights
+  - ground-item index
+  - reused prepare buffer
+- RS2004-C stays the parity-checked reference. Its tools can check specific Client3 behaviour against the Java source on request.
+- Whether to commit, keep or drop the RS2004-C Wii U changes is for the user.
+
+Next, user-led: play Client3 on the Wii U and report anything that looks or behaves wrong, including touch.
+
+Not 244.
+
+# Wii U step 14: side-by-side run, RS2004-C 9.8 fps vs Client3 "way better" — Claude, October 28, 2026
+
+The user ran both clients. Client3 had `lowmem = 0` in `rom/config.ini`; the read-back matched.
+- **Client3**: about **20 fps** in game by the user's estimate from its fps display (Y). It writes no log.
+- **RS2004-C step 12** (`18e9f1e7…`, `runs/2026-10-27-wiiu-hardware-claude/hw14-log.txt`, `hw14-samples.bin`, `hw14-profile.txt`): in game **9.8 fps** (was 8.9). About 10 s in game.
+  - ms per frame:
+    - pre 12.4
+    - **sync 3.3** (was 12.5): the ground-item index works.
+    - prepare 19.1 (was 15.0; the window is short, so treat as noise until re-measured)
+    - raster 29.8
+    - overlay 5.2
+    - ui 11.7
+    - **upload 17.2** (was 21.9), of which the shift is 7.4. So `SDL_UpdateTexture` takes about 10 ms.
+  - Title screen: 22.9 fps.
+  - Profile: 33% of samples are in system code at 0103d2fc, which is not near any logged export. This is probably time in the background after HOME, so not frame cost. Then prepare 10.1%, texture raster 6.7%, upload 4.1%.
+- Client3 presents through `SDL_GetWindowSurface` + `SDL_BlitSurface` + `SDL_UpdateWindowSurface` (XRGB8888) unless resizable. It draws straight from its scene, like the Java client.
+  - RS2004-C copies scene state each frame: refresh, the prepare tile-state copy and traversal.
+
+Next: get Client3's fps from the user, then the user decides whether to move the Wii U work onto Client3 or to bring its approach into RS2004-C.
+
+Not 244.
+
+# Wii U step 13: Client3 reference client runs well on hardware — Claude, October 28, 2026
+
+The user supplied `2004scape C Rewrite/Client3-main/` (from `Client3-main.zip`). It is a third-party portable C99 port of revision 225, with a Wii U target (`wiiu.mk`, SDL2).
+- It has no LICENSE file.
+- The two 7-Zip "dangerous link" warnings were Android-project symlinks to the top-level `src/` and `rom/`. Both of those are complete.
+
+Built for the Wii U at the user's request, without changing `Client3-main/`:
+- The build ran from a copy in the session scratchpad, because the devkitPro template fails on the space in "2004scape C Rewrite".
+- Build command: `make -f wiiu.mk APP_NAME=Client3 APP_SHORTNAME=Client3 APP_AUTHOR=Client3`.
+- One change in the copy: hardcoded `archive_checksum[4]` (media) `855958935` → `292972807`, the CRC of this server's `engine/data/pack/client/media`.
+  - Without it, login failed with "RuneScape has been updated!".
+  - The other seven hardcoded CRCs already matched.
+- SD card layout:
+  - `wiiu/apps/client3/client3.wuhb`, SHA256 `640cda5c…`
+  - `rom/` at the SD root: Client3's rom with `cache/client/*` replaced by the server's pack files
+- `rom/config.ini` changes: `socketip = 192.168.1.100`, `portoff = 1`. Everything else is Client3's defaults, including `lowmem = 1`.
+
+User result: logged straight in; **"excellent FPS and performance"**. No exact fps figure yet.
+
+RS2004-C step 12 (`18e9f1e7…`) is uploaded but has not been run.
+
+Open decision for the user: move the Wii U work onto Client3, or use it as a performance reference for RS2004-C.
+
+Not 244.
+
+# Wii U step 12: 8.9 fps; ground-item index, reused prepare buffer, cached upload buffer — Claude, October 28, 2026 (in progress)
+
+Hardware result for `12201a4a…` (`runs/2026-10-27-wiiu-hardware-claude/hw13-log.txt`, `hw13-samples.bin`, `hw13-profile.txt`):
+- It started and ran with the `dcbz` memset/memcpy wrappers.
+- In game, **8.9 fps** (was 5.7). ms per frame:
+  - pre 13.3, sync 12.5, prepare 15.0, raster 29.6, overlay 5, ui 11.7
+  - **upload 21.9**: the step-11 `dcbt` prefetch made it slower (was 17).
+- `[BENCH]`: memset 1423 MB/s, memcpy 124 MB/s. Reads are limited by memory latency.
+
+Top of the profile:
+
+| % | Function |
+|---|---|
+| 17.1 | `sdl_upload_frame` |
+| 11.3 | `world3d_prepare_scene225` |
+| 9.4 | `pix3d225_texture_raster` |
+| 7.5 | `scene_runtime225_frame` self time: the `add_objects` scan of all 43,264 tiles |
+| 4.6 | `__wrap_memcpy` |
+| 4.4 | `OSUninterruptibleSpinLock_Acquire` (the heap lock, from malloc/free) |
+
+New build, uncommitted. `.wuhb` `18e9f1e7…d8b0`, ELF saved as `hw14-rs2004c.elf`. Uploaded to 192.168.1.139; the read-back matches.
+
+Changes:
+- **Ground-item index** (`ground_items.c`, `scene_runtime225.c`, shared with PC):
+  - `ground_items.c` keeps a list of tiles whose item list is non-empty. It is updated at every empty↔non-empty change: event, clear, detach and restore.
+  - `add_objects` sorts the entries that fall inside the scene by tile index and visits only those. That keeps the original level/x/z order, and duplicates are skipped.
+  - If the list could not grow, it falls back to the full scan.
+- **`world3d_prepare_scene225`** (shared): reuses a static tile-state buffer instead of a 1 MB calloc and free every frame. Absent tiles are cleared explicitly.
+- **Wii U upload** (`sdl2_main.c`): shifts into a cached static buffer, using `dcbz` per destination line, then calls `SDL_UpdateTexture` RGBX8888. The `[PERF]` line now reports `(shift=…)` within upload.
+
+PC verification (`runs/2026-10-28-wiiu-scene-cache-claude/`):
+- Strict replay, `replay-step12/`: integrated 3100 frames `51398f7e5dba35ae`; tour 3850 frames `85d6302cbde7bac2`. Both are the same as before.
+- Java parity, `parity-step12.log`: integrated and tour RESULT MATCH, all 25 regions 0 differ.
+- New `ground-items/` session (account `clobj2810w`, knife spawn script without the `obj` helper, 8 `[GROUND]` events): Java parity RESULT MATCH, 699 frames, all 25 regions 0 differ.
+  - The old recordings contain no ground items, so this session is the one that exercises the index.
+  - Note: ParityOracle rejects the `obj` input-script command.
+- `make all`: 0 warnings. `make test`: ALL TESTS PASSED.
+- Wii U build: 0 warnings (`-Werror`).
+
+Next:
+1. The user turns FTP on; upload `bin/wiiu/rs2004c.wuhb` and check the read-back SHA256.
+2. The user runs a minute in game; fetch log.txt and samples.bin. Profile with `hw14-rs2004c.elf`.
+3. Read `upload` against `shift`:
+   - If `SDL_UpdateTexture` itself is slow, look into the SDL GX2 texture path.
+4. Then:
+   - raster
+   - heap-lock malloc/free (`location_anim`, `model_copy`)
+   - shell/pix8 redraw
+5. Touch re-test.
+
+Not 244.
+
+# Wii U step 11: first profile, incremental heights, cache-line memset/memcpy — Claude, October 28, 2026 (in progress)
+
+Profile of `f7f1c14c…`: 88,758 in-game samples at 1 kHz, about 5.6 fps. Files: `runs/2026-10-27-wiiu-hardware-claude/hw12-profile.txt`, `hw12-samples.bin` and `hw12-rs2004c.elf`.
+
+| % of samples | Function | Notes |
+|---|---|---|
+| 19.1 | system code outside the ELF | not identified; the new build logs export addresses |
+| 15.5 | `world3d_scene_refresh225` | its ground and location height loops |
+| 10.2 | `memset` | callers: `client_draw` frame clears 6.6, `calloc` 3.4 |
+| 7.5 | `world3d_prepare_scene225` | |
+| 7.2 | `client_main` | the inlined upload shift loop |
+| 5.7 | `memcpy` | callers: `model_copy` 3.0, `client_draw` 2.6 |
+| 5.4 | texture raster | the actual rasterising is small |
+| 2.4 | `m225_world` | |
+| 2.3 | `pix8_draw` | |
+| 2.2 | `location_anim_tick` | |
+
+New build, uncommitted. `.wuhb` `12201a4a…5f65`, uploaded to 192.168.1.139; the read-back matches. ELF saved as `hw13-rs2004c.elf`.
+- **Incremental heights** (`scene_build225.c`, shared with PC): the first refresh indexes each wall, decor, ground-decor and base-location height by the base model it copies. Later refreshes update only the heights of models whose bounds were recomputed.
+  - PC verification on the 2026-10-28 recordings:
+    - strict replay: identical final hashes, 3100 and 3850 frames (`replay-heights/`)
+    - Java parity: RESULT MATCH, all 25 regions 0 differ (`parity-heights.log`)
+    - `make all`: 0 warnings
+    - `make test`: ALL TESTS PASSED (`suite-heights.log`)
+- **`platform/wiiu_mem.c`** (Wii U only): `Makefile.wiiu` links with `-Wl,--wrap=memset,--wrap=memcpy`.
+  - Blocks of 256 bytes or more are done a 32-byte line at a time. `dcbz` zeroes each destination line without reading it; memcpy also prefetches the source with `dcbt`.
+  - Small, misaligned or overlapping calls go to newlib.
+  - Risk: `dcbz` on uncached memory would fault. All app memory is expected to be cached.
+- The upload shift loop is unrolled by 8 with `dcbt` source prefetch.
+- `[EXPORT]` lines in log.txt list coreinit and gx2 export addresses, to identify the 19% bucket.
+- Wii U build: 0 warnings.
+
+Next:
+1. The user runs about a minute in game; fetch log.txt and samples.bin.
+2. If it crashes at start, suspect the `dcbz` wrappers first.
+3. Profile with `hw13-rs2004c.elf`. Match the outside addresses to the `[EXPORT]` lines.
+
+Not 244.
+
+# Wii U step 10: bounds-cache result + sampling profiler build — Claude, October 28, 2026 (in progress)
+
+Hardware result for the bounds cache (`8381c76e…`, `runs/2026-10-27-wiiu-hardware-claude/hw11-log.txt`), in game at **5.7 fps** (was 4.8), ms per frame:
+- pre 28.2
+- **sync 52.1** (was 75.9)
+- prepare 24.4
+- raster 29.5–32.8
+- overlay 8
+- ui 11.6
+- upload 17.3
+
+`[BENCH]`: memcpy 99 MB/s against memset 550 MB/s. newlib's memcpy has a word-copy path (checked by disassembly), so reads themselves are slow; the cause is not known yet.
+
+The cost is spread across many places, so the new build adds a **sampling profiler**:
+- A 1 kHz periodic OSAlarm on the client's core records the interrupted PC and LR from the first scene draw, up to 131072 samples.
+- `samples.bin` is written to the app folder at exit, and log.txt gets a `[PROFILE]` line.
+- Wii U-only, in `platform/sdl2_main.c`.
+- Analysis: `python client-c/verification/completion/tools/wiiu_profile.py samples.bin runs/2026-10-27-wiiu-hardware-claude/hw12-rs2004c.elf`. The ELF must be the exact build that ran.
+
+Builds:
+- `.wuhb` `f7f1c14c…05b9`, uploaded to 192.168.1.139; the read-back matches.
+- Wii U: 0 warnings.
+- PC `make all`: 0 warnings.
+- PC `make test`: ALL TESTS PASSED (`suite-hw11.log`).
+
+Next:
+1. The user runs about a minute in game.
+2. Fetch log.txt and samples.bin, then run the script.
+3. Optimise the top functions, re-checking PC strict replay and Java parity against `runs/2026-10-28-wiiu-scene-cache-claude` recordings. Their password is only in this session's environment; if it is lost, make new recordings.
+
+Not 244.
+
+# Wii U step 9: colours fixed, scene bounds cache (76 ms per frame) — Claude, October 28, 2026 (in progress)
+
+What the user saw with `8591821a…` (RGBX8888):
+- The black title art is fixed.
+- About a minute in game, then an idle logout (`[STATE] logout -> title`). The log shows no touches in game, which fits the original idle timer.
+
+Log (`runs/2026-10-27-wiiu-hardware-claude/hw10-log.txt`):
+- Title screen: 20.4 fps; upload 17.5 ms.
+  - Upload went back up from 9.8 ms. The `pixel << 8` loop into the locked texture is slow, probably because that memory is uncached or write-combined.
+- In game, about 4.8 fps, ms per frame:
+  - pre 27.6
+  - **sync 75.9**
+  - actors 0.0
+  - prepare 24.4
+  - raster 25.5
+  - overlay 7.9
+  - ui 27.3
+  - upload 16.4
+- So the 75 ms previously reported as actors was all `sync`.
+- `[BENCH]`: memset 550 MB/s static and 479 MB/s heap; **memcpy 98 MB/s**. newlib's memcpy looks byte-wise; this is the next lead.
+- Touch: the login screen produced finger events and keyboard open/close as expected.
+
+The fix, uncommitted:
+- `world3d_scene_refresh225` recomputed every base location model's bounds every frame. It now skips models that are unchanged, tracked by `WorldLocation.model_serial`, which is set at the only two `loc->model` assignment sites.
+- Details and evidence: `client-c/verification/completion/runs/2026-10-28-wiiu-scene-cache-claude/README.md`.
+- Fresh recordings, made because the October 27 ones need their unstored passwords:
+  - Strict replay before and after the cache: identical, 3100 and 3850 frames, same final hashes.
+  - Java parity: RESULT MATCH, all 25 regions 0 differ.
+  - PC `make all` and `make test`: 0 warnings, ALL TESTS PASSED.
+  - Wii U build: 0 warnings.
+- `.wuhb` `8381c76e…b72b`, uploaded to 192.168.1.139; the read-back matches.
+
+All of steps 6–9 is uncommitted:
+- the `[PERF]`, `[INPUT]` and `[BENCH]` diagnostics
+- the RGBX8888 upload and double-buffered textures
+- the scene bounds cache
+
+Next:
+1. The user runs it in game, moving or tapping so the idle timer does not log them out. Read the new `sync` figure.
+2. memcpy at 98 MB/s: measure, then consider an optimised word-copy memcpy and memset for the Wii U only.
+3. Upload: write the shifted pixels to a cached buffer, then do one bulk copy, or find a texture format that needs no shift.
+4. Then pre, prepare, raster and ui.
+
+Not 244.
+
+# Wii U step 8: black title art from ARGB8888; switched to RGBX8888 — Claude, October 28, 2026 (in progress)
+
+What the user saw with `a925442a…`: on the login screen, the logo, the panel and parts of the fire drew completely black. The renderer uses the ARGB8888 top byte as alpha even with blending off, so pixels with a zero top byte came out black.
+
+The log (`runs/2026-10-27-wiiu-hardware-claude/hw9-log.txt`, title screen only):
+- 29.7 fps (it was 19.6). Upload fell from 20.0 to 9.8 ms, so SDL's conversion was the cost. Title draw (`ui`) is 22.4 ms.
+- `[BENCH]`: memset 538 MB/s (static buffer); 10M-iteration int loop 63 ms; core 1. The heap and memcpy figures were invalid because GCC elided the stores; fixed by reading the buffer back.
+  - So memory is not pathologically slow, and the in-game draw cost is in the code.
+- `[INPUT]`: no taps were made. `text_input=1` throughout, even with no keyboard open: SDL starts text input by default. This is a lead for the touch regression.
+
+New build, uncommitted, `.wuhb` SHA256 `8591821a…ccf8`. Uploaded to 192.168.1.139; the read-back matches.
+- The Wii U frame texture is now `RGBX8888`. `sdl_upload_frame` locks it and writes `pixel << 8`, one shift per pixel. The recovery screen uses the same path. PC still uses `SDL_UpdateTexture` with RGB888, unchanged.
+- Builds:
+  - Wii U: 0 warnings.
+  - PC `make all`: 0 warnings.
+  - PC `make test`: ALL TESTS PASSED, 0 warnings (`suite-hw10.log`).
+
+Next:
+1. The user checks that the title colours are correct. Then the character creator and about a minute in game, then HOME → Close.
+2. Read `[INPUT]`. If finger events stop, test calling `SDL_StopTextInput` when no keyboard is open.
+3. Draw is code-bound. Plan a finer in-game breakdown or a sampling profiler; actors is the largest phase at 75 ms.
+
+Not 244.
+
+# Wii U step 7: draw breakdown read, upload format fix + input/memory diagnostics — Claude, October 28, 2026 (in progress)
+
+Second profile (`runs/2026-10-27-wiiu-hardware-claude/hw8-log.txt`), in game at about 4.7 fps, ms per frame:
+- pre 27.5
+- actors 75.6
+- prepare 24.3
+- raster 24
+- overlay 7.8
+- ui 27
+- upload 19
+- update 2.5
+
+The double-buffered textures did not change upload.
+
+The renderer line explains it: GX2 has no `SDL_PIXELFORMAT_RGB888`, so SDL converts every frame. It does support ARGB8888, RGBX8888, BGRX8888 and ABGR8888.
+
+Cost is spread across every phase, and memory-heavy steps are slow. For example, the 1.5 MB upload ran at about 75 MB/s. Working theory: memory or cache speed is slow overall, not one hot function.
+
+**Touch regression report:** the user could not get past the character creator; no taps registered. The log has only one `touch down` after login, so no finger events reached the client at all. The cause is unknown.
+
+New build, uncommitted (Wii U-only; PC unchanged apart from the no-op hook), `.wuhb` SHA256 `a925442a…4c39`:
+- Wii U framebuffer textures are now `ARGB8888` with blending off. The layout is the same 0x00RRGGBB, so SDL needs no conversion.
+- `[PERF]` adds `sync` (scene clear, world sync and ground objects), split out of `actors`.
+- `[INPUT]` line every 5 s: finger and swkbd event counts, our keyboard flag, SDL's keyboard-visible flag, text-input state and text target. Keyboard open and close are logged as they happen.
+- `[BENCH]` at startup: memset and memcpy MB/s on frame-sized static and heap buffers, a 10M-iteration integer loop, and the core ID.
+- Builds:
+  - Wii U: 0 warnings.
+  - PC `make all`: 0 warnings.
+  - PC `make test`: ALL TESTS PASSED, 0 warnings (`suite-hw9.log`).
+- Uploaded and the read-back SHA256 matches. The console moved to **192.168.1.139** (DHCP; MAC 00-0e-c6-bb-53-b0, a USB LAN adapter). The earlier timeouts were the address change.
+
+Next:
+1. Done: uploaded and verified at 192.168.1.139.
+2. The user runs it through the character creator and in game for about a minute, then HOME → Close.
+3. Read `[BENCH]`: if memory runs at hundreds of MB/s or less, find out why (cache attributes, the heap, the custom stack) before touching renderer code.
+4. Use `[INPUT]` to see whether finger events stop arriving or the keyboard swallows them.
+
+Not 244.
+
+# Wii U step 6: first profile read, draw breakdown + upload double-buffer build — Claude, October 28, 2026 (in progress)
+
+The user resumed implementation (October 28).
+
+First profile (`runs/2026-10-27-wiiu-hardware-claude/hw7-perf-log.txt`), means over 5 s windows:
+- Title/login screen: about 20.9 fps. draw 25.7 ms, upload 20.1 ms, present 0.3 ms.
+- In game (Lumbridge): about 5.0 fps. **draw about 175 ms**, upload about 20 ms, update about 2.5 ms, input 0.8 ms.
+- One map-load window: update 124 ms, draw 253 ms.
+- Ticks held at about 50/s throughout. Every tap became a `press` at the touched point.
+
+New build, uncommitted (Wii U-only except one no-op hook), `.wuhb` SHA256 `4002d680…e8cc`:
+- `[PERF]` now splits draw into `pre`, `actors`, `prepare`, `raster`, `overlay` and `ui`, via the `scene_perf_mark225` hook in `scene_runtime225.h`. The hook is NULL on PC. On the title screen all of draw is counted as `ui`.
+- Upload: two streaming textures alternate, so an update never waits on the texture the GPU presented last frame.
+- log.txt records the GX2 renderer's name and texture formats once at startup. If upload stays near 20 ms, the cause is format conversion, not a wait.
+- Wii U build: 0 warnings. PC `make all`: 0 warnings. PC `make test`: ALL TESTS PASSED, 0 warnings (`runs/2026-10-27-wiiu-hardware-claude/suite-hw8.log`).
+- Uploaded to the console. The read-back SHA256 matches.
+
+Next:
+1. Done: uploaded and verified.
+2. The user runs it for about a minute in game: standing, walking, turning the camera. Then HOME → Close.
+3. Fetch log.txt and optimise the dominant draw sub-phase (raster expected), then fix upload according to the format line.
+
+Not 244.
+
 # Wii U step 5: GamePad controls, HOME freeze fixed, profiling build on hardware — Claude, October 27, 2026 (in progress)
 
 Confirmed on the user's real Wii U:

@@ -81,7 +81,7 @@ void location_anim_tick(World3D *scene,LocConfig *locations,int elapsed) {
                         scene->heightmap[a->level][a->x+1][a->z+1],scene->heightmap[a->level][a->x][a->z+1]);
                     if(model) {
                         if(loc->owns_model) model_free_unshared(loc->model);
-                        loc->model=model;loc->owns_model=true;part++;
+                        loc->model=model;loc->model_serial=world3d_next_model_serial();loc->owns_model=true;part++;
                         if(a->layer==1) loc->yaw=current->rotation*512;
                     }
                 }

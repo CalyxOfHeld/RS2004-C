@@ -8,6 +8,8 @@
 #include <string.h>
 #include <math.h>
 
+void (*scene_perf_mark225)(int phase);
+
 typedef struct {
     struct SceneRuntime225 *runtime;int kind,y,cycle;bool low_memory;
     void *entity;SceneModel225 model;
@@ -18,7 +20,7 @@ struct SceneRuntime225 {
     SceneBuild225 *build;uint64_t structure_revision,build_revision;
     Visibility225 visibility;Occluder225 pools[4][500];size_t pool_counts[4];
     Arena arena;RuntimeEntity225 entities[5000];size_t entity_count;
-    bool occupied[104][104];int32_t hits[1000];SceneRaster225 result;
+    bool occupied[104][104];int32_t hits[1000];SceneRaster225 result;int32_t object_order[4*104*104];
 };
 int scene_runtime225_top_level(const World *w,int level,int ex,int ez,int px,int pz,int pitch){
     if(!w || level<0 || level>=4)return -1;
@@ -128,30 +130,51 @@ static bool add_effects(SceneRuntime225 *r,const SceneFrame225 *f){
     }
     return true;
 }
+static bool add_object(SceneRuntime225 *r,int level,int x,int z){
+    GroundTile *tile=&r->scene->tiles[level][x][z];if(!tile->items)return true;GroundItem *items[3];int count=ground_items_models(tile,items);
+    if(!count)return true;
+    int y=camera_get_height(level,x*128+64,z*128+64,r->scene->heightmap,r->world->tile_flags);
+    return world3d_scene_objects225(r->build,level,x,y,z,items[0]->model,count>1?items[1]->model:NULL,count>2?items[2]->model:NULL);
+}
+static int compare_index(const void *a,const void *b){int x=*(const int32_t *)a,y=*(const int32_t *)b;return (x>y)-(x<y);}
+/* Same level/x/z order as a scan of every tile, visiting only the tiles
+ * ground_items_stocked lists (a full scan is a cache miss per tile on Wii U). */
 static bool add_objects(SceneRuntime225 *r){
-    for(int level=0;level<4;level++)for(int x=0;x<104;x++)for(int z=0;z<104;z++){
-        GroundTile *tile=&r->scene->tiles[level][x][z];if(!tile->items)continue;GroundItem *items[3];int count=ground_items_models(tile,items);
-        if(!count)continue;
-        int y=camera_get_height(level,x*128+64,z*128+64,r->scene->heightmap,r->world->tile_flags);
-        if(!world3d_scene_objects225(r->build,level,x,y,z,items[0]->model,count>1?items[1]->model:NULL,count>2?items[2]->model:NULL))return false;
+    GroundTile *const *stocked;size_t count;GroundTile *first=&r->scene->tiles[0][0][0];
+    if(ground_items_stocked(&stocked,&count) && count<=4*104*104){
+        int32_t *order=r->object_order;size_t n=0;
+        for(size_t i=0;i<count;i++){
+            if(stocked[i]<first || stocked[i]>=first+4*104*104 || !stocked[i]->items)continue;
+            order[n++]=(int32_t)(stocked[i]-first);
+        }
+        qsort(order,n,sizeof(*order),compare_index);
+        for(size_t i=0;i<n;i++){
+            if(i && order[i]==order[i-1])continue;
+            if(!add_object(r,order[i]/(104*104),order[i]/104%104,order[i]%104))return false;
+        }
+        return true;
     }
+    for(int level=0;level<4;level++)for(int x=0;x<104;x++)for(int z=0;z<104;z++)if(!add_object(r,level,x,z))return false;
     return true;
 }
 bool scene_runtime225_frame(SceneRuntime225 *r,const SceneFrame225 *f,SceneEmit225 observer,void *user){
     if(!r || !f || !f->local || f->level<0 || f->level>=4)return false;
     world3d_scene_clear_temporary225(r->build);arena_reset(&r->arena);r->entity_count=0;memset(r->occupied,0,sizeof(r->occupied));
     if(!synchronize(r) || !add_objects(r))return false;
+    SCENE_PERF225(PERF225_SYNC);
     EntitySyncContext *sync=f->entities;int players=sync?sync->player_count:0;
     if(!add_actor(r,f,0,f->local,2047,players))return false;
     if(sync)for(int i=0;i<players;i++){int id=sync->player_indices[i];if(sync->players[id] && !add_actor(r,f,0,sync->players[id],id,players))return false;}
     if(f->offline_npc && !add_actor(r,f,1,f->offline_npc,0,players))return false;
     if(sync)for(int i=0;i<sync->npc_count;i++){int id=sync->npc_indices[i];if(sync->npcs[id] && !add_actor(r,f,1,sync->npcs[id],id,players))return false;}
     if(!add_effects(r,f))return false;
+    SCENE_PERF225(PERF225_ACTORS);
     SceneTraversal225 *s=world3d_scene225(r->build);int top=f->top_level;
     if(top<0)top=scene_runtime225_top_level(r->world,f->level,f->eye_x,f->eye_z,f->local->base.x,f->local->base.z,f->pitch);
     if(top<0 || top>=4)return false;
     s->occlusion.pool=r->pools[top];s->occlusion.count=r->pool_counts[top];
     if(!world3d_prepare_scene225(s,&r->visibility,f->eye_x,f->eye_y,f->eye_z,f->pitch,f->yaw,top))return false;
+    SCENE_PERF225(PERF225_PREPARE);
     memset(&r->result,0,sizeof(r->result));SceneRaster225 *out=&r->result;
     out->geometry=world3d_scene_geometry225(r->build);out->geometry_count=s->ground_count;
     out->resolve=world3d_scene_resolve225;out->resolve_user=r->build;
@@ -160,5 +183,6 @@ bool scene_runtime225_frame(SceneRuntime225 *r,const SceneFrame225 *f,SceneEmit2
     out->view.click_tile_x=f->click_x;out->view.click_tile_z=f->click_z;
     out->picking=(ScenePicking225){f->check_hover,f->mouse_x,f->mouse_y,r->hits,0,1000};
     s->emit=observer;s->emit_user=user;bool ok=world3d_render_scene225(s,-1,out);
+    SCENE_PERF225(PERF225_RASTER);
     world3d_scene_clear_temporary225(r->build);return ok;
 }

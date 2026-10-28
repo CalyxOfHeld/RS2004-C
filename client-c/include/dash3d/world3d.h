@@ -51,6 +51,9 @@ typedef struct {
     int shape;
     int rotation;
     bool owns_model;
+    /* Changes whenever model is assigned (world3d_next_model_serial), so a
+     * cached result derived from the model can tell it is still current. */
+    uint32_t model_serial;
     int yaw;
     int min_tile_x;
     int max_tile_x;
@@ -58,6 +61,7 @@ typedef struct {
     int max_tile_z;
 } WorldLocation;
 typedef struct {int x,y,z,yaw;} WorldLocationDraw;
+uint32_t world3d_next_model_serial(void);
 
 typedef struct GroundItem {
     int id,count;
@@ -116,6 +120,9 @@ void world3d_reset(World3D *w);
 void ground_items_clear(GroundTile *tile);
 bool ground_items_event(GroundTile *tile,ObjConfig *objects,int opcode,int id,int count,int new_count);
 int ground_items_models(GroundTile *tile,GroundItem *out[3]);
+/* Every tile with a non-empty item list (plus possibly stale pointers to
+ * tiles no longer in use); false if the list could not be kept complete. */
+bool ground_items_stocked(GroundTile *const **tiles,size_t *count);
 GroundItem **ground_items_detach(World3D *scene);
 void ground_items_restore(World3D *scene,GroundItem **items,int dx,int dz);
 void world3d_dispose(World3D *w);
