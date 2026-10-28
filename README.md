@@ -1,6 +1,12 @@
-## Current Windows revision-225 C client
+# RS2004-C
 
-See [RELEASE-CURRENT.md](RELEASE-CURRENT.md). Use `start_local_server.bat`, wait for World ready, then run the usual `test_client.bat`. Older candidate launchers and checkpoint archives are superseded. This checkout already contains the current fixes; no package extraction is needed here.
+A native C99 rewrite of the RuneScape revision-225 client (May 2004), built on a checkout of [LostCity's Server](https://github.com/LostCityRS/Server) and checked against the original Java client frame for frame. Written in October 2026 by the repository owner with Claude and Codex.
+
+- **The client:** [`client-c/`](client-c/) holds the source, tests, the Java parity oracle and the verification evidence. [RELEASE-CURRENT.md](RELEASE-CURRENT.md) describes the current Windows build. To run it, use `start_local_server.bat`, wait for World ready, then run `test_client.bat`.
+- **History:** [HANDOFF.md](HANDOFF.md), [WORK-QUEUE.md](WORK-QUEUE.md) and [`archive/`](archive/) record each step. The checkpoints from before the first commit (October 20-21) are attached to the [pre-git-checkpoints release](../../releases/tag/pre-git-checkpoints), and the `pre-git-history` branch replays them as commits.
+- **Wii U:** a port reached 9.8 fps on hardware (handoff steps 1-14). The Wii U work then moved to [Client3](https://github.com/CalyxOfHeld/Client3/tree/wiiu), which ran at about 20 fps, and its first-person fork [client3-fps](https://github.com/CalyxOfHeld/client3-fps).
+
+The LostCity README follows.
 
 ---
 
