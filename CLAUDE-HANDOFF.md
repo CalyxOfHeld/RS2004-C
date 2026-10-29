@@ -1,3 +1,43 @@
+# Planned side project: RS2 content in RuneScape Classic — Claude, October 29, 2026
+
+The user wants to start putting RS2 content into their RuneScape Classic project and asked how to speed it up. This is planning only; no code was written.
+
+**The RSC project:** `C:\Users\USER\Desktop\RS Classic Vibecode\rsc-c-standalone` (git). It is the rsc-c client (revision 177, software renderer, Wii/libogc) with a built-in single-player C server (`src/embedded_server.c`).
+- Its `CLAUDE.md` has the build, test and deploy steps and the to-do list.
+- `openrsc-develop/` next to it is the accuracy reference.
+- The notes there say development moved to another PC on October 19, 2026. The copy on this PC was last committed that day (`5a57013`). **Before any work, confirm with the user which copy is current.**
+- Only change `rsc-c-standalone`, not the sibling clients (sundae, se, master, 2001).
+
+**Recommended approach:** write converters from RS2 (revision 225) data to RSC formats instead of porting by hand.
+- Inputs already on this PC:
+  - the 225 cache readers in C (Client3 and RS2004-C), which cover maps, models and definitions;
+  - Client3's renderer;
+  - the LostCity server's RuneScript content.
+- RSC targets, all in `rsc-c-standalone/cache/`:
+  - `land63` and `maps63`: the map;
+  - `models36`: 3D scenery;
+  - `entity24`: character and equipment sprites;
+  - `config85`: definitions.
+
+What converts, roughly easiest first:
+1. **Scenery and buildings:** RS2 models go to RSC `.ob3` models. Both are polygon models; textures and colours need mapping to RSC's.
+2. **Map areas:** RS2 regions are 64×64 tiles and RSC sectors are 48×48. Convert heights, floor colours, overlays and object placement.
+3. **NPCs, worn equipment and inventory icons:** RSC draws these as 2D sprites, RS2 as 3D models. A tool can bake RS2 models into RSC sprite sheets with Client3's renderer, in the same frame layout as the extracted RSC sword sprites (`extracted_equipment_*_0..17.png`). This is the biggest time saver.
+4. **Definitions** for items, NPCs and scenery go into `config85` and the server tables.
+5. **Quests, dialogue and shops:** RuneScript has to become C in the built-in server. Done semi-automatically, one script at a time. The built-in server's own dialogue is already known to be largely invented (see its `CLAUDE.md`).
+
+Expect RSC client limits: ID ranges, colour palette, model size and map size. The client is ours, so they can be raised.
+
+Suggested first step: one small piece done end to end, such as a single RS2 NPC baked into RSC sprites and spawned in game.
+
+Waiting on the user for:
+- which copy of the RSC project is current;
+- which content comes first: areas, monsters, items, quests, or RS2 skills RSC lacks.
+
+**Still pending from the first-person work:** the `ea5d39b` build (`f76e00b1…`) has not been uploaded to the Wii U. The user has not restarted FTPiiU yet. When they do, upload it and check the read-back sha256.
+
+Not 244.
+
 # First-person fork (client3-fps): rendering fixes — Claude, October 28-29, 2026
 
 The work is in `C:\Users\USER\Documents\client3-fps` (https://github.com/CalyxOfHeld/client3-fps). Its `WIIU.md` has the full notes. Nothing in RS2004-C changed apart from these docs.
