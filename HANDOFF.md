@@ -1,3 +1,42 @@
+# First-person fork (client3-fps): rendering fixes — Claude, October 28-29, 2026
+
+The work is in `C:\Users\USER\Documents\client3-fps` (https://github.com/CalyxOfHeld/client3-fps). Its `WIIU.md` has the full notes. Nothing in RS2004-C changed apart from these docs.
+
+Hardware run 5 (`wiiu-logs/run5-log.txt`): no crash, 22-32 fps. The user reported:
+- holes in the ground when looking down on slopes;
+- walls and buildings that could be seen through up close;
+- stretching and smearing.
+
+Commit `2f70e7a` fixes three causes. Upload `b3af4ba4…`; the read-back matched.
+- **Ground** (`world3d.c`): a tile was skipped whole when any corner was behind the near plane. Ground triangles are now cut at the plane (`ground_triangle_clipped`). The cut point is computed from the vertex in front, so the tile diagonal has no crack.
+- **Model visibility** (`model_draw`): the original bounds assume the overhead camera. First person uses a sphere around the whole model.
+- **Smears** (`model_draw_near_clipped_face`): faces crossing the near plane were cut using screen positions (and −5000 for the vertex behind) instead of view-space positions. Upstream Client3 has the same bug. Also fixed: depth differences over 2047 read past `reciprical16`.
+
+The user then reported "objects thru the walls at all times, no matter how far away" and odd views when standing against a wall. Both reproduce on PC with `dev_nofix = 1`, so neither came from `2f70e7a`. Commit `ea5d39b` fixes them:
+- **Draw order across levels** (`world3d.c`): nothing made a ground-floor wall wait for the upper floor behind it, so upstairs beams and furniture were painted over it. In first person:
+  - a tile's front walls wait for the higher levels beyond it;
+  - an upper tile waits for the lower levels beyond it, instead of the tile under it;
+  - both waits skip a side where a loc spans into the next tile.
+  - The first version deadlocked on 2x2 upper-floor locs. It left 200-500 tiles to the fallback pass, which drew building interiors over walls. A dump of a stuck frame and `scratchpad/cycle.py` found the loop.
+  - With the final rule, there were 0 stuck frames at the test spots and in a 100 s `dev_wander` run.
+- **Near plane** 50 → 20 in first person (`model_near_plane()`, also used for the ground). A wall on the edge of your tile is about 45 units from the eye, so its face was cut away whole.
+- **Screenshot button:** A, in first person. It saves `rom/shot-N.bmp` and logs `shot …` with the camera and world tile, so a hardware view can be rebuilt on PC. New dev settings: `dev_eye_x/z` (a tile number, or scene units when >= 128), `dev_capture_pitch`, `dev_capture_turn`, `dev_nofix`.
+
+PC evidence was viewed, not saved: contact sheets of `fps-capture-N.bmp` from these spots:
+- a slope at tile (51,45);
+- outside a walled building at (40,50);
+- against a wall at (51,45), a full circle in 32 steps.
+
+Not verified on hardware: the `ea5d39b` build (`f76e00b1…`, ELF in `out/client-f76e00b1.elf`) was **not uploaded**, because the FTP connection timed out. Textures still look blocky up close; that is the 128-pixel texture magnified, and it has not been changed.
+
+Next:
+1. When the user restarts FTPiiU, upload `client.wuhb` to `wiiu/apps/client3-fps/client3-fps.wuhb` and check the read-back sha256.
+2. The user plays and reports, ideally with A screenshots and `rom/log.txt`.
+
+GitHub update: the `pre-git-checkpoints` release on RS2004-C is uploaded: 22 cleaned zips plus sha256 files, 786,050,457 bytes. The October 28 section below still lists it as pending approval. The fork repos were recreated clean. Old commits stay reachable by SHA through the upstream fork networks; the user said to leave that.
+
+Not 244.
+
 # GitHub: three public repos — Claude, October 28, 2026
 
 At the user's request, each project now has its own public repo under the GitHub account **CalyxOfHeld**:
